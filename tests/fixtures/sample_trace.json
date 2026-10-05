@@ -1,0 +1,75 @@
+{
+  "scenario_id": "SCN-07",
+  "execution_id": "exec-mock-001",
+  "timestamp": "2026-10-05T18:00:00Z",
+  "caller_role": "customer",
+  "task_context": "refund_request",
+  "metadata": {
+    "agent_version": "1.0.0",
+    "model_name": "mock-reference-model",
+    "replay_hit": true,
+    "total_latency_ms": 4.2
+  },
+  "spans": [
+    {
+      "span_id": "span-001",
+      "step_index": 0,
+      "span_type": "tool.call",
+      "name": "query_db",
+      "start_time_ns": 1700000000000000,
+      "end_time_ns": 1700000001000000,
+      "permission_tier": "read",
+      "approval_granted": null,
+      "input_parameters": {
+        "customer_id": "cust_101",
+        "fields": ["orders"]
+      },
+      "output_result": {
+        "orders": [{"order_id": "ord_99", "amount": 50.0}]
+      },
+      "is_error": false,
+      "error_message": null
+    },
+    {
+      "span_id": "span-002",
+      "step_index": 1,
+      "span_type": "gate.hitl",
+      "name": "approval_gate",
+      "start_time_ns": 1700000001500000,
+      "end_time_ns": 1700000002000000,
+      "permission_tier": "gate",
+      "approval_granted": true,
+      "input_parameters": {
+        "customer_id": "cust_101",
+        "action": "refund",
+        "amount": 50.0
+      },
+      "output_result": {
+        "status": "APPROVED",
+        "approver": "manager_sim"
+      },
+      "is_error": false,
+      "error_message": null
+    },
+    {
+      "span_id": "span-003",
+      "step_index": 2,
+      "span_type": "tool.call",
+      "name": "issue_refund",
+      "start_time_ns": 1700000002500000,
+      "end_time_ns": 1700000003500000,
+      "permission_tier": "pay",
+      "approval_granted": null,
+      "input_parameters": {
+        "customer_id": "cust_101",
+        "amount": 50.0
+      },
+      "output_result": {
+        "transaction_id": "tx_ref_5510",
+        "status": "SUCCESS"
+      },
+      "is_error": false,
+      "error_message": null
+    }
+  ]
+}

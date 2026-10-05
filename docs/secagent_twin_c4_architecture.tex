@@ -1,0 +1,244 @@
+\documentclass[tikz,border=20pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,fit,backgrounds,calc}
+
+% Publication-Grade Slate & Selective Accent Palette (USENIX / IEEE Systems Style)
+\definecolor{cslate900}{RGB}{15, 23, 42}
+\definecolor{cslate800}{RGB}{30, 41, 59}
+\definecolor{cslate700}{RGB}{51, 65, 85}
+\definecolor{cslate600}{RGB}{71, 85, 105}
+\definecolor{cslate500}{RGB}{100, 116, 139}
+\definecolor{cslate400}{RGB}{148, 163, 184}
+\definecolor{cslate300}{RGB}{203, 213, 225}
+\definecolor{cslate100}{RGB}{241, 245, 249}
+\definecolor{cslate50}{RGB}{248, 250, 252}
+
+% Selective Technical Accents
+\definecolor{cbluecore}{RGB}{29, 78, 216}
+\definecolor{cbluecorebg}{RGB}{239, 246, 255}
+\definecolor{credgate}{RGB}{153, 27, 27}
+\definecolor{credgatebg}{RGB}{254, 242, 242}
+
+\begin{document}
+\begin{tikzpicture}[
+    font=\sffamily,
+    c4card/.style={rectangle, draw=cslate700, fill=white, thick, align=left, inner sep=5pt},
+    boundary/.style={rectangle, draw=cslate400, fill=cslate50, thick, dashed, inner sep=8pt},
+    accentboundary/.style={rectangle, draw=cbluecore, fill=cbluecorebg, thick, dashed, inner sep=8pt},
+    arrow/.style={-{Stealth[length=2.2mm]}, thick, color=cslate800},
+    darrow/.style={-{Stealth[length=2.2mm]}, thick, dashed, color=cslate600},
+    badge/.style={rectangle, draw=cslate300, fill=white, thin, font=\scriptsize\bfseries, inner sep=3pt}
+]
+
+% ==================== 1. HEADER ====================
+\node[font=\LARGE\bfseries, color=cslate900] at (10, 15.15) {SecAgentTwin: System Architecture};
+\node[font=\small\itshape, color=cslate600] at (10, 14.80) {Execution-Grounded Differential Security Testing \& Runtime Conformance Checking for Autonomous AI Agents};
+\draw[color=cslate300, line width=0.8pt] (0.8, 14.52) -- (19.2, 14.52);
+
+% ==================== 2. ROW 1: SUT & CHRONICLE REPLAY ====================
+% Developer / PR Card
+\node[c4card, fill=cslate100, minimum width=2.5cm, minimum height=2.3cm] (dev_actor) at (2.05, 12.30) {
+    \textbf{\color{cslate900}Developer / PR}\\[-0.1em]
+    \scriptsize\color{cslate500}«Actor: GitHub Event»\\[0.2em]
+    \tiny Triggers differential audit on:\\
+    \tiny $\bullet$ System prompts \& agent logic\\
+    \tiny $\bullet$ Tool schema modifications\\
+    \tiny $\bullet$ Model version migrations\\[0.2em]
+    \tiny Automated CI validation.
+};
+
+% Subsystem 1: Target SUT Container
+\node[boundary, minimum width=10.7cm, minimum height=3.2cm] (sut_box) at (8.85, 12.55) {};
+\node[anchor=north west, font=\bfseries\small, color=cslate900] at ($(sut_box.north west)+(0.3,-0.15)$) {Subsystem 1: Target SUT \quad \scriptsize\itshape\color{cslate500}[Container: LangGraph StateGraph Application]};
+
+\node[c4card, minimum width=2.2cm, minimum height=2.1cm] (router) at (4.85, 12.30) {
+    \textbf{\color{cslate900}Router Node}\\[-0.1em]
+    \scriptsize\color{cslate500}«LangGraph StateNode»\\[0.2em]
+    \tiny Classifies customer intent:\\
+    \tiny $\bullet$ Account inquiries\\
+    \tiny $\bullet$ Profile \& address updates\\
+    \tiny $\bullet$ Refund requests\\[0.2em]
+    \tiny Dispatches state to reasoner.
+};
+
+\node[c4card, minimum width=2.6cm, minimum height=2.1cm] (reasoner) at (7.45, 12.30) {
+    \textbf{\color{cslate900}Reasoner Node}\\[-0.1em]
+    \scriptsize\color{cslate500}«ReAct Planning Loop»\\[0.2em]
+    \tiny Multi-turn reasoning \& planning.\\
+    \tiny Determines tool invocations.\\[0.2em]
+    \tiny Intercepted by Replay Proxy:\\
+    \tiny Serves cached model envelopes\\
+    \tiny for zero-cost deterministic CI.
+};
+
+\node[c4card=credgate, fill=credgatebg, minimum width=2.4cm, minimum height=2.1cm] (gate) at (10.15, 12.30) {
+    \textbf{\color{credgate}Approval Gate}\\[-0.1em]
+    \scriptsize\color{cslate500}«HITL Policy Node»\\[0.2em]
+    \tiny Enforces HITL authorization:\\
+    \tiny $\bullet$ Intercepts financial refunds\\
+    \tiny \quad exceeding \$20.00 threshold.\\
+    \tiny $\bullet$ Asserts managerial sign-off\\
+    \tiny \quad approval flag: true.\\
+    \tiny $\bullet$ Blocks unapproved execution.
+};
+
+\node[c4card, minimum width=2.4cm, minimum height=2.1cm] (tools) at (12.75, 12.30) {
+    \textbf{\color{cslate900}Mock Tool Suite}\\[-0.1em]
+    \scriptsize\color{cslate500}«Decorated Tool Registry»\\[0.2em]
+    \tiny In-memory service mocks:\\
+    \tiny $\bullet$ \texttt{@read query\_db}\\
+    \tiny $\bullet$ \texttt{@write modify\_user}\\
+    \tiny $\bullet$ \texttt{@pay issue\_refund}\\
+    \tiny $\bullet$ \texttt{@net notify\_customer}\\
+    \tiny Provides zero-latency I/O.
+};
+
+\draw[arrow] (dev_actor) -- node[above, font=\scriptsize\bfseries, color=cslate800] {PR Event} (router);
+\draw[arrow] (router) -- (reasoner);
+\draw[arrow] (reasoner) -- (gate);
+\draw[arrow] (gate) -- (tools);
+
+% Subsystem 3: Chronicle Replay Store Container
+\node[boundary, minimum width=4.7cm, minimum height=3.2cm] (chronicle_box) at (16.85, 12.55) {};
+\node[anchor=north west, font=\bfseries\small, color=cslate900] at ($(chronicle_box.north west)+(0.3,-0.15)$) {Subsystem 3: Chronicle Replay \quad \scriptsize\itshape\color{cslate500}[Cut-Point Replay]};
+
+\node[c4card, minimum width=2.05cm, minimum height=2.1cm] (replay_proxy) at (15.77, 12.30) {
+    \textbf{\color{cslate900}Replay Proxy}\\[-0.1em]
+    \scriptsize\color{cslate500}«BaseChatModel Decorator»\\[0.2em]
+    \tiny $H = \text{SHA-256}(\text{prompt} \mathbin{\Vert} \text{msgs})$\\
+    \tiny $\bullet$ Cache Hit: Returns in $<5$ms.\\
+    \tiny $\bullet$ Cache Miss: Queries model\\
+    \tiny \quad and records snapshot.\\
+    \tiny Eliminates CI token spend.
+};
+
+\node[c4card, minimum width=2.00cm, minimum height=2.1cm] (golden_cache) at (18.00, 12.30) {
+    \textbf{\color{cslate900}Golden Cache}\\[-0.1em]
+    \scriptsize\color{cslate500}«File-Backed Store»\\[0.2em]
+    \tiny \texttt{baselines/golden/*.json}\\
+    \tiny $\bullet$ Verified clean traces from\\
+    \tiny \quad known-good baseline runs.\\
+    \tiny $\bullet$ Serves ground-truth target\\
+    \tiny \quad for diff verification.
+};
+
+% Replay Cache Connector routed cleanly over top margin
+\draw[darrow] (replay_proxy.west) -- ++(-0.4, 0) -- ++(0, 1.52) -| node[pos=0.25, badge] {Cached Envelopes ($<5$ms, \$0.00) [Cut-Point Replay]} (reasoner.north);
+
+% ==================== 3. ROW 2: TELEMETRY PIPELINE CONTAINER ====================
+\node[boundary, minimum width=13.4cm, minimum height=2.65cm] (telemetry_box) at (7.5, 8.92) {};
+\node[anchor=north west, font=\bfseries\small, color=cslate900] at ($(telemetry_box.north west)+(0.3,-0.15)$) {Subsystem 2: Telemetry Pipeline \& In-Line PII Redaction \quad \scriptsize\itshape\color{cslate500}[Container: OpenTelemetry Conventions]};
+
+\node[c4card, minimum width=4.0cm, minimum height=1.8cm] (span_inst) at (3.05, 8.70) {
+    \textbf{\color{cslate900}Span Instrumentation}\\[-0.1em]
+    \scriptsize\color{cslate500}«OTel Tracing SDK»\\[0.15em]
+    \tiny Captures Hierarchical Spans:\\
+    \tiny $\bullet$ \texttt{agent.run} (Session Root) $\rightarrow$ \texttt{model.inference}\\
+    \tiny $\bullet$ \texttt{tool.call} (Arguments, return values, latency)\\
+    \tiny $\bullet$ \texttt{gate.hitl} (Human authorization states)\\
+    \tiny Standardized vendor-neutral schema.
+};
+
+\node[c4card, minimum width=4.2cm, minimum height=1.8cm] (sec_ctx) at (7.40, 8.70) {
+    \textbf{\color{cslate900}Security Context Injector}\\[-0.1em]
+    \scriptsize\color{cslate500}«Span Attribute Processor»\\[0.15em]
+    \tiny Enriches spans with security metadata:\\
+    \tiny $\bullet$ \texttt{secagent.permission\_tier}: ['read','write','pay','net']\\
+    \tiny $\bullet$ \texttt{secagent.caller\_role}: ['guest','customer','admin']\\
+    \tiny $\bullet$ \texttt{secagent.approval\_granted}: boolean verified\\
+    \tiny Enables deterministic rule evaluation.
+};
+
+\node[c4card, minimum width=4.2cm, minimum height=1.8cm] (pii_scrub) at (11.85, 8.70) {
+    \textbf{\color{cslate900}In-Line PII Sanitizer}\\[-0.1em]
+    \scriptsize\color{cslate500}«Deterministic Regex Scrubber»\\[0.15em]
+    \tiny Pre-serialization regex scrubber pass:\\
+    \tiny $\bullet$ SSN: \texttt{\textbackslash{}b\textbackslash{}d\{3\}-\textbackslash{}d\{2\}-\textbackslash{}d\{4\}\textbackslash{}b} $\rightarrow$ \texttt{[REDACTED\_SSN]}\\
+    \tiny $\bullet$ Financial \& Accounts $\rightarrow$ \texttt{[REDACTED\_FINANCIAL]}\\
+    \tiny $\bullet$ API Bearer Tokens $\rightarrow$ \texttt{[REDACTED\_SECRET]}\\
+    \tiny Zero sensitive leakage to CI artifact logs.
+};
+
+\draw[arrow] (7.45, 10.95) -- node[fill=white, inner sep=2pt, font=\scriptsize\bfseries, color=cslate800] {Runtime Event Spans (\texttt{tool.call}, \texttt{gate.hitl}) [OTel Tracing]} (7.45, 10.25);
+
+% ==================== 4. ROW 3: TRACE DIFF & POLICY ENGINE (CORE) ====================
+\node[accentboundary, minimum width=18.4cm, minimum height=2.75cm] (diff_box) at (10.0, 5.62) {};
+\node[anchor=north west, font=\bfseries\small, color=cbluecore] at ($(diff_box.north west)+(0.3,-0.15)$) {Subsystem 4: Trace Differential \& Security Policy Engine \quad \scriptsize\itshape\color{cslate500}[Container: Deterministic Verification Engine]};
+
+\node[c4card=cbluecore, minimum width=8.7cm, minimum height=1.95cm] (tier1_pol) at (5.40, 5.42) {
+    \textbf{\color{cbluecore}Tier 1: Deterministic Policy Verifier} \quad \scriptsize\color{cslate500}«Rule Invariant Engine»\\[0.15em]
+    \tiny Evaluates declarative YAML security invariants against Candidate Trace spans:\\
+    \tiny $\bullet$ \textbf{POL-ASI03: Predecessor Gate Invariant} --- \texttt{issue\_refund} requires prior \texttt{approval\_gate} within 2 steps.\\
+    \tiny $\bullet$ \textbf{POL-ASI06: Need-to-Know Invariant} --- In \texttt{address\_update}, querying \texttt{ssn} or \texttt{salary} triggers immediate failure.\\
+    \tiny $\bullet$ \textbf{POL-ASI02: SQL Injection Invariant} --- Evaluates tool string arguments against blocklists (DROP, UNION).\\
+    \tiny $\bullet$ \textbf{POL-ASI08: Runaway Loop Guard} --- Fails if step count $> 10$ or $\ge 3$ consecutive identical tool calls.\\
+    \tiny Produces deterministic PASS / FAIL\_BUILD decisions in pure Python without stochastic scoring.
+};
+
+\node[c4card=cbluecore, minimum width=8.95cm, minimum height=1.95cm] (tier2_align) at (14.47, 5.42) {
+    \textbf{\color{cbluecore}Tier 2: Canonical Read Sort + Earliest Divergence} \quad \scriptsize\color{cslate500}«Trace Prefix Analyzer»\\[0.15em]
+    \tiny Aligns Candidate Execution Spans against Immutable Golden Baseline Spans:\\
+    \tiny $\bullet$ \textbf{Canonical Read Sorting ($\mathcal{C}_{\text{read}}$)}: Adjacent read-only spans sorted alphabetically by tool name\\
+    \tiny \quad within each trace (Foata normal form). Eliminates false positives from LLM read reordering.\\
+    \tiny $\bullet$ \textbf{Linear Prefix Scan}: Walks canonicalized arrays index-by-index to find earliest mismatch.\\
+    \tiny $\bullet$ \textbf{Earliest Divergence Localization}: Reports exact divergent step index $k^*$ in $O(N \log N)$.\\
+    \tiny $\bullet$ \textbf{Verdict}: $k^* = \infty$ (Conforming, Exit 0) or $k^* < \infty$ (Diverged, Exit 1).
+};
+
+% Candidate Trace from Telemetry to Diff Engine (left channel)
+\draw[arrow] (5.30, 7.60) -- node[fill=white, inner sep=2pt, font=\scriptsize\bfseries, color=cbluecore] {Candidate Trace JSON [OpenTelemetry Format]} (5.30, 7.00);
+
+% Baseline Trace from Golden Cache to Diff Engine (dedicated right channel)
+\draw[arrow] (18.00, 10.95) -- node[badge] {Golden Baseline Spans\\ \texttt{[baselines/golden/*.json]}} (18.00, 7.00);
+
+% ==================== 5. ROW 4: CI/CD DELIVERY GATE ====================
+\node[boundary, minimum width=18.4cm, minimum height=2.60cm] (ci_box) at (10.0, 2.35) {};
+\node[anchor=north west, font=\bfseries\small, color=cslate900] at ($(ci_box.north west)+(0.3,-0.15)$) {Subsystem 5: DevSecOps CI/CD Delivery Gate \& Developer Feedback \quad \scriptsize\itshape\color{cslate500}[Container: GitHub Actions \& Dashboard]};
+
+\node[c4card, minimum width=5.6cm, minimum height=1.75cm] (ci_gate) at (3.85, 2.12) {
+    \textbf{\color{cslate900}GitHub Actions Workflow Gate}\\[-0.1em]
+    \scriptsize\color{cslate500}«CI Runner (\texttt{.github/workflows/secagent\_ci.yml})»\\[0.15em]
+    \tiny Automated pull request gating in standard runners:\\
+    \tiny $\bullet$ Exit Code 0: Clean Pass / Commutative Evolution $\rightarrow$ Merge ALLOWED.\\
+    \tiny $\bullet$ Exit Code 1: Policy Violation or Regression $\rightarrow$ Merge BLOCKED.\\
+    \tiny $\bullet$ Exit Code 2: Flaky Trajectory $\rightarrow$ Automated $N=3$ rerun triage.\\
+    \tiny Enforces regression prevention on every PR.
+};
+
+\node[c4card, minimum width=5.8cm, minimum height=1.75cm] (comment_bot) at (9.80, 2.12) {
+    \textbf{\color{cslate900}PR Diagnostic Reporter}\\[-0.1em]
+    \scriptsize\color{cslate500}«Automated Feedback Bot»\\[0.15em]
+    \tiny Diagnostic comment posted directly to pull request:\\
+    \tiny $\bullet$ Side-by-side step comparison matrix (Baseline vs Candidate).\\
+    \tiny $\bullet$ Earliest divergent step index $k^*$ highlighted in RED.\\
+    \tiny $\bullet$ Violated Policy Identifier and violation root-cause rationale\\
+    \tiny \quad (e.g., 'POL-ASI03: Payment execution without preceding HITL gate').
+};
+
+\node[c4card, minimum width=5.95cm, minimum height=1.75cm] (streamlit_ui) at (15.97, 2.12) {
+    \textbf{\color{cslate900}Local Inspection Dashboard}\\[-0.1em]
+    \scriptsize\color{cslate500}«Streamlit UI (\texttt{app.py} / \texttt{secagent serve})»\\[0.15em]
+    \tiny Interactive developer visualizer for local triage:\\
+    \tiny $\bullet$ Dual-tree trace comparison (Baseline vs Candidate).\\
+    \tiny $\bullet$ Deep payload inspection for inputs, outputs, and metadata.\\
+    \tiny $\bullet$ In-line PII sanitization verification.\\
+    \tiny $\bullet$ Chronicle snapshot cache inspector and recorder.
+};
+
+% Verdict connector from Diff Engine to CI Gate
+\draw[arrow] (10.00, 4.25) -- node[fill=white, inner sep=2pt, font=\scriptsize\bfseries, color=cslate800] {Evaluation Verdict, Earliest Divergence Step $k^*$, \& Diff Table} (10.00, 3.65);
+
+% ==================== 6. ENGINEERING LEGEND & NOTATION ====================
+\node[c4card, fill=cslate100, minimum width=18.4cm, minimum height=0.58cm] at (10.0, 0.47) {
+    \scriptsize \textbf{C4 NOTATION \& KEY:} \quad
+    \textbf{──►} Synchronous Control Flow \quad
+    \textbf{- -►} Chronicle Replay Interception \quad
+    {\color{cslate500}[Container / Component] Architecture Level} \quad
+    {\color{credgate}■ Security Boundary} \quad
+    {\color{cbluecore}\textbf{Blue Boundary: Core Differential \& Policy Engine}}
+};
+
+\end{tikzpicture}
+\end{document}

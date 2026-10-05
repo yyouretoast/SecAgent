@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secagent-twin.dev/schemas/trace_event.schema.json",
+  "title": "SecAgentTwin Trace Event Schema",
+  "description": "Standardized schema for OpenTelemetry-compatible GenAI execution traces in SecAgentTwin",
+  "type": "object",
+  "required": [
+    "scenario_id",
+    "execution_id",
+    "timestamp",
+    "caller_role",
+    "task_context",
+    "spans"
+  ],
+  "properties": {
+    "scenario_id": {
+      "type": "string",
+      "description": "Unique identifier of the test scenario (e.g., SCN-01, SCN-07)",
+      "pattern": "^SCN-\\d{2}$"
+    },
+    "execution_id": {
+      "type": "string",
+      "description": "Unique UUID for the trace execution run"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of execution"
+    },
+    "caller_role": {
+      "type": "string",
+      "enum": ["guest", "customer", "admin"],
+      "description": "Security role of the simulated user initiating the session"
+    },
+    "task_context": {
+      "type": "string",
+      "enum": ["general_inquiry", "address_update", "refund_request"],
+      "description": "Operational context classifying the intent of the session"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "agent_version": { "type": "string" },
+        "model_name": { "type": "string" },
+        "replay_hit": { "type": "boolean" },
+        "total_latency_ms": { "type": "number", "minimum": 0.0 }
+      },
+      "additionalProperties": true
+    },
+    "spans": {
+      "type": "array",
+      "description": "Chronological array of execution spans",
+      "items": {
+        "type": "object",
+        "required": [
+          "span_id",
+          "step_index",
+          "span_type",
+          "name",
+          "start_time_ns",
+          "end_time_ns"
+        ],
+        "properties": {
+          "span_id": {
+            "type": "string",
+            "description": "Unique identifier for this specific span"
+          },
+          "step_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-indexed sequence counter of operational steps"
+          },
+          "span_type": {
+            "type": "string",
+            "enum": ["agent.run", "model.inference", "tool.call", "gate.hitl"],
+            "description": "Categorical span type conforming to GenAI conventions"
+          },
+          "name": {
+            "type": "string",
+            "description": "Semantic name of the span (e.g., query_db, approval_gate, reasoner)"
+          },
+          "start_time_ns": {
+            "type": "integer",
+            "description": "Nanosecond epoch start timestamp"
+          },
+          "end_time_ns": {
+            "type": "integer",
+            "description": "Nanosecond epoch completion timestamp"
+          },
+          "permission_tier": {
+            "type": "string",
+            "enum": ["read", "write", "pay", "net", "gate", "none"],
+            "default": "none",
+            "description": "Security privilege tier assigned to this operational span"
+          },
+          "approval_granted": {
+            "type": ["boolean", "null"],
+            "default": null,
+            "description": "Explicit authorization decision flag for gate.hitl spans"
+          },
+          "input_parameters": {
+            "type": "object",
+            "description": "Parameters passed to the tool or gate",
+            "additionalProperties": true
+          },
+          "output_result": {
+            "type": ["object", "string", "number", "boolean", "null"],
+            "description": "Sanitized result returned by the tool (PII scrubbed)",
+            "additionalProperties": true
+          },
+          "is_error": {
+            "type": "boolean",
+            "default": false,
+            "description": "True if an unhandled exception occurred during span execution"
+          },
+          "error_message": {
+            "type": ["string", "null"],
+            "default": null
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

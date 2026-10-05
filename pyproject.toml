@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "secagent-twin"
+version = "0.1.0"
+description = "Execution-Grounded Differential Testing & Security Validation for Autonomous AI Agent Systems"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "SecAgentTwin Team", email = "team@secagent-twin.dev" }
+]
+keywords = [
+    "ai-agents",
+    "security-testing",
+    "differential-testing",
+    "langgraph",
+    "owasp",
+    "opentelemetry",
+    "devsecops"
+]
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "opentelemetry-api>=1.25.0",
+    "opentelemetry-sdk>=1.25.0",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "pyyaml>=6.0.1",
+    "pydantic>=2.7.0",
+    "jsonschema>=4.22.0",
+    "streamlit>=1.35.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0"
+]
+
+[project.scripts]
+secagent = "secagent_twin.cli:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = ["test_*.py"]
