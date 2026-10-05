@@ -23,6 +23,14 @@ The system decomposes into 5 decoupled subsystems connected by frozen JSON/YAML 
 
 ---
 
+## Runtime Execution Flow
+
+The sequence below illustrates the chronological lifecycle of an automated regression audit when a pull request is submitted:
+
+![SecAgentTwin Execution Flow](docs/secagent_twin_execution_flow.png)
+
+---
+
 ## Quickstart
 
 ### 1. Installation
