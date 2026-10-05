@@ -1,0 +1,207 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1591.195 1479.45" width="1591.195" height="1479.45" style="--bg:#ffffff;--fg:#0f172a;--line:#475569;--accent:#1d4ed8;--muted:#334155;--surface:#f8fafc;--border:#cbd5e1;background:#ffffff">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 85%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="seq-arrow" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto-start-reverse">
+    <polygon points="0 0, 8 2.5, 0 5" fill="var(--_arrow)" />
+  </marker>
+  <marker id="seq-arrow-open" markerWidth="8" markerHeight="5" refX="8" refY="2.5" orient="auto-start-reverse">
+    <polyline points="0 0, 8 2.5, 0 5" fill="none" stroke="var(--_arrow)" stroke-width="1" />
+  </marker>
+</defs>
+<g class="block" data-type="rect">
+  <rect x="166.19400000000002" y="320.45" width="585.6879999999999" height="180" rx="0" ry="0" fill="#f0f7ff" stroke="#bfdbfe" stroke-width="1.2" stroke-dasharray="5 3" />
+</g>
+<g class="block" data-type="rect">
+  <rect x="557.1419999999999" y="553.45" width="414.6669999999999" height="170" rx="0" ry="0" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="5 3" />
+</g>
+<g class="block" data-type="alt" data-label="Policy Invariant Breached (e.g. Skipped HITL Gate POL-ASI03-001)">
+  <rect x="166.19400000000002" y="844.45" width="1217.311" height="304" rx="0" ry="0" fill="none" stroke="var(--_node-stroke)" stroke-width="1" />
+  <rect x="166.19400000000002" y="844.45" width="380.65000000000003" height="18" fill="#e2e8f0" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="172.19400000000002" y="853.45" font-size="11" font-weight="600" fill="var(--_text-sec)" dy="3.8499999999999996">alt [Policy Invariant Breached (e.g. Skipped HITL Gate POL-ASI03-001)]</text>
+  <line x1="166.19400000000002" y1="920.45" x2="1383.5049999999999" y2="920.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+  <text x="174.19400000000002" y="934.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">[All Policies Pass]</text>
+</g>
+<g class="block" data-type="rect">
+  <rect x="166.19400000000002" y="776.45" width="1217.311" height="372" rx="0" ry="0" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.2" stroke-dasharray="5 3" />
+</g>
+<g class="block" data-type="alt" data-label="Exit Code 0">
+  <rect x="30" y="1171.45" width="1531.195" height="228" rx="0" ry="0" fill="none" stroke="var(--_node-stroke)" stroke-width="1" />
+  <rect x="30" y="1171.45" width="96.19000000000003" height="18" fill="#e2e8f0" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="36" y="1180.45" font-size="11" font-weight="600" fill="var(--_text-sec)" dy="3.8499999999999996">alt [Exit Code 0]</text>
+  <line x1="30" y1="1247.45" x2="1561.195" y2="1247.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+  <text x="38" y="1261.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">[Exit Code 1]</text>
+  <line x1="30" y1="1351.45" x2="1561.195" y2="1351.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+  <text x="38" y="1365.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">[Exit Code 2]</text>
+</g>
+<line class="lifeline" data-actor="Dev" x1="88.09700000000001" y1="92.45" x2="88.09700000000001" y2="1449.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="GH" x1="246.52100000000002" y1="70" x2="246.52100000000002" y2="1449.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="Replay" x1="441.995" y1="70" x2="441.995" y2="1449.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="Agent" x1="654.512" y1="70" x2="654.512" y2="1449.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="OTel" x1="871.8454999999999" y1="70" x2="871.8454999999999" y2="1449.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="Tier1" x1="1078.4344999999998" y1="70" x2="1078.4344999999998" y2="1449.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="Tier2" x1="1284.2824999999998" y1="70" x2="1284.2824999999998" y2="1449.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<line class="lifeline" data-actor="Bot" x1="1482.35" y1="70" x2="1482.35" y2="1449.45" stroke="var(--_line)" stroke-width="0.75" stroke-dasharray="6 4" />
+<g class="message" data-from="Dev" data-to="Agent" data-label="Run known-good agent on SCN-07" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="88.09700000000001" y1="112.45" x2="654.512" y2="112.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="371.30449999999996" y="102.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Run known-good agent on SCN-07</text>
+</g>
+<g class="message" data-from="Agent" data-to="Replay" data-label="Cache prompt envelopes &amp; save baselines/golden/SCN-07.json" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="654.512" y1="152.45" x2="441.995" y2="152.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="548.2535" y="142.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Cache prompt envelopes &amp; save baselines/golden/SCN-07.json</text>
+</g>
+<g class="message" data-from="Dev" data-to="GH" data-label="Opens Pull Request (Prompt / Agent Logic mutation)" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="88.09700000000001" y1="207.45" x2="246.52100000000002" y2="207.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="167.30900000000003" y="197.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Opens Pull Request (Prompt / Agent Logic mutation)</text>
+</g>
+<g class="message" data-from="GH" data-to="GH" data-label="Executes 'secagent test'" data-line-style="solid" data-arrow-head="filled" data-self="true">
+  <polyline points="246.52100000000002,247.45 276.521,247.45 276.521,267.45 246.52100000000002,267.45" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="284.521" y="257.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Executes &#39;secagent test&#39;</text>
+</g>
+<g class="message" data-from="GH" data-to="Agent" data-label="Launch scenario SCN-07" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="246.52100000000002" y1="360.45" x2="654.512" y2="360.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="450.51649999999995" y="350.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Launch scenario SCN-07</text>
+</g>
+<g class="message" data-from="Agent" data-to="Replay" data-label="Hash prompt: H = SHA256(prompt || msgs)" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="654.512" y1="400.45" x2="441.995" y2="400.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="548.2535" y="390.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Hash prompt: H = SHA256(prompt || msgs)</text>
+</g>
+<g class="message" data-from="Replay" data-to="Agent" data-label="Cache Hit: Return recorded envelope (&lt;5ms, $0.00 tokens)" data-line-style="dashed" data-arrow-head="filled" data-self="false">
+  <line x1="441.995" y1="440.45" x2="654.512" y2="440.45" stroke="var(--_line)" stroke-width="1" stroke-dasharray="6 4" marker-end="url(#seq-arrow)" />
+  <text x="548.2535" y="430.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Cache Hit: Return recorded envelope (&lt;5ms, $0.00 tokens)</text>
+</g>
+<g class="message" data-from="Agent" data-to="Agent" data-label="Candidate Python tool code executes LIVE" data-line-style="solid" data-arrow-head="filled" data-self="true">
+  <polyline points="654.512,480.45 684.512,480.45 684.512,500.45 654.512,500.45" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="692.512" y="490.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Candidate Python tool code executes LIVE</text>
+</g>
+<g class="message" data-from="Agent" data-to="OTel" data-label="Stream runtime spans (tool.call, gate.hitl)" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="654.512" y1="593.45" x2="871.8454999999999" y2="593.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="763.1787499999999" y="583.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Stream runtime spans (tool.call, gate.hitl)</text>
+</g>
+<g class="message" data-from="OTel" data-to="OTel" data-label="Regex scrubber pass (masks SSN, PAN, IBAN, API keys)" data-line-style="solid" data-arrow-head="filled" data-self="true">
+  <polyline points="871.8454999999999,633.45 901.8454999999999,633.45 901.8454999999999,653.45 871.8454999999999,653.45" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="909.8454999999999" y="643.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Regex scrubber pass (masks SSN, PAN, IBAN, API keys)</text>
+</g>
+<g class="message" data-from="OTel" data-to="OTel" data-label="Serialize to candidate_trace.json" data-line-style="solid" data-arrow-head="filled" data-self="true">
+  <polyline points="871.8454999999999,703.45 901.8454999999999,703.45 901.8454999999999,723.45 871.8454999999999,723.45" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="909.8454999999999" y="713.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Serialize to candidate_trace.json</text>
+</g>
+<g class="message" data-from="GH" data-to="Tier1" data-label="Evaluate candidate_trace.json against policies.yaml" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="246.52100000000002" y1="816.45" x2="1078.4344999999998" y2="816.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="662.4777499999999" y="806.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Evaluate candidate_trace.json against policies.yaml</text>
+</g>
+<g class="message" data-from="Tier1" data-to="GH" data-label="Verdict = FAIL_BUILD (Exit Code 1)" data-line-style="dashed" data-arrow-head="filled" data-self="false">
+  <line x1="1078.4344999999998" y1="884.45" x2="246.52100000000002" y2="884.45" stroke="var(--_line)" stroke-width="1" stroke-dasharray="6 4" marker-end="url(#seq-arrow)" />
+  <text x="662.4777499999999" y="874.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Verdict = FAIL_BUILD (Exit Code 1)</text>
+</g>
+<g class="message" data-from="Tier1" data-to="Tier2" data-label="Forward clean traces" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="1078.4344999999998" y1="948.45" x2="1284.2824999999998" y2="948.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="1181.3584999999998" y="938.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Forward clean traces</text>
+</g>
+<g class="message" data-from="Tier2" data-to="Tier2" data-label="Canonicalize adjacent reads (Foata normal form)" data-line-style="solid" data-arrow-head="filled" data-self="true">
+  <polyline points="1284.2824999999998,988.45 1314.2824999999998,988.45 1314.2824999999998,1008.45 1284.2824999999998,1008.45" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="1322.2824999999998" y="998.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Canonicalize adjacent reads (Foata normal form)</text>
+</g>
+<g class="message" data-from="Tier2" data-to="Tier2" data-label="Prefix scan: find earliest divergent step index k*" data-line-style="solid" data-arrow-head="filled" data-self="true">
+  <polyline points="1284.2824999999998,1058.45 1314.2824999999998,1058.45 1314.2824999999998,1078.45 1284.2824999999998,1078.45" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="1322.2824999999998" y="1068.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Prefix scan: find earliest divergent step index k*</text>
+</g>
+<g class="message" data-from="Tier2" data-to="GH" data-label="Verdict = PASS (k* = ∞, Exit 0) or DIVERGED (k* &lt; ∞, Exit 1)" data-line-style="dashed" data-arrow-head="filled" data-self="false">
+  <line x1="1284.2824999999998" y1="1128.45" x2="246.52100000000002" y2="1128.45" stroke="var(--_line)" stroke-width="1" stroke-dasharray="6 4" marker-end="url(#seq-arrow)" />
+  <text x="765.4017499999999" y="1118.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Verdict = PASS (k* = ∞, Exit 0) or DIVERGED (k* &lt; ∞, Exit 1)</text>
+</g>
+<g class="message" data-from="GH" data-to="Dev" data-label="Green Checkmark (Merge Allowed)" data-line-style="dashed" data-arrow-head="filled" data-self="false">
+  <line x1="246.52100000000002" y1="1211.45" x2="88.09700000000001" y2="1211.45" stroke="var(--_line)" stroke-width="1" stroke-dasharray="6 4" marker-end="url(#seq-arrow)" />
+  <text x="167.30900000000003" y="1201.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Green Checkmark (Merge Allowed)</text>
+</g>
+<g class="message" data-from="GH" data-to="Bot" data-label="Render diff table with k* highlighted in red" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="246.52100000000002" y1="1275.45" x2="1482.35" y2="1275.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="864.4354999999999" y="1265.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Render diff table with k* highlighted in red</text>
+</g>
+<g class="message" data-from="Bot" data-to="Dev" data-label="Post in-line diagnostic comment &amp; BLOCK PR merge" data-line-style="solid" data-arrow-head="filled" data-self="false">
+  <line x1="1482.35" y1="1315.45" x2="88.09700000000001" y2="1315.45" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="785.2235" y="1305.45" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Post in-line diagnostic comment &amp; BLOCK PR merge</text>
+</g>
+<g class="message" data-from="GH" data-to="GH" data-label="Trajectory drift detected: Run 3-trial majority vote triage" data-line-style="solid" data-arrow-head="filled" data-self="true">
+  <polyline points="246.52100000000002,1379.45 276.521,1379.45 276.521,1399.45 246.52100000000002,1399.45" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#seq-arrow)" />
+  <text x="284.521" y="1389.45" font-size="11" text-anchor="start" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Trajectory drift detected: Run 3-trial majority vote triage</text>
+</g>
+<g class="note" data-position="over" data-actors="Dev,Bot">
+  <polygon points="619.1465,160.45 945.3004999999998,160.45 951.3004999999998,166.45 951.3004999999998,183.45 619.1465,183.45" fill="var(--bg)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <polygon points="945.3004999999998,160.45 951.3004999999998,166.45 945.3004999999998,166.45" fill="var(--_inner-stroke)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="785.2235" y="171.95" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Phase 1: Continuous Regression Audit (Triggered on Pull Request)</text>
+</g>
+<g class="note" data-position="over" data-actors="Replay,Agent">
+  <polygon points="426.4295,285.45 664.0775000000001,285.45 670.0775000000001,291.45 670.0775000000001,308.45 426.4295,308.45" fill="var(--bg)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <polygon points="664.0775000000001,285.45 670.0775000000001,291.45 664.0775000000001,291.45" fill="var(--_inner-stroke)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="548.2535" y="296.95" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Subsystem 1 &amp; 3: Zero-Token Replay Execution</text>
+</g>
+<g class="note" data-position="over" data-actors="Agent,OTel">
+  <polygon points="645.21575,518.45 875.14175,518.45 881.14175,524.45 881.14175,541.45 645.21575,541.45" fill="var(--bg)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <polygon points="875.14175,518.45 881.14175,524.45 875.14175,524.45" fill="var(--_inner-stroke)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="763.1787499999999" y="529.95" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Subsystem 2: Telemetry &amp; In-Line Sanitization</text>
+</g>
+<g class="note" data-position="over" data-actors="Tier1,Tier2">
+  <polygon points="1057.7524999999998,741.45 1298.9644999999998,741.45 1304.9644999999998,747.45 1304.9644999999998,764.45 1057.7524999999998,764.45" fill="var(--bg)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <polygon points="1298.9644999999998,741.45 1304.9644999999998,747.45 1298.9644999999998,747.45" fill="var(--_inner-stroke)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="1181.3584999999998" y="752.95" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Subsystem 4: Two-Tier Deterministic Evaluation</text>
+</g>
+<g class="note" data-position="over" data-actors="GH,Bot">
+  <polygon points="744.3934999999999,1136.45 978.4774999999998,1136.45 984.4774999999998,1142.45 984.4774999999998,1159.45 744.3934999999999,1159.45" fill="var(--bg)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <polygon points="978.4774999999998,1136.45 984.4774999999998,1142.45 978.4774999999998,1142.45" fill="var(--_inner-stroke)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="864.4354999999999" y="1147.95" font-size="11" text-anchor="middle" font-weight="400" fill="var(--_text-muted)" dy="3.8499999999999996">Subsystem 5: CI/CD Delivery Gate &amp; Feedback</text>
+</g>
+<g class="actor" data-id="Dev" data-label="Developer" data-type="actor">
+  <g transform="translate(70.09700000000001,32) scale(1.5)">
+    <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+    <path d="M15 10C15 11.6569 13.6569 13 12 13C10.3431 13 9 11.6569 9 10C9 8.34315 10.3431 7 12 7C13.6569 7 15 8.34315 15 10Z" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+    <path d="M5.62842 18.3563C7.08963 17.0398 9.39997 16 12 16C14.6 16 16.9104 17.0398 18.3716 18.3563" fill="none" stroke="var(--_line)" stroke-width="0.6666666666666666" />
+  </g>
+  <text x="88.09700000000001" y="84" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">Developer</text>
+</g>
+<g class="actor" data-id="GH" data-label="GitHub Actions (CI)" data-type="participant">
+  <rect x="176.19400000000002" y="30" width="140.654" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="246.52100000000002" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">GitHub Actions (CI)</text>
+</g>
+<g class="actor" data-id="Replay" data-label="Chronicle Replay Store" data-type="participant">
+  <rect x="356.848" y="30" width="170.29399999999998" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="441.995" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">Chronicle Replay Store</text>
+</g>
+<g class="actor" data-id="Agent" data-label="LangGraph Agent (SUT)" data-type="participant">
+  <rect x="567.1419999999999" y="30" width="174.73999999999998" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="654.512" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">LangGraph Agent (SUT)</text>
+</g>
+<g class="actor" data-id="OTel" data-label="Telemetry &amp; PII Scrubber" data-type="participant">
+  <rect x="781.882" y="30" width="179.927" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="871.8454999999999" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">Telemetry &amp; PII Scrubber</text>
+</g>
+<g class="actor" data-id="Tier1" data-label="Tier 1: Policy Verifier" data-type="participant">
+  <rect x="1001.8089999999999" y="30" width="153.251" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="1078.4344999999998" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">Tier 1: Policy Verifier</text>
+</g>
+<g class="actor" data-id="Tier2" data-label="Tier 2: Canonical Aligner" data-type="participant">
+  <rect x="1195.0599999999997" y="30" width="178.44500000000002" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="1284.2824999999998" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">Tier 2: Canonical Aligner</text>
+</g>
+<g class="actor" data-id="Bot" data-label="PR Diagnostic Bot" data-type="participant">
+  <rect x="1413.5049999999999" y="30" width="137.69" height="40" rx="4" ry="4" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="1" />
+  <text x="1482.35" y="50" font-size="13" text-anchor="middle" font-weight="500" fill="var(--_text)" dy="4.55">PR Diagnostic Bot</text>
+</g>
+</svg>
