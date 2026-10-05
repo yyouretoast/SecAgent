@@ -100,3 +100,28 @@ def test_agent_state_import():
         "error",
     }
     assert expected_keys.issubset(set(AgentState.__annotations__.keys()))
+
+
+def test_cli_smoke_execution(tmp_path):
+    """Verify secagent CLI test command runs and generates reports."""
+    from typer.testing import CliRunner
+
+    from secagent_twin.cli import app
+
+    runner = CliRunner()
+    report_file = tmp_path / "report.json"
+    comment_file = tmp_path / "comment.md"
+
+    result = runner.invoke(
+        app,
+        [
+            "test",
+            "--output-report",
+            str(report_file),
+            "--output-markdown",
+            str(comment_file),
+        ],
+    )
+    assert result.exit_code == 0
+    assert report_file.exists()
+    assert comment_file.exists()
