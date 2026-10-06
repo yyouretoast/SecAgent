@@ -14,11 +14,81 @@ SecAgent integrates directly into CI/CD pipelines to block pull requests on unau
 
 ## Architecture Overview
 
-![SecAgent System Architecture](docs/secagent_architecture.svg)
+```mermaid
+flowchart TD
+    classDef pr fill:#eff6ff,stroke:#2563eb,stroke-width:1.5px,color:#1e3a8a,font-weight:bold;
+    classDef sut fill:#f8fafc,stroke:#64748b,stroke-width:1.5px,color:#0f172a;
+    classDef otel fill:#f0fdf4,stroke:#16a34a,stroke-width:1.5px,color:#14532d;
+    classDef fuzzer fill:#faf5ff,stroke:#9333ea,stroke-width:1.5px,color:#581c87;
+    classDef rules fill:#fffbeb,stroke:#d97706,stroke-width:1.5px,color:#78350f;
+    classDef gate fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#9f1239;
+
+    PR["⚡ Developer Pull Request<br/><sub>(Prompt patch, tool change, model upgrade)</sub>"]:::pr
+
+    subgraph SUT ["Subsystem 1: Autonomous Target Agents (examples/)"]
+        DevOps["DevOps Agent<br/><code>@permission(tier='admin')</code>"]
+        Finance["Finance Agent<br/><code>@permission(tier='pay')</code>"]
+        Support["Support Agent<br/><code>@permission(tier='read' | 'write')</code>"]
+    end
+    class SUT sut;
+
+    subgraph Telemetry ["Subsystem 2: Telemetry & PII Sanitizer (src/secagent/telemetry/)"]
+        OTel["OpenTelemetry Span Capture<br/><code>agent.run | tool.call | gate.hitl</code>"]
+        Scrubber["In-Line PII & Secret Redactor<br/><code>Regex SSN / Auth token scrubber</code>"]
+        TraceJSON["Standard Execution Trace JSON<br/><code>schemas/trace_event.schema.json</code>"]
+    end
+    class Telemetry otel;
+
+    subgraph Security ["Security Verification Engines"]
+        direction LR
+        Fuzzer["Subsystem 3: Dynamic Fuzzer<br/><code>secagent fuzz</code><br/><sub>Adversarial prompt mutation & SQLi</sub>"]:::fuzzer
+        Verifier["Subsystem 4: Invariant Verifier<br/><code>policies/security_rules.yaml</code><br/><sub>Predecessor gates & circuit breakers</sub>"]:::rules
+    end
+
+    subgraph CICD ["Subsystem 5: Turnkey CI/CD Security Gate (action.yml)"]
+        Action["GitHub Action Runner"]
+        PassGate["Exit Code 0: PASS<br/><sub>Allow PR Merge</sub>"]
+        FailGate["Exit Code 1: FAIL<br/><sub>Block PR & Post Markdown Table</sub>"]
+    end
+    class CICD gate;
+
+    PR --> SUT
+    SUT --> OTel
+    OTel --> Scrubber --> TraceJSON
+    TraceJSON --> Security
+    Security --> Action
+    Action --> PassGate
+    Action --> FailGate
+```
 
 ### CI/CD Security Audit Execution Lifecycle
 
-![SecAgent Execution Flow](docs/secagent_execution_flow.svg)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Developer / PR
+    participant CI as GitHub Action (action.yml)
+    participant Fuzz as Adversarial Fuzzer
+    participant Agent as Target Agent (SUT)
+    participant Engine as OWASP Invariant Verifier
+
+    Dev->>CI: Open Pull Request / Push Commit
+    CI->>Fuzz: Trigger secagent scan / fuzz
+    Fuzz->>Agent: Dispatch Mutated Prompts (SQLi, Jailbreaks)
+    activate Agent
+    Agent->>Agent: Execute Tools (@permission)<br/>Check HITL Gate<br/>Scrub PII
+    Agent->>Engine: Emit OpenTelemetry Trace JSON
+    deactivate Agent
+    activate Engine
+    Engine->>Engine: Verify Predecessor Gates<br/>Verify Regex Blocklists<br/>Verify Loop Thresholds
+    Engine-->>CI: Audit Verdict (Exit 0 / Exit 1)
+    deactivate Engine
+    alt Invariant Breached
+        CI-->>Dev: ❌ Block PR & Post Security Triage Markdown
+    else All Invariants Pass
+        CI-->>Dev: ✅ Pass CI & Allow Merge
+    end
+```
 
 ---
 
