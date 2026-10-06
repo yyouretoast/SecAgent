@@ -135,6 +135,7 @@ secagent/
 
 * [RFC-001: Architecture & Technical Specification](docs/RFC-001-architecture.md)
 * [Team Development & Contribution Guide](docs/CONTRIBUTING.md)
+* [Team Kickoff & Implementation Playbook](docs/PLAYBOOK.md)
 * [Trace Event JSON Schema](schemas/trace_event.schema.json)
 * [Security Rules Specification](policies/security_rules.yaml)
 
