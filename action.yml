@@ -1,5 +1,5 @@
 name: "SecAgent: Autonomous AI Agent Security Audit"
-description: "Audit LangGraph AI agents against OWASP Top 10 security invariants in CI/CD"
+description: "Audit any autonomous AI agent against OWASP Top 10 security invariants in CI/CD"
 author: "SecAgent Team"
 
 branding:
@@ -8,7 +8,7 @@ branding:
 
 inputs:
   agent_entrypoint:
-    description: "Import path to the LangGraph app (e.g. 'my_agent.graph:app')"
+    description: "Import path or executable for target agent (LangGraph, CrewAI, AutoGen, custom)"
     required: false
     default: ""
   policies:

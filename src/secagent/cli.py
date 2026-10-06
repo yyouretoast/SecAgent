@@ -36,7 +36,7 @@ def scan(
         typer.Option(
             "--agent",
             "-a",
-            help="Import path of target LangGraph agent (e.g. 'my_agent.graph:app')",
+            help="Import path of target agent (e.g. 'my_agent.graph:app' or Python module)",
         ),
     ] = "",
     output_report: Annotated[
@@ -131,7 +131,7 @@ def fuzz(
         typer.Option(
             "--agent",
             "-a",
-            help="Import path of target LangGraph agent",
+            help="Import path of target agent (e.g. 'my_agent.graph:app' or Python module)",
         ),
     ] = "",
     policies: Annotated[
