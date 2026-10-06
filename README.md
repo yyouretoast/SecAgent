@@ -12,6 +12,16 @@ SecAgent integrates directly into CI/CD pipelines to block pull requests on unau
 
 ---
 
+## Architecture Overview
+
+![SecAgent System Architecture](docs/secagent_architecture.svg)
+
+### CI/CD Security Audit Execution Lifecycle
+
+![SecAgent Execution Flow](docs/secagent_execution_flow.svg)
+
+---
+
 ## Key Features
 
 1. **Universal GitHub Action (`action.yml`)**: Drop-in action for GitHub workflows. Blocks PR merges automatically when an agent breaches declarative security invariants.
