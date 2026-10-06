@@ -5,7 +5,7 @@
 * **Target Repository**: `https://github.com/yyouretoast/SecAgent`
 * **Status**: ACCEPTED / IN IMPLEMENTATION
 * **Target Delivery**: DEPI Agentic AI Track Graduation Capstone
-* **Team**: 5 Senior Engineering Students (Part-Time: 10–15 hours/week per student)
+* **Team**: 5 Senior Engineering Students (Part-Time: 4–6 hours/week per student)
 
 ---
 
