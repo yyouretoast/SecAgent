@@ -39,7 +39,7 @@
       "properties": {
         "agent_version": { "type": "string" },
         "model_name": { "type": "string" },
-        "replay_hit": { "type": "boolean" },
+        "framework": { "type": "string" },
         "total_latency_ms": { "type": "number", "minimum": 0.0 }
       },
       "additionalProperties": true
