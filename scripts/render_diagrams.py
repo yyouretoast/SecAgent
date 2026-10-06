@@ -7,9 +7,14 @@ Outputs crisp, high-resolution SVG and PNG diagrams adhering to clean systems en
 """
 
 from pathlib import Path
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import FancyBboxPatch, BoxStyle
+
+# Configure crisp SVG output with selectable vector text
+mpl.rcParams["svg.fonttype"] = "none"
+mpl.rcParams["font.sans-serif"] = ["Segoe UI", "DejaVu Sans", "Helvetica", "Arial"]
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
