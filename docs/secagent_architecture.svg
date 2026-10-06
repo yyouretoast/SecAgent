@@ -1,729 +1,224 @@
-<?xml version="1.0" encoding="utf-8" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
-  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="1036.8pt" height="676.8pt" viewBox="0 0 1036.8 676.8" xmlns="http://www.w3.org/2000/svg" version="1.1">
- <metadata>
-  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-   <cc:Work>
-    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-10-07T00:32:34.740572</dc:date>
-    <dc:format>image/svg+xml</dc:format>
-    <dc:creator>
-     <cc:Agent>
-      <dc:title>Matplotlib v3.10.6, https://matplotlib.org/</dc:title>
-     </cc:Agent>
-    </dc:creator>
-   </cc:Work>
-  </rdf:RDF>
- </metadata>
- <defs>
-  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
- </defs>
- <g id="figure_1">
-  <g id="patch_1">
-   <path d="M 0 676.8 
-L 1036.8 676.8 
-L 1036.8 0 
-L 0 0 
-z
-" style="fill: #ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1140 780" width="100%" height="100%" style="background:#ffffff; font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,sans-serif;">
+  <defs>
+    <!-- Modern crisp drop shadows -->
+    <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.04" />
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.06" />
+    </filter>
+    <filter id="bannerShadow" x="-2%" y="-5%" width="104%" height="120%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.06" />
+    </filter>
+
+    <!-- Standard Markers -->
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#2563eb" />
+    </marker>
+    <marker id="arrowEmerald" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#059669" />
+    </marker>
+    <marker id="arrowPurple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#7c3aed" />
+    </marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#d97706" />
+    </marker>
+    <marker id="arrowSlate" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 1 2 L 8 5 L 1 8 z" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <!-- ==================== HEADER SECTION ==================== -->
+  <rect x="40" y="24" width="1060" height="74" rx="14" fill="#0f172a" filter="url(#bannerShadow)"/>
+  
+  <!-- Shield Icon -->
+  <g transform="translate(64, 43)">
+    <path d="M18 3L5 8.5V18C5 25.5 10.5 32.5 18 35C25.5 32.5 31 25.5 31 18V8.5L18 3Z" fill="#3b82f6" opacity="0.2"/>
+    <path d="M18 3L5 8.5V18C5 25.5 10.5 32.5 18 35C25.5 32.5 31 25.5 31 18V8.5L18 3Z" stroke="#60a5fa" stroke-width="2.2" fill="none" stroke-linejoin="round"/>
+    <path d="M12 18L16 22L24 14" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <g id="axes_1">
-   <g id="patch_2">
-    <path d="M 261.037241 223.351579 
-L 980.242759 223.351579 
-Q 994.344828 223.351579 994.344828 209.406316 
-L 994.344828 97.844211 
-Q 994.344828 83.898947 980.242759 83.898947 
-L 261.037241 83.898947 
-Q 246.935172 83.898947 246.935172 97.844211 
-L 246.935172 209.406316 
-Q 246.935172 223.351579 261.037241 223.351579 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #f8fafc; stroke-dasharray: 5.18,2.24; stroke-dashoffset: 0; stroke: #3b82f6; stroke-width: 1.4; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_3">
-    <path d="M 56.557241 362.804211 
-L 980.242759 362.804211 
-Q 994.344828 362.804211 994.344828 348.858947 
-L 994.344828 265.187368 
-Q 994.344828 251.242105 980.242759 251.242105 
-L 56.557241 251.242105 
-Q 42.455172 251.242105 42.455172 265.187368 
-L 42.455172 348.858947 
-Q 42.455172 362.804211 56.557241 362.804211 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #f8fafc; stroke-dasharray: 5.18,2.24; stroke-dashoffset: 0; stroke: #047857; stroke-width: 1.4; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_4">
-    <path d="M 56.557241 509.229474 
-L 472.568276 509.229474 
-Q 486.670345 509.229474 486.670345 495.284211 
-L 486.670345 397.667368 
-Q 486.670345 383.722105 472.568276 383.722105 
-L 56.557241 383.722105 
-Q 42.455172 383.722105 42.455172 397.667368 
-L 42.455172 495.284211 
-Q 42.455172 509.229474 56.557241 509.229474 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #f8fafc; stroke-dasharray: 5.18,2.24; stroke-dashoffset: 0; stroke: #6d28d9; stroke-width: 1.4; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_5">
-    <path d="M 536.027586 509.229474 
-L 980.242759 509.229474 
-Q 994.344828 509.229474 994.344828 495.284211 
-L 994.344828 397.667368 
-Q 994.344828 383.722105 980.242759 383.722105 
-L 536.027586 383.722105 
-Q 521.925517 383.722105 521.925517 397.667368 
-L 521.925517 495.284211 
-Q 521.925517 509.229474 536.027586 509.229474 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #f8fafc; stroke-dasharray: 5.18,2.24; stroke-dashoffset: 0; stroke: #b45309; stroke-width: 1.4; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_6">
-    <path d="M 56.557241 648.682105 
-L 980.242759 648.682105 
-Q 994.344828 648.682105 994.344828 634.736842 
-L 994.344828 544.092632 
-Q 994.344828 530.147368 980.242759 530.147368 
-L 56.557241 530.147368 
-Q 42.455172 530.147368 42.455172 544.092632 
-L 42.455172 634.736842 
-Q 42.455172 648.682105 56.557241 648.682105 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #f8fafc; stroke-dasharray: 5.18,2.24; stroke-dashoffset: 0; stroke: #1d4ed8; stroke-width: 1.4; stroke-linejoin: miter"/>
-   </g>
-   <g id="line2d_1">
-    <path d="M 42.455172 66.467368 
-L 994.344828 66.467368 
-" clip-path="url(#pdf896cdc51)" style="fill: none; stroke: #cbd5e1; stroke-linecap: square"/>
-   </g>
-   <g id="patch_7">
-    <path d="M 53.031724 202.433684 
-L 208.154483 202.433684 
-Q 218.731034 202.433684 218.731034 191.974737 
-L 218.731034 101.330526 
-Q 218.731034 90.871579 208.154483 90.871579 
-L 53.031724 90.871579 
-Q 42.455172 90.871579 42.455172 101.330526 
-L 42.455172 191.974737 
-Q 42.455172 202.433684 53.031724 202.433684 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #eff6ff; stroke: #1d4ed8; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_8">
-    <path d="M 271.613793 209.406316 
-L 476.093793 209.406316 
-Q 486.670345 209.406316 486.670345 198.947368 
-L 486.670345 122.248421 
-Q 486.670345 111.789474 476.093793 111.789474 
-L 271.613793 111.789474 
-Q 261.037241 111.789474 261.037241 122.248421 
-L 261.037241 198.947368 
-Q 261.037241 209.406316 271.613793 209.406316 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #3b82f6; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_9">
-    <path d="M 518.4 209.406316 
-L 722.88 209.406316 
-Q 733.456552 209.406316 733.456552 198.947368 
-L 733.456552 122.248421 
-Q 733.456552 111.789474 722.88 111.789474 
-L 518.4 111.789474 
-Q 507.823448 111.789474 507.823448 122.248421 
-L 507.823448 198.947368 
-Q 507.823448 209.406316 518.4 209.406316 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #3b82f6; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_10">
-    <path d="M 765.186207 209.406316 
-L 969.666207 209.406316 
-Q 980.242759 209.406316 980.242759 198.947368 
-L 980.242759 122.248421 
-Q 980.242759 111.789474 969.666207 111.789474 
-L 765.186207 111.789474 
-Q 754.609655 111.789474 754.609655 122.248421 
-L 754.609655 198.947368 
-Q 754.609655 209.406316 765.186207 209.406316 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #3b82f6; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_11">
-    <path d="M 74.184828 348.858947 
-L 320.971034 348.858947 
-Q 331.547586 348.858947 331.547586 338.4 
-L 331.547586 282.618947 
-Q 331.547586 272.16 320.971034 272.16 
-L 74.184828 272.16 
-Q 63.608276 272.16 63.608276 282.618947 
-L 63.608276 338.4 
-Q 63.608276 348.858947 74.184828 348.858947 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #047857; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_12">
-    <path d="M 370.328276 348.858947 
-L 617.114483 348.858947 
-Q 627.691034 348.858947 627.691034 338.4 
-L 627.691034 282.618947 
-Q 627.691034 272.16 617.114483 272.16 
-L 370.328276 272.16 
-Q 359.751724 272.16 359.751724 282.618947 
-L 359.751724 338.4 
-Q 359.751724 348.858947 370.328276 348.858947 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #047857; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_13">
-    <path d="M 666.471724 348.858947 
-L 962.615172 348.858947 
-Q 973.191724 348.858947 973.191724 338.4 
-L 973.191724 282.618947 
-Q 973.191724 272.16 962.615172 272.16 
-L 666.471724 272.16 
-Q 655.895172 272.16 655.895172 282.618947 
-L 655.895172 338.4 
-Q 655.895172 348.858947 666.471724 348.858947 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #f0fdf4; stroke: #047857; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_14">
-    <path d="M 74.184828 495.284211 
-L 454.94069 495.284211 
-Q 465.517241 495.284211 465.517241 484.825263 
-L 465.517241 415.098947 
-Q 465.517241 404.64 454.94069 404.64 
-L 74.184828 404.64 
-Q 63.608276 404.64 63.608276 415.098947 
-L 63.608276 484.825263 
-Q 63.608276 495.284211 74.184828 495.284211 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #faf5ff; stroke: #6d28d9; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_15">
-    <path d="M 553.655172 495.284211 
-L 962.615172 495.284211 
-Q 973.191724 495.284211 973.191724 484.825263 
-L 973.191724 415.098947 
-Q 973.191724 404.64 962.615172 404.64 
-L 553.655172 404.64 
-Q 543.078621 404.64 543.078621 415.098947 
-L 543.078621 484.825263 
-Q 543.078621 495.284211 553.655172 495.284211 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #fffbeb; stroke: #b45309; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_16">
-    <path d="M 74.184828 634.736842 
-L 335.073103 634.736842 
-Q 345.649655 634.736842 345.649655 624.277895 
-L 345.649655 561.524211 
-Q 345.649655 551.065263 335.073103 551.065263 
-L 74.184828 551.065263 
-Q 63.608276 551.065263 63.608276 561.524211 
-L 63.608276 624.277895 
-Q 63.608276 634.736842 74.184828 634.736842 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #1d4ed8; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_17">
-    <path d="M 384.430345 634.736842 
-L 659.42069 634.736842 
-Q 669.997241 634.736842 669.997241 624.277895 
-L 669.997241 561.524211 
-Q 669.997241 551.065263 659.42069 551.065263 
-L 384.430345 551.065263 
-Q 373.853793 551.065263 373.853793 561.524211 
-L 373.853793 624.277895 
-Q 373.853793 634.736842 384.430345 634.736842 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #fff1f2; stroke: #be123c; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="patch_18">
-    <path d="M 708.777931 634.736842 
-L 962.615172 634.736842 
-Q 973.191724 634.736842 973.191724 624.277895 
-L 973.191724 561.524211 
-Q 973.191724 551.065263 962.615172 551.065263 
-L 708.777931 551.065263 
-Q 698.201379 551.065263 698.201379 561.524211 
-L 698.201379 624.277895 
-Q 698.201379 634.736842 708.777931 634.736842 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #1d4ed8; stroke-width: 1.2; stroke-linejoin: miter"/>
-   </g>
-   <g id="text_1">
-    <text style="font-weight: 700; font-size: 15px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="42.455172" y="31.604211" transform="rotate(-0 42.455172 31.604211)">SecAgent: System Architecture &amp; Subsystem Decomposition</text>
-   </g>
-   <g id="text_2">
-    <text style="font-size: 9.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="42.455172" y="52.522105" transform="rotate(-0 42.455172 52.522105)">Universal CI/CD Security Scanner &amp; GitHub Action for Autonomous AI Agent Systems</text>
-   </g>
-   <g id="text_3">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="53.031724" y="106.211368" transform="rotate(-0 53.031724 106.211368)">Developer PR</text>
-   </g>
-   <g id="patch_19">
-    <path d="M 145.400276 113.184 
-L 202.513655 113.184 
-Q 208.154483 113.184 208.154483 107.605895 
-L 208.154483 103.422316 
-Q 208.154483 97.844211 202.513655 97.844211 
-L 145.400276 97.844211 
-Q 139.759448 97.844211 139.759448 103.422316 
-L 139.759448 107.605895 
-Q 139.759448 113.184 145.400276 113.184 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #1d4ed8; stroke-width: 0.8; stroke-linejoin: miter"/>
-   </g>
-   <g id="text_4">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="53.031724" y="120.156632" transform="rotate(-0 53.031724 120.156632)">«Actor: GitHub Event»</text>
-   </g>
-   <g id="text_5">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="53.031724" y="136.193684" transform="rotate(-0 53.031724 136.193684)">• Modifies agent prompts</text>
-   </g>
-   <g id="text_6">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="53.031724" y="150.836211" transform="rotate(-0 53.031724 150.836211)">• Adds / alters tool schemas</text>
-   </g>
-   <g id="text_7">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="53.031724" y="165.478737" transform="rotate(-0 53.031724 165.478737)">• Upgrades LLM models</text>
-   </g>
-   <g id="text_8">
-    <text style="font-weight: 700; font-size: 10px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #334155" x="264.562759" y="101.330526" transform="rotate(-0 264.562759 101.330526)">Subsystem 1: Multi-Domain Target Agents  [SUT / examples/]</text>
-   </g>
-   <g id="text_9">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="271.613793" y="127.129263" transform="rotate(-0 271.613793 127.129263)">DevOps Agent</text>
-   </g>
-   <g id="text_10">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="271.613793" y="141.074526" transform="rotate(-0 271.613793 141.074526)">examples/devops_agent/</text>
-   </g>
-   <g id="text_11">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="271.613793" y="157.111579" transform="rotate(-0 271.613793 157.111579)">• restart_server()</text>
-   </g>
-   <g id="text_12">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="271.613793" y="171.754105" transform="rotate(-0 271.613793 171.754105)">• tier: @permission('admin')</text>
-   </g>
-   <g id="text_13">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="271.613793" y="186.396632" transform="rotate(-0 271.613793 186.396632)">• Critical infra protection</text>
-   </g>
-   <g id="text_14">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="518.4" y="127.129263" transform="rotate(-0 518.4 127.129263)">Finance Agent</text>
-   </g>
-   <g id="text_15">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="518.4" y="141.074526" transform="rotate(-0 518.4 141.074526)">examples/finance_agent/</text>
-   </g>
-   <g id="text_16">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="518.4" y="157.111579" transform="rotate(-0 518.4 157.111579)">• execute_trade()</text>
-   </g>
-   <g id="text_17">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="518.4" y="171.754105" transform="rotate(-0 518.4 171.754105)">• tier: @permission('pay')</text>
-   </g>
-   <g id="text_18">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="518.4" y="186.396632" transform="rotate(-0 518.4 186.396632)">• Predecessor approval gate</text>
-   </g>
-   <g id="text_19">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="765.186207" y="127.129263" transform="rotate(-0 765.186207 127.129263)">Support Agent</text>
-   </g>
-   <g id="text_20">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="765.186207" y="141.074526" transform="rotate(-0 765.186207 141.074526)">examples/support_agent/</text>
-   </g>
-   <g id="text_21">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="765.186207" y="157.111579" transform="rotate(-0 765.186207 157.111579)">• query_db() [read]</text>
-   </g>
-   <g id="text_22">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="765.186207" y="171.754105" transform="rotate(-0 765.186207 171.754105)">• issue_refund() [pay]</text>
-   </g>
-   <g id="text_23">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="765.186207" y="186.396632" transform="rotate(-0 765.186207 186.396632)">• Scope allowlist projection</text>
-   </g>
-   <g id="text_24">
-    <text style="font-weight: 700; font-size: 10px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #334155" x="60.082759" y="268.673684" transform="rotate(-0 60.082759 268.673684)">Subsystem 2: Telemetry &amp; Instrumentation Pipeline  [src/secagent/telemetry/]</text>
-   </g>
-   <g id="text_25">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="287.499789" transform="rotate(-0 74.184828 287.499789)">OpenTelemetry GenAI Hooks</text>
-   </g>
-   <g id="text_26">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="74.184828" y="301.445053" transform="rotate(-0 74.184828 301.445053)">Span Capture Layer</text>
-   </g>
-   <g id="text_27">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="317.482105" transform="rotate(-0 74.184828 317.482105)">• agent.run (context &amp; role)</text>
-   </g>
-   <g id="text_28">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="332.124632" transform="rotate(-0 74.184828 332.124632)">• tool.call (params &amp; tier)</text>
-   </g>
-   <g id="text_29">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="346.767158" transform="rotate(-0 74.184828 346.767158)">• gate.hitl (approval booleans)</text>
-   </g>
-   <g id="text_30">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="370.328276" y="287.499789" transform="rotate(-0 370.328276 287.499789)">In-Line PII &amp; Secret Redactor</text>
-   </g>
-   <g id="text_31">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="370.328276" y="301.445053" transform="rotate(-0 370.328276 301.445053)">Deterministic Sanitizer</text>
-   </g>
-   <g id="text_32">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="370.328276" y="317.482105" transform="rotate(-0 370.328276 317.482105)">• SSN, credit card scrubbers</text>
-   </g>
-   <g id="text_33">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="370.328276" y="332.124632" transform="rotate(-0 370.328276 332.124632)">• Token &amp; secret redaction</text>
-   </g>
-   <g id="text_34">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="370.328276" y="346.767158" transform="rotate(-0 370.328276 346.767158)">• Zero leakage to CI logs</text>
-   </g>
-   <g id="text_35">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="666.471724" y="287.499789" transform="rotate(-0 666.471724 287.499789)">Execution Trace JSON</text>
-   </g>
-   <g id="patch_20">
-    <path d="M 837.811862 294.472421 
-L 956.974345 294.472421 
-Q 962.615172 294.472421 962.615172 288.894316 
-L 962.615172 284.710737 
-Q 962.615172 279.132632 956.974345 279.132632 
-L 837.811862 279.132632 
-Q 832.171034 279.132632 832.171034 284.710737 
-L 832.171034 288.894316 
-Q 832.171034 294.472421 837.811862 294.472421 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #047857; stroke-width: 0.8; stroke-linejoin: miter"/>
-   </g>
-   <g id="text_36">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="666.471724" y="301.445053" transform="rotate(-0 666.471724 301.445053)">schemas/trace_event.schema.json</text>
-   </g>
-   <g id="text_37">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="666.471724" y="317.482105" transform="rotate(-0 666.471724 317.482105)">• Standardized span hierarchy</text>
-   </g>
-   <g id="text_38">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="666.471724" y="332.124632" transform="rotate(-0 666.471724 332.124632)">• Framework agnostic format</text>
-   </g>
-   <g id="text_39">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="666.471724" y="346.767158" transform="rotate(-0 666.471724 346.767158)">• Ingested by audit engines</text>
-   </g>
-   <g id="text_40">
-    <text style="font-weight: 700; font-size: 10px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #334155" x="60.082759" y="401.153684" transform="rotate(-0 60.082759 401.153684)">Subsystem 3: Dynamic Adversarial Fuzzer  [src/secagent/fuzzer/]</text>
-   </g>
-   <g id="text_41">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="419.979789" transform="rotate(-0 74.184828 419.979789)">Combinatorial Mutation Engine (secagent fuzz)</text>
-   </g>
-   <g id="patch_21">
-    <path d="M 399.942621 426.952421 
-L 449.299862 426.952421 
-Q 454.94069 426.952421 454.94069 421.374316 
-L 454.94069 417.190737 
-Q 454.94069 411.612632 449.299862 411.612632 
-L 399.942621 411.612632 
-Q 394.301793 411.612632 394.301793 417.190737 
-L 394.301793 421.374316 
-Q 394.301793 426.952421 399.942621 426.952421 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #6d28d9; stroke-width: 0.8; stroke-linejoin: miter"/>
-   </g>
-   <g id="text_42">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="74.184828" y="433.925053" transform="rotate(-0 74.184828 433.925053)">Dynamic Attack Vector Generation</text>
-   </g>
-   <g id="text_43">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="449.962105" transform="rotate(-0 74.184828 449.962105)">• Automated prompt mutations &amp; role jailbreaks</text>
-   </g>
-   <g id="text_44">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="464.604632" transform="rotate(-0 74.184828 464.604632)">• SQL / shell metacharacter injection payloads</text>
-   </g>
-   <g id="text_45">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="479.247158" transform="rotate(-0 74.184828 479.247158)">• Generates adversarial edge-case scenarios on the fly</text>
-   </g>
-   <g id="text_46">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="493.889684" transform="rotate(-0 74.184828 493.889684)">• Tests agent resilience without static scenario authoring</text>
-   </g>
-   <g id="text_47">
-    <text style="font-weight: 700; font-size: 10px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #334155" x="539.553103" y="401.153684" transform="rotate(-0 539.553103 401.153684)">Subsystem 4: Invariant Security Engine  [src/secagent/engine/]</text>
-   </g>
-   <g id="text_48">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="553.655172" y="419.979789" transform="rotate(-0 553.655172 419.979789)">Deterministic OWASP Invariant Verifier</text>
-   </g>
-   <g id="patch_22">
-    <path d="M 861.080276 426.952421 
-L 956.974345 426.952421 
-Q 962.615172 426.952421 962.615172 421.374316 
-L 962.615172 417.190737 
-Q 962.615172 411.612632 956.974345 411.612632 
-L 861.080276 411.612632 
-Q 855.439448 411.612632 855.439448 417.190737 
-L 855.439448 421.374316 
-Q 855.439448 426.952421 861.080276 426.952421 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #b45309; stroke-width: 0.8; stroke-linejoin: miter"/>
-   </g>
-   <g id="text_49">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="553.655172" y="433.925053" transform="rotate(-0 553.655172 433.925053)">policies/security_rules.yaml</text>
-   </g>
-   <g id="text_50">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="553.655172" y="449.962105" transform="rotate(-0 553.655172 449.962105)">• ASI03: Mandatory HITL predecessor gate on pay / admin</text>
-   </g>
-   <g id="text_51">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="553.655172" y="464.604632" transform="rotate(-0 553.655172 464.604632)">• ASI03: Context boundary enforcement (read-only locks)</text>
-   </g>
-   <g id="text_52">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="553.655172" y="479.247158" transform="rotate(-0 553.655172 479.247158)">• ASI02: Tool parameter SQLi &amp; shell regex blocklists</text>
-   </g>
-   <g id="text_53">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="553.655172" y="493.889684" transform="rotate(-0 553.655172 493.889684)">• ASI08: Circuit breaker (max steps &lt;= 10, duplicate &lt;= 2)</text>
-   </g>
-   <g id="text_54">
-    <text style="font-weight: 700; font-size: 10px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #334155" x="60.082759" y="547.578947" transform="rotate(-0 60.082759 547.578947)">Subsystem 5: Turnkey GitHub Action &amp; CI/CD Security Gate  [action.yml &amp; src/secagent/cli.py]</text>
-   </g>
-   <g id="text_55">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="566.405053" transform="rotate(-0 74.184828 566.405053)">Composite GitHub Action</text>
-   </g>
-   <g id="text_56">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="74.184828" y="580.350316" transform="rotate(-0 74.184828 580.350316)">action.yml</text>
-   </g>
-   <g id="text_57">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="596.387368" transform="rotate(-0 74.184828 596.387368)">• Runs in any GitHub workflow</text>
-   </g>
-   <g id="text_58">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="611.029895" transform="rotate(-0 74.184828 611.029895)">• Zero setup: uses: ./action.yml</text>
-   </g>
-   <g id="text_59">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="74.184828" y="625.672421" transform="rotate(-0 74.184828 625.672421)">• Evaluates all tested invariants</text>
-   </g>
-   <g id="text_60">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="384.430345" y="566.405053" transform="rotate(-0 384.430345 566.405053)">CI Audit Gate &amp; PR Bot</text>
-   </g>
-   <g id="patch_23">
-    <path d="M 596.666483 573.377684 
-L 653.779862 573.377684 
-Q 659.42069 573.377684 659.42069 567.799579 
-L 659.42069 563.616 
-Q 659.42069 558.037895 653.779862 558.037895 
-L 596.666483 558.037895 
-Q 591.025655 558.037895 591.025655 563.616 
-L 591.025655 567.799579 
-Q 591.025655 573.377684 596.666483 573.377684 
-z
-" clip-path="url(#pdf896cdc51)" style="fill: #ffffff; stroke: #be123c; stroke-width: 0.8; stroke-linejoin: miter"/>
-   </g>
-   <g id="text_61">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="384.430345" y="580.350316" transform="rotate(-0 384.430345 580.350316)">Exit Code Decisions</text>
-   </g>
-   <g id="text_62">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="384.430345" y="596.387368" transform="rotate(-0 384.430345 596.387368)">• Exit 0: PASS (Allow PR Merge)</text>
-   </g>
-   <g id="text_63">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="384.430345" y="611.029895" transform="rotate(-0 384.430345 611.029895)">• Exit 1: FAIL (BLOCK PR Merge)</text>
-   </g>
-   <g id="text_64">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="384.430345" y="625.672421" transform="rotate(-0 384.430345 625.672421)">• Posts Markdown failure table (comment.md)</text>
-   </g>
-   <g id="text_65">
-    <text style="font-weight: 700; font-size: 10.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="708.777931" y="566.405053" transform="rotate(-0 708.777931 566.405053)">SecAgent CLI &amp; Web Inspector</text>
-   </g>
-   <g id="text_66">
-    <text style="font-style: italic; font-size: 8.2px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #475569" x="708.777931" y="580.350316" transform="rotate(-0 708.777931 580.350316)">secagent scan | fuzz | serve</text>
-   </g>
-   <g id="text_67">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="708.777931" y="596.387368" transform="rotate(-0 708.777931 596.387368)">• Rich terminal reporting</text>
-   </g>
-   <g id="text_68">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="708.777931" y="611.029895" transform="rotate(-0 708.777931 611.029895)">• Streamlit audit visualizer</text>
-   </g>
-   <g id="text_69">
-    <text style="font-size: 8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: start; fill: #0f172a" x="708.777931" y="625.672421" transform="rotate(-0 708.777931 625.672421)">• Local developer reproduction</text>
-   </g>
-   <g id="text_70">
-    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #1d4ed8" x="173.956966" y="106.908632" transform="rotate(-0 173.956966 106.908632)">Trigger</text>
-   </g>
-   <g id="patch_24">
-    <path d="M 220.731352 146.652632 
-Q 232.833666 146.652632 243.370732 146.652632 
-" style="fill: none; stroke: #1d4ed8; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 238.570732 144.252632 
-L 243.370732 146.652632 
-L 238.570732 149.052632 
-z
-" style="fill: #1d4ed8; stroke: #1d4ed8; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="text_71">
-    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #047857" x="897.393103" y="288.197053" transform="rotate(-0 897.393103 288.197053)">Frozen Contract</text>
-   </g>
-   <g id="patch_25">
-    <path d="M 620.64 225.350082 
-Q 620.64 237.295749 620.64 247.676168 
-" style="fill: none; stroke: #047857; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 623.04 242.876168 
-L 620.64 247.676168 
-L 618.24 242.876168 
-z
-" style="fill: #047857; stroke: #047857; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="patch_26">
-    <path d="M 333.547904 310.509474 
-Q 345.650218 310.509474 356.187284 310.509474 
-" style="fill: none; stroke: #047857; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 351.387284 308.109474 
-L 356.187284 310.509474 
-L 351.387284 312.909474 
-z
-" style="fill: #047857; stroke: #047857; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="patch_27">
-    <path d="M 629.691352 310.509474 
-Q 641.793666 310.509474 652.330732 310.509474 
-" style="fill: none; stroke: #047857; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 647.530732 308.109474 
-L 652.330732 310.509474 
-L 647.530732 312.909474 
-z
-" style="fill: #047857; stroke: #047857; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="text_72">
-    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #6d28d9" x="424.621241" y="420.677053" transform="rotate(-0 424.621241 420.677053)">Fuzzer</text>
-   </g>
-   <g id="text_73">
-    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #b45309" x="909.02731" y="420.677053" transform="rotate(-0 909.02731 420.677053)">OWASP Top 10</text>
-   </g>
-   <g id="patch_28">
-    <path d="M 814.543448 364.803565 
-Q 814.543448 373.262868 814.543448 380.156924 
-" style="fill: none; stroke: #b45309; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 816.943448 375.356924 
-L 814.543448 380.156924 
-L 812.143448 375.356924 
-z
-" style="fill: #b45309; stroke: #b45309; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="patch_29">
-    <path d="M 264.562759 380.157503 
-Q 264.562759 373.263447 264.562759 364.804144 
-" style="fill: none; stroke: #6d28d9; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 266.962759 375.357503 
-L 264.562759 380.157503 
-L 262.162759 375.357503 
-z
-" style="fill: #6d28d9; stroke: #6d28d9; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="text_74">
-    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #be123c" x="625.223172" y="567.102316" transform="rotate(-0 625.223172 567.102316)">PR Gate</text>
-   </g>
-   <g id="patch_30">
-    <path d="M 264.562759 511.228828 
-Q 264.562759 519.688131 264.562759 526.582187 
-" style="fill: none; stroke: #6d28d9; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 266.962759 521.782187 
-L 264.562759 526.582187 
-L 262.162759 521.782187 
-z
-" style="fill: #6d28d9; stroke: #6d28d9; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="patch_31">
-    <path d="M 758.135172 511.228828 
-Q 758.135172 519.688131 758.135172 526.582187 
-" style="fill: none; stroke: #b45309; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 760.535172 521.782187 
-L 758.135172 526.582187 
-L 755.735172 521.782187 
-z
-" style="fill: #b45309; stroke: #b45309; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="patch_32">
-    <path d="M 347.649973 592.901053 
-Q 359.752287 592.901053 370.289353 592.901053 
-" style="fill: none; stroke: #1d4ed8; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 365.489353 590.501053 
-L 370.289353 592.901053 
-L 365.489353 595.301053 
-z
-" style="fill: #1d4ed8; stroke: #1d4ed8; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="patch_33">
-    <path d="M 671.997559 592.901053 
-Q 684.099873 592.901053 694.636939 592.901053 
-" style="fill: none; stroke: #1d4ed8; stroke-width: 1.4; stroke-linecap: round"/>
-    <path d="M 689.836939 590.501053 
-L 694.636939 592.901053 
-L 689.836939 595.301053 
-z
-" style="fill: #1d4ed8; stroke: #1d4ed8; stroke-width: 1.4; stroke-linecap: round"/>
-   </g>
-   <g id="text_75">
-    <g id="patch_34">
-     <path d="M 211.405933 142.244526 
-L 261.311308 142.244526 
-L 261.311308 132.298308 
-L 211.405933 132.298308 
-z
-" style="fill: #ffffff; opacity: 0.9"/>
-    </g>
-    <text style="font-weight: 700; font-size: 7.8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #1d4ed8" x="236.358621" y="139.242745" transform="rotate(-0 236.358621 139.242745)">git push / PR</text>
-   </g>
-   <g id="text_76">
-    <g id="patch_35">
-     <path d="M 595.60472 232.888737 
-L 652.726314 232.888737 
-L 652.726314 222.980299 
-L 595.60472 222.980299 
-z
-" style="fill: #ffffff; opacity: 0.9"/>
-    </g>
-    <text style="font-weight: 700; font-size: 7.8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #047857" x="624.165517" y="229.924737" transform="rotate(-0 624.165517 229.924737)">Runtime Spans</text>
-   </g>
-   <g id="text_77">
-    <g id="patch_36">
-     <path d="M 328.434485 306.101368 
-L 369.91586 306.101368 
-L 369.91586 296.192931 
-L 328.434485 296.192931 
-z
-" style="fill: #ffffff; opacity: 0.9"/>
-    </g>
-    <text style="font-weight: 700; font-size: 7.8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #047857" x="349.175172" y="303.137368" transform="rotate(-0 349.175172 303.137368)">Raw Spans</text>
-   </g>
-   <g id="text_78">
-    <g id="patch_37">
-     <path d="M 627.375574 306.101368 
-L 663.261668 306.101368 
-L 663.261668 296.192931 
-L 627.375574 296.192931 
-z
-" style="fill: #ffffff; opacity: 0.9"/>
-    </g>
-    <text style="font-weight: 700; font-size: 7.8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #047857" x="645.318621" y="303.137368" transform="rotate(-0 645.318621 303.137368)">Sanitized</text>
-   </g>
-   <g id="text_79">
-    <g id="patch_38">
-     <path d="M 796.305747 368.855053 
-L 839.832184 368.855053 
-L 839.832184 358.946615 
-L 796.305747 358.946615 
-z
-" style="fill: #ffffff; opacity: 0.9"/>
-    </g>
-    <text style="font-weight: 700; font-size: 7.8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #b45309" x="818.068966" y="365.891053" transform="rotate(-0 818.068966 365.891053)">Trace Input</text>
-   </g>
-   <g id="text_80">
-    <g id="patch_39">
-     <path d="M 234.562291 368.855053 
-L 301.61426 368.855053 
-L 301.61426 358.946615 
-L 234.562291 358.946615 
-z
-" style="fill: #ffffff; opacity: 0.9"/>
-    </g>
-    <text style="font-weight: 700; font-size: 7.8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #6d28d9" x="268.088276" y="365.891053" transform="rotate(-0 268.088276 365.891053)">Mutated Prompts</text>
-   </g>
-   <g id="text_81">
-    <g id="patch_40">
-     <path d="M 730.037174 515.280316 
-L 793.284205 515.280316 
-L 793.284205 505.371878 
-L 730.037174 505.371878 
-z
-" style="fill: #ffffff; opacity: 0.9"/>
-    </g>
-    <text style="font-weight: 700; font-size: 7.8px; font-family: 'Segoe UI', 'DejaVu Sans', 'Helvetica', 'Arial', sans-serif; text-anchor: middle; fill: #b45309" x="761.66069" y="512.316316" transform="rotate(-0 761.66069 512.316316)">Invariant Results</text>
-   </g>
+
+  <text x="112" y="56" fill="#ffffff" font-size="20" font-weight="700" letter-spacing="-0.3">SecAgent System Architecture</text>
+  <text x="112" y="77" fill="#94a3b8" font-size="12.5" font-weight="400">Universal DevSecOps Security Scanner &amp; GitHub Action for Autonomous AI Agents</text>
+  
+  <!-- Pill Badges Top Right -->
+  <rect x="914" y="44" width="162" height="32" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <circle cx="932" cy="60" r="4" fill="#10b981"/>
+  <text x="944" y="64" fill="#f1f5f9" font-size="11.5" font-weight="600">OWASP Top 10 • Invariant Gate</text>
+
+  <!-- ==================== TRIGGER: DEVELOPER PULL REQUEST ==================== -->
+  <g transform="translate(40, 126)">
+    <rect x="0" y="0" width="230" height="136" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.2" filter="url(#cardShadow)"/>
+    <rect x="0" y="0" width="230" height="38" rx="12" fill="#f8fafc"/>
+    <rect x="0" y="26" width="230" height="12" fill="#f8fafc"/>
+    <line x1="0" y1="38" x2="230" y2="38" stroke="#e2e8f0" stroke-width="1"/>
+    
+    <!-- Git PR Icon -->
+    <circle cx="24" cy="19" r="6" fill="#2563eb" opacity="0.15"/>
+    <circle cx="24" cy="19" r="3" fill="#2563eb"/>
+    <text x="38" y="23" fill="#0f172a" font-size="12.5" font-weight="700">Developer PR Event</text>
+    
+    <text x="16" y="60" fill="#475569" font-size="11.5" font-weight="500">• Modifies system prompt</text>
+    <text x="16" y="80" fill="#475569" font-size="11.5" font-weight="500">• Upgrades LLM model</text>
+    <text x="16" y="100" fill="#475569" font-size="11.5" font-weight="500">• Registers new agent tool</text>
+    <rect x="16" y="112" width="76" height="16" rx="8" fill="#eff6ff"/>
+    <text x="24" y="124" fill="#1d4ed8" font-size="9" font-weight="700">GITHUB EVENT</text>
   </g>
- </g>
- <defs>
-  <clipPath id="pdf896cdc51">
-   <rect x="7.2" y="7.2" width="1022.4" height="662.4"/>
-  </clipPath>
- </defs>
+
+  <!-- Flow Arrow: PR to SUT -->
+  <path d="M 270 194 L 302 194" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowBlue)" stroke-dasharray="4,4"/>
+
+  <!-- ==================== SUBSYSTEM 1: TARGET AUTONOMOUS AGENTS ==================== -->
+  <g transform="translate(310, 126)">
+    <rect x="0" y="0" width="790" height="136" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="4,4"/>
+    <text x="18" y="24" fill="#0f172a" font-size="12.5" font-weight="700">Subsystem 1: Multi-Domain Target Autonomous Agents</text>
+    <text x="362" y="24" fill="#64748b" font-size="11" font-weight="500">[examples/ • LangGraph, CrewAI, AutoGen, Raw Python]</text>
+
+    <!-- DevOps Agent Card -->
+    <g transform="translate(18, 36)">
+      <rect x="0" y="0" width="236" height="88" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#cardShadow)"/>
+      <circle cx="16" cy="18" r="4" fill="#3b82f6"/>
+      <text x="28" y="22" fill="#0f172a" font-size="12" font-weight="700">DevOps Agent</text>
+      <rect x="156" y="10" width="70" height="16" rx="4" fill="#eff6ff"/>
+      <text x="162" y="21" fill="#1d4ed8" font-size="9" font-weight="700">tier="admin"</text>
+      <text x="16" y="44" fill="#64748b" font-size="10.5" font-family="monospace">restart_server(id)</text>
+      <text x="16" y="62" fill="#475569" font-size="10">Requires authorized HITL gate</text>
+      <text x="16" y="76" fill="#059669" font-size="9.5" font-weight="600">✓ @secagent.permission</text>
+    </g>
+
+    <!-- Finance Agent Card -->
+    <g transform="translate(272, 36)">
+      <rect x="0" y="0" width="236" height="88" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#cardShadow)"/>
+      <circle cx="16" cy="18" r="4" fill="#10b981"/>
+      <text x="28" y="22" fill="#0f172a" font-size="12" font-weight="700">Finance Agent</text>
+      <rect x="168" y="10" width="58" height="16" rx="4" fill="#f0fdf4"/>
+      <text x="174" y="21" fill="#047857" font-size="9" font-weight="700">tier="pay"</text>
+      <text x="16" y="44" fill="#64748b" font-size="10.5" font-family="monospace">execute_trade(sym)</text>
+      <text x="16" y="62" fill="#475569" font-size="10">Predecessor manager approval</text>
+      <text x="16" y="76" fill="#059669" font-size="9.5" font-weight="600">✓ @secagent.permission</text>
+    </g>
+
+    <!-- Support Agent Card -->
+    <g transform="translate(526, 36)">
+      <rect x="0" y="0" width="246" height="88" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#cardShadow)"/>
+      <circle cx="16" cy="18" r="4" fill="#f59e0b"/>
+      <text x="28" y="22" fill="#0f172a" font-size="12" font-weight="700">Support Agent</text>
+      <rect x="172" y="10" width="64" height="16" rx="4" fill="#fffbeb"/>
+      <text x="178" y="21" fill="#b45309" font-size="9" font-weight="700">read • pay</text>
+      <text x="16" y="44" fill="#64748b" font-size="10.5" font-family="monospace">query_db, issue_refund</text>
+      <text x="16" y="62" fill="#475569" font-size="10">PII field allowlist projection</text>
+      <text x="16" y="76" fill="#059669" font-size="9.5" font-weight="600">✓ @secagent.permission</text>
+    </g>
+  </g>
+
+  <!-- Flow Down to Telemetry -->
+  <path d="M 705 262 L 705 288" stroke="#059669" stroke-width="2" marker-end="url(#arrowEmerald)"/>
+  <rect x="635" y="268" width="140" height="16" rx="4" fill="#f0fdf4" stroke="#059669" stroke-width="0.8"/>
+  <text x="705" y="280" fill="#047857" font-size="9" font-weight="700" text-anchor="middle">OPENTELEMETRY SPANS</text>
+
+  <!-- ==================== SUBSYSTEM 2: TELEMETRY & PII PIPELINE ==================== -->
+  <g transform="translate(40, 296)">
+    <rect x="0" y="0" width="1060" height="92" rx="12" fill="#f0fdf4" stroke="#86efac" stroke-width="1.2" stroke-dasharray="4,4"/>
+    <text x="18" y="22" fill="#065f46" font-size="12.5" font-weight="700">Subsystem 2: Telemetry &amp; In-Line PII Scrubbing Pipeline</text>
+    <text x="385" y="22" fill="#047857" font-size="11" font-weight="500">[src/secagent/telemetry/ • Framework-Agnostic Instrumentation]</text>
+
+    <!-- Span Capture Module -->
+    <g transform="translate(18, 34)">
+      <rect x="0" y="0" width="310" height="48" rx="8" fill="#ffffff" stroke="#bbf7d0" stroke-width="1" filter="url(#cardShadow)"/>
+      <text x="14" y="20" fill="#0f172a" font-size="11.5" font-weight="700">1. Span Interception Layer</text>
+      <text x="14" y="36" fill="#475569" font-size="10.5">Captures agent.run, tool.call, gate.hitl spans</text>
+    </g>
+
+    <!-- PII Scrubber Module -->
+    <g transform="translate(348, 34)">
+      <rect x="0" y="0" width="330" height="48" rx="8" fill="#ffffff" stroke="#bbf7d0" stroke-width="1" filter="url(#cardShadow)"/>
+      <text x="14" y="20" fill="#0f172a" font-size="11.5" font-weight="700">2. Deterministic PII / Secret Sanitizer</text>
+      <text x="14" y="36" fill="#475569" font-size="10.5">Regex redacts SSNs, credit cards, auth tokens</text>
+    </g>
+
+    <!-- Standard Trace Contract Card -->
+    <g transform="translate(698, 34)">
+      <rect x="0" y="0" width="344" height="48" rx="8" fill="#047857" filter="url(#cardShadow)"/>
+      <text x="14" y="20" fill="#ffffff" font-size="11.5" font-weight="700">3. Standard Execution Trace JSON</text>
+      <text x="14" y="36" fill="#a7f3d0" font-size="10.5" font-family="monospace">schemas/trace_event.schema.json (Frozen)</text>
+    </g>
+  </g>
+
+  <!-- Connectors to Fuzzer and Invariant Engine -->
+  <path d="M 350 388 L 350 430" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrowPurple)"/>
+  <path d="M 870 388 L 870 430" stroke="#d97706" stroke-width="2" marker-end="url(#arrowAmber)"/>
+
+  <!-- ==================== MIDDLE ROW: FUZZER & INVARIANT VERIFIER ==================== -->
+  <!-- Subsystem 3: Dynamic Fuzzer -->
+  <g transform="translate(40, 438)">
+    <rect x="0" y="0" width="510" height="152" rx="12" fill="#faf5ff" stroke="#c084fc" stroke-width="1.2" stroke-dasharray="4,4"/>
+    <text x="18" y="24" fill="#581c87" font-size="12.5" font-weight="700">Subsystem 3: Dynamic Adversarial Fuzzer</text>
+    <text x="290" y="24" fill="#7c3aed" font-size="11" font-weight="500">[secagent fuzz]</text>
+
+    <g transform="translate(18, 38)">
+      <rect x="0" y="0" width="474" height="100" rx="8" fill="#ffffff" stroke="#e9d5ff" stroke-width="1" filter="url(#cardShadow)"/>
+      <circle cx="16" cy="18" r="4" fill="#7c3aed"/>
+      <text x="28" y="22" fill="#0f172a" font-size="12" font-weight="700">Automated Mutation Engine</text>
+      <rect x="360" y="10" width="102" height="18" rx="4" fill="#f3e8ff"/>
+      <text x="368" y="22" fill="#6b21a8" font-size="9.5" font-weight="700">DYNAMIC ATTACK</text>
+      
+      <text x="16" y="46" fill="#475569" font-size="11">• Mutates adversarial prompts to test privilege boundaries on the fly</text>
+      <text x="16" y="66" fill="#475569" font-size="11">• Injects SQLi (' OR '1'='1) &amp; command payloads into tool arguments</text>
+      <text x="16" y="86" fill="#475569" font-size="11">• Generates discovered vulnerability manifests into scenarios/generated/</text>
+    </g>
+  </g>
+
+  <!-- Subsystem 4: Invariant Security Engine -->
+  <g transform="translate(570, 438)">
+    <rect x="0" y="0" width="530" height="152" rx="12" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.2" stroke-dasharray="4,4"/>
+    <text x="18" y="24" fill="#78350f" font-size="12.5" font-weight="700">Subsystem 4: Invariant Security Verifier</text>
+    <text x="275" y="24" fill="#b45309" font-size="11" font-weight="500">[policies/security_rules.yaml]</text>
+
+    <g transform="translate(18, 38)">
+      <rect x="0" y="0" width="494" height="100" rx="8" fill="#ffffff" stroke="#fef3c7" stroke-width="1" filter="url(#cardShadow)"/>
+      <circle cx="16" cy="18" r="4" fill="#d97706"/>
+      <text x="28" y="22" fill="#0f172a" font-size="12" font-weight="700">Deterministic Policy Evaluation</text>
+      <rect x="370" y="10" width="112" height="18" rx="4" fill="#fef3c7"/>
+      <text x="376" y="22" fill="#92400e" font-size="9.5" font-weight="700">ZERO LLM JUDGE</text>
+      
+      <text x="16" y="46" fill="#475569" font-size="11"><tspan font-weight="600" fill="#b45309">POL-ASI03-001:</tspan> Mandatory predecessor HITL gate for pay / admin tiers</text>
+      <text x="16" y="66" fill="#475569" font-size="11"><tspan font-weight="600" fill="#b45309">POL-ASI02-001:</tspan> Regex blocklists for SQL injection &amp; shell metacharacters</text>
+      <text x="16" y="86" fill="#475569" font-size="11"><tspan font-weight="600" fill="#b45309">POL-ASI08-001:</tspan> Step threshold circuit breaker (max steps ≤ 10, dupes ≤ 2)</text>
+    </g>
+  </g>
+
+  <!-- Connectors Down to Subsystem 5 -->
+  <path d="M 295 590 L 295 628" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrowPurple)"/>
+  <path d="M 835 590 L 835 628" stroke="#d97706" stroke-width="2" marker-end="url(#arrowAmber)"/>
+
+  <!-- ==================== BOTTOM ROW: SUBSYSTEM 5 ==================== -->
+  <g transform="translate(40, 636)">
+    <rect x="0" y="0" width="1060" height="114" rx="12" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2" stroke-dasharray="4,4"/>
+    <text x="18" y="22" fill="#1e3a8a" font-size="12.5" font-weight="700">Subsystem 5: Turnkey GitHub Action &amp; CI/CD Audit Gate</text>
+    <text x="390" y="22" fill="#2563eb" font-size="11" font-weight="500">[action.yml • Pull Request Decision Gate]</text>
+
+    <!-- Action Card -->
+    <g transform="translate(18, 34)">
+      <rect x="0" y="0" width="310" height="66" rx="8" fill="#ffffff" stroke="#bfdbfe" stroke-width="1" filter="url(#cardShadow)"/>
+      <text x="14" y="20" fill="#0f172a" font-size="11.5" font-weight="700">Composite GitHub Action</text>
+      <text x="14" y="36" fill="#2563eb" font-size="10.5" font-family="monospace">uses: yyouretoast/SecAgent@main</text>
+      <text x="14" y="52" fill="#64748b" font-size="10">Runs automatically in PR workflows</text>
+    </g>
+
+    <!-- PR Decision Bot Card -->
+    <g transform="translate(348, 34)">
+      <rect x="0" y="0" width="360" height="66" rx="8" fill="#ffffff" stroke="#fecdd3" stroke-width="1" filter="url(#cardShadow)"/>
+      <text x="14" y="20" fill="#be123c" font-size="11.5" font-weight="700">Pull Request Decision Gate</text>
+      <text x="14" y="38" fill="#059669" font-size="10.5" font-weight="600">✓ Exit Code 0: Allow PR Merge</text>
+      <text x="14" y="54" fill="#e11d48" font-size="10.5" font-weight="600">✗ Exit Code 1: BLOCK PR &amp; Post Markdown Triage</text>
+    </g>
+
+    <!-- Local CLI / Dashboard -->
+    <g transform="translate(728, 34)">
+      <rect x="0" y="0" width="314" height="66" rx="8" fill="#ffffff" stroke="#bfdbfe" stroke-width="1" filter="url(#cardShadow)"/>
+      <text x="14" y="20" fill="#0f172a" font-size="11.5" font-weight="700">Developer CLI &amp; Dashboard</text>
+      <text x="14" y="36" fill="#475569" font-size="10.5" font-family="monospace">secagent scan | fuzz | serve</text>
+      <text x="14" y="52" fill="#64748b" font-size="10">Interactive local Streamlit investigation</text>
+    </g>
+  </g>
+
 </svg>
