@@ -1,33 +1,25 @@
-# SecAgentTwin
+# SecAgent
 
-> **Execution-Grounded Differential Testing & Security Validation for Autonomous AI Agents in CI/CD**
+> **Automated OWASP Security Scanner & GitHub Action for Autonomous AI Agents**
 
-[![CI](https://github.com/yyouretoast/SecAgentTwin/actions/workflows/secagent-ci.yml/badge.svg)](https://github.com/yyouretoast/SecAgentTwin/actions)
+[![CI](https://github.com/yyouretoast/SecAgent/actions/workflows/secagent-ci.yml/badge.svg)](https://github.com/yyouretoast/SecAgent/actions)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/downloads/)
 
-SecAgentTwin is an automated DevSecOps testing framework for autonomous AI agents. Rather than grading non-deterministic text outputs using LLM-as-a-judge (which exhibits an ~89% error rate when diagnosing trace failures), SecAgentTwin performs **trace-level differential sequence alignment** against immutable golden baselines, enforces **OWASP Top 10 for Agentic AI Applications (2025)** security invariants at tool boundaries, and leverages **Chronicle cut-point replay** ([arXiv:2609.20625](https://arxiv.org/abs/2609.20625)) for zero-token, sub-second continuous regression testing in pull request workflows.
+SecAgent is an automated security scanner and GitHub Action designed to test autonomous AI agents (LangGraph, CrewAI, AutoGen) against the **OWASP Top 10 for Agentic AI Applications**. 
+
+SecAgent integrates directly into CI/CD pipelines to block pull requests on unauthorized privilege escalations, missing predecessor human-in-the-loop (HITL) gates, parameter injections, context scope violations, and runaway execution loops.
 
 ---
 
-## Architecture Overview
+## Key Features
 
-![SecAgentTwin Architecture](docs/secagent_twin_c4_architecture.png)
-
-The system decomposes into 5 decoupled subsystems connected by frozen JSON/YAML contracts:
-1. **Target SUT (`src/secagent_twin/agent/`)**: Reference LangGraph customer operations agent with Human-in-the-Loop (`approval_gate`) and `@permission` tiers.
-2. **Telemetry & PII (`src/secagent_twin/telemetry/`)**: OpenTelemetry GenAI span capture with deterministic in-line regex PII sanitization.
-3. **Chronicle Replay (`src/secagent_twin/replay/`)**: Intercepts model calls to serve recorded envelopes via SHA-256 prompt hashing (0 live tokens).
-4. **Diff & Policy Engine (`src/secagent_twin/engine/`)**: Evaluates declarative YAML policies (Tier 1) and aligns traces via Mazurkiewicz canonical read sorting (Tier 2) to pinpoint earliest divergence index $k^*$.
-5. **CI/CD Gate & UI (`src/secagent_twin/cli.py`, `app.py`)**: GitHub Actions PR blocker (Exit 0/1/2) and Streamlit dual-tree trace inspector.
-
----
-
-## Runtime Execution Flow
-
-The sequence below illustrates the chronological lifecycle of an automated regression audit when a pull request is submitted:
-
-![SecAgentTwin Execution Flow](docs/secagent_twin_execution_flow.png)
+1. **Universal GitHub Action (`action.yml`)**: Drop-in action for GitHub workflows. Blocks PR merges automatically when an agent breaches declarative security invariants.
+2. **Multi-Domain Agent Support**: Compatible with any autonomous agent domain (DevOps infrastructure, Quantitative Finance, Customer Operations, Data Science).
+3. **Universal Privilege SDK (`@secagent.permission`)**: Standardized tool permission tiers (`read`, `write`, `pay`, `admin`, `net`).
+4. **Deterministic Invariant Verification**: Verifies OWASP rules (ASI01 Goal Hijacking, ASI02 Tool Misuse, ASI03 Privilege Abuse, ASI06 Scope Contamination, ASI08 Cascading Loops) directly on execution traces without subjective LLM-as-a-judge grading.
+5. **Dynamic Adversarial Fuzzing (`secagent fuzz`)**: Automated prompt mutation engine to uncover unhandled edge-cases and jailbreak regressions.
+6. **Local Security Dashboard (`secagent serve`)**: Interactive visualization of security audits and trace lifecycles.
 
 ---
 
@@ -35,30 +27,62 @@ The sequence below illustrates the chronological lifecycle of an automated regre
 
 ### 1. Installation
 ```bash
-git clone https://github.com/yyouretoast/SecAgentTwin.git
-cd SecAgentTwin
+git clone https://github.com/yyouretoast/SecAgent.git
+cd SecAgent
 python -m pip install -e ".[dev]"
 ```
 
-### 2. Record a Golden Baseline (Offline)
-Execute a known-good agent version across benchmark scenarios to commit reference traces:
-```bash
-secagent record --scenario scenarios/SCN-07.yaml --output baselines/golden/
+### 2. Protect Agent Tools
+Apply `@permission` to your agent's tools:
+```python
+from secagent.sdk import permission
+
+
+@permission(tier="admin")
+def restart_server(server_id: str) -> dict:
+    """Privileged admin command."""
+    return {"server": server_id, "status": "restarted"}
+
+
+@permission(tier="pay")
+def execute_trade(symbol: str, quantity: int) -> dict:
+    """Financial trade requiring predecessor approval."""
+    return {"order": "filled", "symbol": symbol, "quantity": quantity}
 ```
 
-### 3. Run Differential Security Audit (Local or CI)
-Audit a candidate agent modification against committed baselines:
+### 3. Run Security Scan
+Audit an agent against attack scenarios and declarative policies:
 ```bash
-secagent test \
-  --baseline baselines/golden/ \
-  --scenarios scenarios/ \
-  --policies policies/security_rules.yaml
+secagent scan --scenarios scenarios/ --policies policies/security_rules.yaml
 ```
 
-### 4. Interactive Local Debugging (Streamlit Dashboard)
-Inspect side-by-side execution trees and examine divergent step $k^*$:
+### 4. Dynamic Scenario Fuzzing
+Generate adversarial mutations on the fly:
 ```bash
-secagent serve --baseline baselines/golden/SCN-07.json --candidate traces/candidate_SCN-07.json
+secagent fuzz --iterations 10 --policies policies/security_rules.yaml
+```
+
+### 5. GitHub Action Integration
+Add `SecAgent` to `.github/workflows/security.yml`:
+```yaml
+name: Agent Security Audit
+on: [pull_request]
+
+jobs:
+  secagent-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run SecAgent Security Gate
+        uses: ./ # Or yyouretoast/SecAgent@main
+        with:
+          scenarios: "scenarios/"
+          policies: "policies/security_rules.yaml"
+          output_report: "report.json"
+          output_markdown: "comment.md"
 ```
 
 ---
@@ -66,33 +90,40 @@ secagent serve --baseline baselines/golden/SCN-07.json --candidate traces/candid
 ## Project Structure
 
 ```
-secagent-twin/
-├── README.md
-├── pyproject.toml
+secagent/
+├── action.yml                         # Universal GitHub Action definition
+├── pyproject.toml                     # Project packaging & CLI entrypoints
 ├── .github/
 │   └── workflows/
-│       └── secagent-ci.yml               # Automated PR blocking workflow
+│       └── secagent-ci.yml            # CI workflow running scanner & pytest
 ├── docs/
-│   ├── RFC-001-architecture.md           # Master technical specification
-│   ├── CONTRIBUTING.md                   # Development & branch conventions
-│   ├── secagent_twin_c4_architecture.png # Publication-grade C4 diagram (300 DPI)
-│   ├── secagent_twin_c4_architecture.svg # Vector architecture companion
-│   └── secagent_twin_c4_architecture.tex # LaTeX TikZ diagram source
+│   ├── RFC-001-architecture.md        # Technical architecture specification
+│   ├── CONTRIBUTING.md                # Development & branch conventions
+│   └── _archive/                      # Archived legacy differential specs
+├── examples/
+│   ├── devops_agent/agent.py          # DevOps agent example (admin tier)
+│   ├── finance_agent/agent.py         # Finance agent example (pay tier)
+│   └── support_agent/agent.py         # Customer support agent example
 ├── schemas/
-│   └── trace_event.schema.json           # Formal OpenTelemetry trace contract
+│   └── trace_event.schema.json        # Standardized OpenTelemetry trace schema
 ├── policies/
-│   └── security_rules.yaml               # Declarative OWASP invariant rules
+│   └── security_rules.yaml            # Declarative OWASP invariant rules
 ├── scenarios/
-│   └── TEMPLATE.yaml                     # Attack scenario manifest template
-└── src/
-    └── secagent_twin/                    # Core Python package implementation
+│   └── TEMPLATE.yaml                  # Attack scenario manifest template
+├── src/
+│   └── secagent/
+│       ├── cli.py                     # Typer CLI (scan, fuzz, serve)
+│       ├── sdk/                       # @permission decorator & tools
+│       └── agent/state.py             # Agent runtime state contract
+└── tests/
+    └── test_contracts.py              # Pytest schema and CLI contract suite
 ```
 
 ---
 
 ## Documentation
 
-* [RFC-001: System Architecture & Technical Specification](docs/RFC-001-architecture.md)
+* [RFC-001: Architecture & Technical Specification](docs/RFC-001-architecture.md)
 * [Team Development & Contribution Guide](docs/CONTRIBUTING.md)
 * [Trace Event JSON Schema](schemas/trace_event.schema.json)
 * [Security Rules Specification](policies/security_rules.yaml)

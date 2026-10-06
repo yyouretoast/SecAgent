@@ -1,4 +1,4 @@
-name: SecAgentTwin Continuous Security Audit
+name: SecAgent Security Gate & Contract Tests
 
 on:
   pull_request:
@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  differential-security-audit:
-    name: Differential Trace & OWASP Policy Gate
+  security-and-contract-tests:
+    name: OWASP Policy Invariants & Action Gate
     runs-on: ubuntu-latest
 
     steps:
@@ -26,11 +26,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run SecAgentTwin Regression Audit
-        id: secagent_audit
+      - name: Run Contract & Regression Tests
         run: |
-          secagent test \
-            --baseline baselines/golden/ \
+          pytest tests/ -v
+
+      - name: Run SecAgent Security Scan
+        id: secagent_scan
+        run: |
+          secagent scan \
             --scenarios scenarios/ \
             --policies policies/security_rules.yaml \
             --output-report report.json \

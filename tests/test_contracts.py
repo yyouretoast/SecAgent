@@ -88,11 +88,11 @@ def test_scenario_template_yaml_validity():
 
 def test_agent_state_import():
     """Verify AgentState TypedDict can be imported cleanly and contains required keys."""
-    from secagent_twin.agent.state import AgentState
+    from secagent.agent.state import AgentState
 
     expected_keys = {
         "messages",
-        "customer_id",
+        "user_id",
         "caller_role",
         "task_context",
         "approval_granted",
@@ -102,11 +102,24 @@ def test_agent_state_import():
     assert expected_keys.issubset(set(AgentState.__annotations__.keys()))
 
 
+def test_sdk_decorator():
+    """Verify @permission decorator attaches security tier attributes."""
+    from secagent.sdk import permission
+
+    @permission(tier="admin")
+    def restart_server(server_id: str) -> str:
+        return f"Restarted {server_id}"
+
+    assert hasattr(restart_server, "_secagent_permission_tier")
+    assert restart_server._secagent_permission_tier == "admin"
+    assert restart_server("srv-1") == "Restarted srv-1"
+
+
 def test_cli_smoke_execution(tmp_path):
-    """Verify secagent CLI test command runs and generates reports."""
+    """Verify secagent CLI scan and test commands run and generate reports."""
     from typer.testing import CliRunner
 
-    from secagent_twin.cli import app
+    from secagent.cli import app
 
     runner = CliRunner()
     report_file = tmp_path / "report.json"
@@ -115,7 +128,7 @@ def test_cli_smoke_execution(tmp_path):
     result = runner.invoke(
         app,
         [
-            "test",
+            "scan",
             "--output-report",
             str(report_file),
             "--output-markdown",

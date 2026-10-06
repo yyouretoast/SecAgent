@@ -3,23 +3,23 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "secagent-twin"
+name = "secagent"
 version = "0.1.0"
-description = "Execution-Grounded Differential Testing & Security Validation for Autonomous AI Agent Systems"
+description = "Automated OWASP Security Scanner & GitHub Action for Autonomous AI Agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [
-    { name = "SecAgentTwin Team", email = "team@secagent-twin.dev" }
+    { name = "SecAgent Team", email = "team@secagent.dev" }
 ]
 keywords = [
     "ai-agents",
     "security-testing",
-    "differential-testing",
     "langgraph",
     "owasp",
     "opentelemetry",
-    "devsecops"
+    "devsecops",
+    "github-actions"
 ]
 dependencies = [
     "langgraph>=0.2.0",
@@ -43,7 +43,7 @@ dev = [
 ]
 
 [project.scripts]
-secagent = "secagent_twin.cli:app"
+secagent = "secagent.cli:app"
 
 [tool.ruff]
 line-length = 100

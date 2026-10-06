@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://secagent-twin.dev/schemas/trace_event.schema.json",
-  "title": "SecAgentTwin Trace Event Schema",
-  "description": "Standardized schema for OpenTelemetry-compatible GenAI execution traces in SecAgentTwin",
+  "$id": "https://secagent.dev/schemas/trace_event.schema.json",
+  "title": "SecAgent Trace Event Schema",
+  "description": "Standardized schema for OpenTelemetry-compatible GenAI execution traces in SecAgent",
   "type": "object",
   "required": [
     "scenario_id",
@@ -15,8 +15,7 @@
   "properties": {
     "scenario_id": {
       "type": "string",
-      "description": "Unique identifier of the test scenario (e.g., SCN-01, SCN-07)",
-      "pattern": "^SCN-\\d{2}$"
+      "description": "Unique identifier of the test scenario (e.g., SCN-01, SCN-07, FUZZ-01)"
     },
     "execution_id": {
       "type": "string",
@@ -29,13 +28,11 @@
     },
     "caller_role": {
       "type": "string",
-      "enum": ["guest", "customer", "admin"],
       "description": "Security role of the simulated user initiating the session"
     },
     "task_context": {
       "type": "string",
-      "enum": ["general_inquiry", "address_update", "refund_request"],
-      "description": "Operational context classifying the intent of the session"
+      "description": "Operational context classifying the intent or domain of the session"
     },
     "metadata": {
       "type": "object",
@@ -89,7 +86,7 @@
           },
           "permission_tier": {
             "type": "string",
-            "enum": ["read", "write", "pay", "net", "gate", "none"],
+            "enum": ["read", "write", "pay", "admin", "net", "gate", "none"],
             "default": "none",
             "description": "Security privilege tier assigned to this operational span"
           },

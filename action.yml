@@ -1,0 +1,52 @@
+name: "SecAgent: Autonomous AI Agent Security Audit"
+description: "Audit LangGraph AI agents against OWASP Top 10 security invariants in CI/CD"
+author: "SecAgent Team"
+
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  agent_entrypoint:
+    description: "Import path to the LangGraph app (e.g. 'my_agent.graph:app')"
+    required: false
+    default: ""
+  policies:
+    description: "Path to security rules YAML file"
+    required: false
+    default: "policies/security_rules.yaml"
+  scenarios:
+    description: "Path to test scenarios directory"
+    required: false
+    default: "scenarios/"
+  output_report:
+    description: "Path to output JSON audit report"
+    required: false
+    default: "report.json"
+  output_markdown:
+    description: "Path to output markdown comment summary"
+    required: false
+    default: "comment.md"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install SecAgent
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e "${{ github.action_path }}"
+
+    - name: Execute SecAgent Security Scan
+      shell: bash
+      run: |
+        secagent scan \
+          --scenarios "${{ inputs.scenarios }}" \
+          --policies "${{ inputs.policies }}" \
+          --output-report "${{ inputs.output_report }}" \
+          --output-markdown "${{ inputs.output_markdown }}"
