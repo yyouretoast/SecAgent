@@ -64,14 +64,12 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
                                          │ Injects adversarial prompts
                                          ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ SUBSYSTEM 1: MULTI-DOMAIN TARGET AGENTS (examples/ & user agents)                      │
+│ SUBSYSTEM 1: TARGET AUTONOMOUS AGENT UNDER TEST (user agent / examples)                │
 │                                                                                        │
-│   Autonomous Agent Frameworks (LangGraph, CrewAI, AutoGen)                             │
-│   ├── DevOps Agent       [tools: restart_server (@permission(tier="admin"))]           │
-│   ├── Finance Agent      [tools: execute_trade  (@permission(tier="pay"))]             │
-│   └── Support Agent      [tools: query_db, issue_refund, modify_user]                  │
-│                                                                                        │
-│   SecAgent SDK: @permission(tier="read"|"write"|"pay"|"admin"|"net")                   │
+│   Autonomous Agent Frameworks (LangGraph, CrewAI, AutoGen, custom)                     │
+│   ├── User Agent Tools decorated with `@permission`                                    │
+│   ├── Optional Reference Fixtures (DevOps, Finance, Support in examples/)              │
+│   └── SecAgent SDK: @permission(tier="read"|"write"|"pay"|"admin"|"net")               │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
                                          │ OpenTelemetry GenAI Spans
                                          ▼
