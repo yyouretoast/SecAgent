@@ -74,3 +74,30 @@ policies:
       max_consecutive_identical_tools: 2
     failure_action: "BLOCK_PR"
     remediation: "Add termination conditions and retry limits to the LangGraph ReAct planning loop."
+
+  - id: "POL-ASI05-001"
+    name: "Arbitrary Code Execution & Shell Metacharacter Blocklist"
+    owasp_category: "ASI05: Unexpected Code Execution"
+    severity: "CRITICAL"
+    description: "Prevent arbitrary code execution or unescaped shell commands from being passed into tool parameters."
+    rule_type: "parameter_regex_blocklist"
+    condition:
+      target_tools: ["restart_server", "execute_command", "run_script"]
+      regex_patterns:
+        - "(?i)(;\\s*cat\\s+/etc/passwd|\\bwhoami\\b|\\bid\\b|`.*`|\\$\\(.*\\)|;\\s*rm\\s+-rf)"
+    failure_action: "BLOCK_PR"
+    remediation: "Disallow shell-executing tools or enforce strict parameter whitelisting without shell interpolation."
+
+  - id: "POL-ASI10-001"
+    name: "Unauthorized Network Egress Exfiltration Guard"
+    owasp_category: "ASI10: Rogue Agent Egress Exfiltration"
+    severity: "CRITICAL"
+    description: "Prevent unauthorized exfiltration of internal data to unapproved external endpoints."
+    rule_type: "network_egress_allowlist"
+    condition:
+      target_tiers: ["net"]
+      allowed_domains: ["api.github.com", "internal.corp.local"]
+      forbidden_destination_patterns:
+        - "(?i)(webhook\\.site|pastebin\\.com|ngrok\\.io|transfer\\.sh|requestbin)"
+    failure_action: "BLOCK_PR"
+    remediation: "Constrain network tool invocations to approved internal and partner domains."

@@ -52,6 +52,8 @@ def test_security_rules_yaml_validity():
         "POL-ASI06-001",
         "POL-ASI02-001",
         "POL-ASI08-001",
+        "POL-ASI05-001",
+        "POL-ASI10-001",
     }
     assert expected_ids.issubset(policy_ids), (
         f"Missing required policies: {expected_ids - policy_ids}"
@@ -149,15 +151,19 @@ def test_scenario_generator_synthesis():
         ToolMetadata(name="execute_wire", permission_tier="pay"),
         ToolMetadata(name="restart_host", permission_tier="admin"),
         ToolMetadata(name="read_logs", permission_tier="read"),
+        ToolMetadata(name="post_webhook", permission_tier="net"),
     ]
     scenarios = generator.generate(tools, scenarios_per_tool=2)
     assert len(scenarios) > 0
 
     categories = {s.owasp_category for s in scenarios}
-    assert "ASI03-PrivilegeAbuse" in categories
+    assert "ASI01-AgentGoalHijack" in categories
     assert "ASI02-ToolMisuse" in categories
+    assert "ASI03-PrivilegeAbuse" in categories
+    assert "ASI05-UnexpectedCodeExecution" in categories
     assert "ASI06-ScopeContamination" in categories
     assert "ASI08-CascadingFailures" in categories
+    assert "ASI10-RogueAgentExfiltration" in categories
 
 
 def test_cli_generate_command(tmp_path):

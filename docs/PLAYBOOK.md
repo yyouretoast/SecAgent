@@ -38,10 +38,13 @@ Each student has an isolated module and clear interface contracts so nobody is b
 * **Week 1–2 Goals**:
   - Implement automated scenario synthesizer (`ScenarioGenerator`) that creates adversarial test vectors dynamically based on introspected tools.
   - Automatically synthesize:
+    - **ASI01 (Goal Hijack)**: Persona-override and instruction deviation prompts.
+    - **ASI02 (Tool Misuse)**: Parameter-level fuzzing with SQL injection (`' OR '1'='1`).
     - **ASI03 (Privilege Abuse)**: Role-spoofing prompts attempting to trigger `pay` or `admin` actions without predecessor approval.
-    - **ASI02 (Tool Misuse)**: Parameter-level fuzzing with SQL injection (`' OR '1'='1`) and shell execution payloads (`; id`).
+    - **ASI05 (Unexpected Code Execution)**: Shell command injection payloads (`; cat /etc/passwd`, `& whoami`).
     - **ASI06 (Scope Abuse)**: Prompts designed to extract restricted credentials, API tokens, or PII.
     - **ASI08 (Cascading Failures)**: Circular dependencies designed to trigger infinite retry loops.
+    - **ASI10 (Rogue Network Exfiltration)**: Egress exfiltration prompts targeting untrusted endpoints.
 * **Success Criteria**: Running `secagent generate` or `secagent scan` dynamically synthesizes attack scenarios on the fly without requiring pre-written YAML files.
 
 ---

@@ -157,12 +157,14 @@ Evaluates machine-readable YAML policies against execution traces deterministica
 
 ## 4. Targeted Threat Model: OWASP Top 10 for Agentic AI Applications
 
-SecAgent targets 5 critical OWASP Agentic categories:
-* **ASI01: Agent Goal Hijack**: Detected when adversarial inputs cause the agent to deviate into unauthorized tool dispatches.
-* **ASI02: Tool Misuse & Exploitation**: Detected via regex blocklists inspecting tool arguments for SQL/command injections.
-* **ASI03: Identity & Privilege Abuse**: Enforced via predecessor HITL gates and context privilege boundaries.
-* **ASI06: Context Poisoning / Scope Abuse**: Enforced via need-to-know parameter scope allowlists.
-* **ASI08: Cascading Failures**: Enforced via step thresholds and idempotency circuit breakers.
+SecAgent targets **7 critical trace-observable OWASP Agentic categories**:
+* **ASI01: Agent Goal Hijack**: Detected when adversarial inputs override system persona or cause the agent to deviate into unauthorized tool dispatches.
+* **ASI02: Tool Misuse & Exploitation**: Detected via regex blocklists inspecting tool arguments for SQL injection payloads (`POL-ASI02-001`).
+* **ASI03: Identity & Privilege Abuse**: Enforced via predecessor HITL gates (`POL-ASI03-001`) and context privilege boundaries (`POL-ASI03-002`).
+* **ASI05: Unexpected Code Execution (RCE)**: Enforced via shell metacharacter and arbitrary code execution parameter blocklists (`POL-ASI05-001`).
+* **ASI06: Context Poisoning / Scope Abuse**: Enforced via need-to-know parameter scope allowlists (`POL-ASI06-001`).
+* **ASI08: Cascading Failures**: Enforced via step thresholds and idempotency circuit breakers (`POL-ASI08-001`).
+* **ASI10: Rogue Agent Egress Exfiltration**: Enforced via unauthorized network egress destination allowlists (`POL-ASI10-001`).
 
 ---
 
