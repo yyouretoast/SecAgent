@@ -138,3 +138,47 @@ def test_cli_smoke_execution(tmp_path):
     assert result.exit_code == 0
     assert report_file.exists()
     assert comment_file.exists()
+
+
+def test_scenario_generator_synthesis():
+    """Verify ScenarioGenerator dynamically synthesizes OWASP attack vectors from tool metadata."""
+    from secagent.generator import ScenarioGenerator, ToolMetadata
+
+    generator = ScenarioGenerator()
+    tools = [
+        ToolMetadata(name="execute_wire", permission_tier="pay"),
+        ToolMetadata(name="restart_host", permission_tier="admin"),
+        ToolMetadata(name="read_logs", permission_tier="read"),
+    ]
+    scenarios = generator.generate(tools, scenarios_per_tool=2)
+    assert len(scenarios) > 0
+
+    categories = {s.owasp_category for s in scenarios}
+    assert "ASI03-PrivilegeAbuse" in categories
+    assert "ASI02-ToolMisuse" in categories
+    assert "ASI06-ScopeContamination" in categories
+    assert "ASI08-CascadingFailures" in categories
+
+
+def test_cli_generate_command(tmp_path):
+    """Verify secagent generate command creates dynamic scenarios JSON."""
+    from typer.testing import CliRunner
+
+    from secagent.cli import app
+
+    runner = CliRunner()
+    out_dir = tmp_path / "gen_scenarios"
+
+    result = runner.invoke(
+        app,
+        [
+            "generate",
+            "--output-dir",
+            str(out_dir),
+            "--per-tool",
+            "1",
+        ],
+    )
+    assert result.exit_code == 0
+    assert (out_dir / "generated_scenarios.json").exists()
+

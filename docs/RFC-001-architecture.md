@@ -44,9 +44,25 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
 │                                   SECAGENT SYSTEM ARCHITECTURE                         │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 
- [ Developer Pull Request / Agent Mutation ]
-                  │
-                  ▼
+  Developer Pull Request (Prompt patch, tool change, model upgrade)
+                   │
+                   ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ SUBSYSTEM 5: TURNKEY CI/CD GATE & CLI RUNNER (action.yml / src/secagent/cli.py)        │
+│                                                                                        │
+│   GitHub Action Runner executes `secagent scan` / `secagent fuzz`                      │
+└────────────────────────────────────────┬───────────────────────────────────────────────┘
+                                         │ Dispatches test scenario & fuzz parameters
+                                         ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ SUBSYSTEM 3: DYNAMIC SCENARIO FUZZER (src/secagent/fuzzer/)                            │
+│                                                                                        │
+│   Dynamic Adversarial Mutator                                                          │
+│   ├── Generates adversarial prompts & SQLi/jailbreak payloads                          │
+│   └── Dispatches multi-turn test vectors to Target Agents                              │
+└────────────────────────────────────────┬───────────────────────────────────────────────┘
+                                         │ Injects adversarial prompts
+                                         ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ SUBSYSTEM 1: MULTI-DOMAIN TARGET AGENTS (examples/ & user agents)                      │
 │                                                                                        │
@@ -67,30 +83,25 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
 │   ├── model.inference       (Prompts, completions, model configs, token counts)        │
 │   ├── tool.call             (Tool name, input parameters, outputs, permission tier)    │
 │   └── gate.hitl             (Approval request, decision boolean, approver context)     │
-│   └── JSON Span Exporter ──► Standardized Execution Trace JSON (trace_event.schema.json)│
+│   └── In-line PII Scrubber ──► Execution Trace JSON (schemas/trace_event.schema.json)  │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
-                                         │
-                    ┌────────────────────┴────────────────────┐
-                    ▼                                         ▼
-┌───────────────────────────────────────┐ ┌──────────────────────────────────────────────┐
-│ SUBSYSTEM 3: DYNAMIC SCENARIO FUZZER  │ │ SUBSYSTEM 4: INVARIANT SECURITY ENGINE       │
-│ (src/secagent/fuzzer/)                │ │ (src/secagent/engine/)                       │
-│                                       │ │                                              │
-│ Dynamic Mutation Engine               │ │ Deterministic OWASP Policy Verifier          │
-│ ├── Mutates adversarial prompts       │ │ ├── Enforces mandatory HITL predecessor gate │
-│ ├── Injects SQL / command payloads    │ │ ├── Checks permission tier context boundaries│
-│ └── Discovers unhandled regressions   │ │ ├── Enforces need-to-know scope allowlists   │
-│     (secagent fuzz)                   │ │ └── Parameter injection regex blocklists     │
-└───────────────────────────────────────┘ └──────────────────────┬───────────────────────┘
-                                                                 │
-                                                                 ▼
+                                         │ Standardized Trace JSON
+                                         ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ SUBSYSTEM 5: GITHUB ACTION & CI/CD AUDIT GATE (action.yml & src/secagent/cli.py)       │
+│ SUBSYSTEM 4: INVARIANT SECURITY ENGINE (src/secagent/engine/)                          │
 │                                                                                        │
-│ ├── GitHub Action (action.yml): Reusable composite action for PR workflows             │
-│ ├── CLI Engine (secagent scan, secagent fuzz, secagent serve)                          │
-│ ├── PR Comment Bot: Posts structured invariant audit failure tables                    │
-│ └── Streamlit Security Dashboard: Visual audit inspection & trace exploration          │
+│   Deterministic OWASP Policy Verifier (policies/security_rules.yaml)                   │
+│   ├── Enforces mandatory HITL predecessor gates (pay / admin tiers)                    │
+│   ├── Checks permission tier context boundaries & scope allowlists                     │
+│   └── Parameter injection regex blocklists & recursion loop thresholds                 │
+└────────────────────────────────────────┬───────────────────────────────────────────────┘
+                                         │ Verdict: Exit Code 0 (PASS) / 1 (FAIL)
+                                         ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ CI/CD ENFORCEMENT GATE                                                                 │
+│                                                                                        │
+│   ├── Pass: Allow Pull Request merge                                                   │
+│   └── Fail: Block PR merge & post structured security failure triage table             │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -98,8 +109,9 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
 
 ## 3. Subsystem Detailed Specifications
 
-### Subsystem 1: Multi-Domain Target Agents & Universal SDK
-* **Framework**: LangGraph (`StateGraph`), CrewAI, or any Python-based autonomous agent.
+### Subsystem 1: Universal Agent Introspection Harness & SDK
+* **Target Integration**: Attaches to any user agent via entrypoint (`--agent module:app`, LangGraph `StateGraph`, CrewAI, or HTTP endpoint).
+* **Zero Mock Overhead**: Users test their real agents; minimal reference agents in `examples/` exist solely as automated smoke-test verification fixtures.
 * **Universal Permission SDK**:
   ```python
   from secagent.sdk import permission
@@ -119,9 +131,13 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
 * **PII Scrubbing Pass**: In-line regex scrubber sanitizing SSNs, credit cards, and API secrets.
 * **Trace Exporter**: Writes execution trace JSON logs with structured span arrays.
 
-### Subsystem 3: Dynamic Scenario Fuzzer
-* Generates adversarial attack vectors on the fly via `secagent fuzz`.
-* Simulates prompt injections, role-spoofing attacks, and runaway retry attempts.
+### Subsystem 3: Dynamic Scenario Synthesizer & Adversarial Fuzzer
+* **Zero Static YAML Reliance**: Synthesizes adversarial attack vectors dynamically (`secagent generate` / `secagent fuzz`) by introspecting agent tool definitions and permission tiers.
+* Automatically synthesizes:
+  - Role-spoofing prompts attempting high-privilege execution without authorization (ASI03).
+  - Parameter-level fuzzing with SQL injection (`' OR 1=1`) and command injection (`; id`) payloads (ASI02).
+  - Data exfiltration prompts targeting PII / secrets (ASI06).
+  - Conflicting constraints triggering runaway recursion loops (ASI08).
 
 ### Subsystem 4: Invariant Security Policy Engine
 Evaluates machine-readable YAML policies against execution traces deterministically:
@@ -156,8 +172,8 @@ SecAgent targets 5 critical OWASP Agentic categories:
 
 | Engineer | Subsystem Focus | Input Contract | Output Contract |
 | :--- | :--- | :--- | :--- |
-| **Student 1** | Target Agents & SDK | `schemas/trace_event.schema.json` | `examples/` multi-domain agents & `@permission` SDK |
-| **Student 2** | Security Benchmark Scenarios | Target Agent Tool Signatures | `scenarios/*.yaml` attack manifests |
+| **Student 1** | Universal Agent Harness & SDK | Agent Entrypoint (`--agent`) | Dynamic introspector & `@permission` SDK |
+| **Student 2** | Dynamic Scenario Synthesizer | Target Agent Tool Signatures | `src/secagent/generator/` synthesized test vectors |
 | **Student 3** | Telemetry & OTel Pipeline | Target Agent Runtime Hooks | `src/secagent/telemetry/` span exporter & PII scrubber |
 | **Student 4** | Invariant Verifier & Fuzzer | `schemas/trace_event.schema.json` | `src/secagent/engine/` & `src/secagent/fuzzer/` |
 | **Student 5** | GitHub Action & CLI Dashboard | Engine Result Models | `action.yml`, `src/secagent/cli.py`, `app.py` |

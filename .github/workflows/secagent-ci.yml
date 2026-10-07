@@ -30,11 +30,10 @@ jobs:
         run: |
           pytest tests/ -v
 
-      - name: Run SecAgent Security Scan
+      - name: Run SecAgent Dynamic Security Scan
         id: secagent_scan
         run: |
           secagent scan \
-            --scenarios scenarios/ \
             --policies policies/security_rules.yaml \
             --output-report report.json \
             --output-markdown comment.md

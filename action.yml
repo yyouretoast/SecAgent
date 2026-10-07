@@ -16,9 +16,9 @@ inputs:
     required: false
     default: "policies/security_rules.yaml"
   scenarios:
-    description: "Path to test scenarios directory"
+    description: "Optional path to custom scenarios directory. If omitted, scenarios are dynamically synthesized by SecAgent."
     required: false
-    default: "scenarios/"
+    default: ""
   output_report:
     description: "Path to output JSON audit report"
     required: false
@@ -45,8 +45,13 @@ runs:
     - name: Execute SecAgent Security Scan
       shell: bash
       run: |
+        SCENARIO_FLAG=""
+        if [ -n "${{ inputs.scenarios }}" ]; then
+          SCENARIO_FLAG="--scenarios ${{ inputs.scenarios }}"
+        fi
         secagent scan \
-          --scenarios "${{ inputs.scenarios }}" \
+          $SCENARIO_FLAG \
+          --agent "${{ inputs.agent_entrypoint }}" \
           --policies "${{ inputs.policies }}" \
           --output-report "${{ inputs.output_report }}" \
           --output-markdown "${{ inputs.output_markdown }}"

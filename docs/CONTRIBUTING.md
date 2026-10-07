@@ -25,8 +25,8 @@
 
 | Student | Assigned Role | Primary Directory | Deliverable Artifact |
 | :--- | :--- | :--- | :--- |
-| **Student 1** | Target Agents Lead | `examples/`, `src/secagent/agent/` | Domain agents (DevOps, Finance, Support) + `@permission` SDK usage |
-| **Student 2** | Security Benchmark Lead | `scenarios/` | Attack scenario suites conforming to `TEMPLATE.yaml` |
+| **Student 1** | Agent Harness & Introspection Lead | `src/secagent/harness/`, `src/secagent/sdk/` | Dynamic agent introspector + `@permission` SDK |
+| **Student 2** | Dynamic Scenario Generator Lead | `src/secagent/generator/` | Automated adversarial scenario synthesizer (`secagent generate`) |
 | **Student 3** | Telemetry & OTel Lead | `src/secagent/telemetry/` | OpenTelemetry span processor, PII scrubbing, trace exporter |
 | **Student 4** | Invariant Verifier & Fuzz Lead | `src/secagent/engine/`, `fuzzer/` | Policy Invariant Verifier + Dynamic Scenario Fuzzer |
 | **Student 5** | GitHub Action & UI Lead | `action.yml`, `src/secagent/cli.py`, `app.py`, `.github/` | Composite GitHub Action, Typer CLI, and Streamlit report UI |

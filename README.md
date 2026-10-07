@@ -17,18 +17,30 @@ SecAgent integrates directly into CI/CD pipelines to block pull requests on unau
 ```mermaid
 flowchart TD
     classDef pr fill:#eff6ff,stroke:#2563eb,stroke-width:1.5px,color:#1e3a8a,font-weight:bold;
+    classDef cicd fill:#f1f5f9,stroke:#475569,stroke-width:1.5px,color:#0f172a;
+    classDef fuzzer fill:#faf5ff,stroke:#9333ea,stroke-width:1.5px,color:#581c87;
     classDef sut fill:#f8fafc,stroke:#64748b,stroke-width:1.5px,color:#0f172a;
     classDef otel fill:#f0fdf4,stroke:#16a34a,stroke-width:1.5px,color:#14532d;
-    classDef fuzzer fill:#faf5ff,stroke:#9333ea,stroke-width:1.5px,color:#581c87;
     classDef rules fill:#fffbeb,stroke:#d97706,stroke-width:1.5px,color:#78350f;
-    classDef gate fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#9f1239;
+    classDef pass fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46;
+    classDef fail fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#9f1239;
 
     PR["⚡ Developer Pull Request<br/><sub>(Prompt patch, tool change, model upgrade)</sub>"]:::pr
 
-    subgraph SUT ["Subsystem 1: Autonomous Target Agents (examples/)"]
-        DevOps["DevOps Agent<br/><code>@permission(tier='admin')</code>"]
-        Finance["Finance Agent<br/><code>@permission(tier='pay')</code>"]
-        Support["Support Agent<br/><code>@permission(tier='read' | 'write')</code>"]
+    subgraph CI ["Subsystem 5: Turnkey CI/CD Security Gate (action.yml)"]
+        Action["GitHub Action Runner<br/><code>secagent scan / fuzz</code>"]
+        PassGate["Exit Code 0: PASS<br/><sub>Allow PR Merge</sub>"]:::pass
+        FailGate["Exit Code 1: FAIL<br/><sub>Block PR & Post Security Triage</sub>"]:::fail
+    end
+    class CI cicd;
+
+    subgraph Adversary ["Subsystem 3: Dynamic Adversarial Fuzzer"]
+        Fuzzer["Adversarial Prompt Mutator<br/><code>secagent fuzz</code><br/><sub>SQLi, jailbreaks, parameter injection</sub>"]
+    end
+    class Adversary fuzzer;
+
+    subgraph SUT ["Subsystem 1: Target Autonomous Agent Under Test"]
+        DevOps["LangGraph / CrewAI / AutoGen Agent<br/><sub>Tools decorated with <code>@permission</code></sub>"]
     end
     class SUT sut;
 
@@ -39,26 +51,20 @@ flowchart TD
     end
     class Telemetry otel;
 
-    subgraph Security ["Security Verification Engines"]
-        direction LR
-        Fuzzer["Subsystem 3: Dynamic Fuzzer<br/><code>secagent fuzz</code><br/><sub>Adversarial prompt mutation & SQLi</sub>"]:::fuzzer
-        Verifier["Subsystem 4: Invariant Verifier<br/><code>policies/security_rules.yaml</code><br/><sub>Predecessor gates & circuit breakers</sub>"]:::rules
+    subgraph Security ["Subsystem 4: Invariant Verification Engine"]
+        Verifier["Policy Verifier (policies/security_rules.yaml)<br/><sub>Predecessor gates, loop breaker, regex checks</sub>"]
     end
+    class Security rules;
 
-    subgraph CICD ["Subsystem 5: Turnkey CI/CD Security Gate (action.yml)"]
-        Action["GitHub Action Runner"]
-        PassGate["Exit Code 0: PASS<br/><sub>Allow PR Merge</sub>"]
-        FailGate["Exit Code 1: FAIL<br/><sub>Block PR & Post Markdown Table</sub>"]
-    end
-    class CICD gate;
-
-    PR --> SUT
-    SUT --> OTel
-    OTel --> Scrubber --> TraceJSON
-    TraceJSON --> Security
-    Security --> Action
-    Action --> PassGate
-    Action --> FailGate
+    PR -->|Triggers Workflow| Action
+    Action -->|Dispatches Test Scenarios| Fuzzer
+    Fuzzer -->|Injects Mutated Prompts| SUT
+    SUT -->|Streams Spans| OTel
+    OTel -->|Raw Spans| Scrubber
+    Scrubber -->|Redacted Spans| TraceJSON
+    TraceJSON -->|Evaluates Invariants| Verifier
+    Verifier -->|Exit Code 0 / No Breaches| PassGate
+    Verifier -->|Exit Code 1 / OWASP Invariant Breached| FailGate
 ```
 
 ### CI/CD Security Audit Execution Lifecycle
@@ -68,25 +74,32 @@ sequenceDiagram
     autonumber
     actor Dev as Developer / PR
     participant CI as GitHub Action (action.yml)
-    participant Fuzz as Adversarial Fuzzer
-    participant Agent as Target Agent (SUT)
-    participant Engine as OWASP Invariant Verifier
+    participant Fuzz as Dynamic Fuzzer (Subsystem 3)
+    participant Agent as Target Agent (Subsystem 1)
+    participant Telem as Telemetry & PII Redactor (Subsystem 2)
+    participant Engine as OWASP Policy Verifier (Subsystem 4)
 
     Dev->>CI: Open Pull Request / Push Commit
-    CI->>Fuzz: Trigger secagent scan / fuzz
-    Fuzz->>Agent: Dispatch Mutated Prompts (SQLi, Jailbreaks)
-    activate Agent
-    Agent->>Agent: Execute Tools (@permission)<br/>Check HITL Gate<br/>Scrub PII
-    Agent->>Engine: Emit OpenTelemetry Trace JSON
-    deactivate Agent
+    CI->>Fuzz: Launch secagent fuzz --iterations N
+    loop Adversarial Fuzzing & Mutation
+        Fuzz->>Agent: Dispatch Mutated Adversarial Prompt (SQLi, Jailbreak)
+        activate Agent
+        Agent->>Agent: Evaluate Policy & Invoke Tools (@permission)
+        Agent->>Telem: Stream OTel Spans (agent.run, tool.call)
+        deactivate Agent
+        activate Telem
+        Telem->>Telem: Scrub PII / Tokens & Serialize to trace.json
+        deactivate Telem
+    end
+    CI->>Engine: Run secagent scan trace.json --rules security_rules.yaml
     activate Engine
-    Engine->>Engine: Verify Predecessor Gates<br/>Verify Regex Blocklists<br/>Verify Loop Thresholds
-    Engine-->>CI: Audit Verdict (Exit 0 / Exit 1)
+    Engine->>Engine: Check HITL Predecessors, Scope, & Recursion Limits
+    Engine-->>CI: Return Evaluation Results (Exit Code 0 / 1)
     deactivate Engine
-    alt Invariant Breached
-        CI-->>Dev: ❌ Block PR & Post Security Triage Markdown
-    else All Invariants Pass
-        CI-->>Dev: ✅ Pass CI & Allow Merge
+    alt Invariant Breached (OWASP Top 10 Violation)
+        CI-->>Dev: ❌ Block PR Merge & Post Security Triage Report
+    else All Security Invariants Satisfied
+        CI-->>Dev: ✅ Approve CI & Allow Pull Request Merge
     end
 ```
 
@@ -130,16 +143,20 @@ def execute_trade(symbol: str, quantity: int) -> dict:
     return {"order": "filled", "symbol": symbol, "quantity": quantity}
 ```
 
-### 3. Run Security Scan
-Audit an agent against attack scenarios and declarative policies:
+### 3. Run Dynamic Security Scan
+Audit an agent against dynamically synthesized adversarial attacks:
 ```bash
-secagent scan --scenarios scenarios/ --policies policies/security_rules.yaml
+secagent scan --agent examples.finance_agent.agent:run_finance_agent --policies policies/security_rules.yaml
 ```
 
-### 4. Dynamic Scenario Fuzzing
-Generate adversarial mutations on the fly:
+### 4. Dynamic Scenario Synthesis & Fuzzing
+Generate adversarial mutations on the fly without writing static YAML files:
 ```bash
-secagent fuzz --iterations 10 --policies policies/security_rules.yaml
+# Synthesize dynamic scenarios tailored to agent tool definitions
+secagent generate --agent examples.devops_agent.agent:run_devops_agent --per-tool 3
+
+# Fuzz agent with dynamic adversarial mutations
+secagent fuzz --agent examples.support_agent.agent:run_support_agent --iterations 10
 ```
 
 ### 5. GitHub Action Integration
@@ -156,10 +173,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Run SecAgent Security Gate
+      - name: Run SecAgent Dynamic Security Gate
         uses: ./ # Or yyouretoast/SecAgent@main
         with:
-          scenarios: "scenarios/"
+          agent_entrypoint: "my_agent.graph:app"
           policies: "policies/security_rules.yaml"
           output_report: "report.json"
           output_markdown: "comment.md"
@@ -179,20 +196,19 @@ secagent/
 ├── docs/
 │   ├── RFC-001-architecture.md        # Technical architecture specification
 │   ├── CONTRIBUTING.md                # Development & branch conventions
-│   └── _archive/                      # Archived legacy differential specs
-├── examples/
-│   ├── devops_agent/agent.py          # DevOps agent example (admin tier)
-│   ├── finance_agent/agent.py         # Finance agent example (pay tier)
-│   └── support_agent/agent.py         # Customer support agent example
+│   └── PLAYBOOK.md                    # Student role breakdown & milestones
+├── examples/                          # Smoke-test fixture agents (smoke test harness)
+│   ├── devops_agent/agent.py          # DevOps agent (admin tier)
+│   ├── finance_agent/agent.py         # Finance agent (pay tier)
+│   └── support_agent/agent.py         # Customer support agent
 ├── schemas/
 │   └── trace_event.schema.json        # Standardized OpenTelemetry trace schema
 ├── policies/
 │   └── security_rules.yaml            # Declarative OWASP invariant rules
-├── scenarios/
-│   └── TEMPLATE.yaml                  # Attack scenario manifest template
 ├── src/
 │   └── secagent/
-│       ├── cli.py                     # Typer CLI (scan, fuzz, serve)
+│       ├── cli.py                     # Typer CLI (generate, scan, fuzz, serve)
+│       ├── generator/                 # Dynamic adversarial scenario synthesizer
 │       ├── sdk/                       # @permission decorator & tools
 │       └── agent/state.py             # Agent runtime state contract
 └── tests/

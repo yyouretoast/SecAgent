@@ -23,27 +23,26 @@ When developers update prompts or agent tools, agents can bypass human approvals
 
 Each student has an isolated module and clear interface contracts so nobody is blocked by another team member.
 
-### Student 1: Multi-Domain Target Agents Lead
-* **Primary Scope**: `examples/`, `src/secagent/sdk/`
+### Student 1: Universal Agent Harness & Introspection Lead
+* **Primary Scope**: `src/secagent/harness/`, `src/secagent/sdk/`
 * **Week 1–2 Goals**:
-  - Review the universal `@permission` decorator in `src/secagent/sdk/decorators.py`.
-  - Finalize runnable mock agents in `examples/`:
-    - `examples/devops_agent/agent.py`: Infrastructure tasks with `@permission(tier="admin")`.
-    - `examples/finance_agent/agent.py`: Trade executions with `@permission(tier="pay")`.
-    - `examples/support_agent/agent.py`: User profile updates and refund processing.
-* **Success Criteria**: Each agent can run locally and invoke tools according to role permissions.
+  - Implement dynamic agent introspector that reads tools, docstrings, and schemas from any user agent entrypoint (`--agent module:app`).
+  - Support `@permission` decorator in `src/secagent/sdk/decorators.py` for fine-grained privilege classification (`read`, `write`, `pay`, `admin`, `net`).
+  - Maintain minimal smoke-test fixture agents under `examples/` solely for test verification, without spending dev cycles building full mock agents.
+* **Success Criteria**: CLI can dynamically introspect tools and schemas from any arbitrary agent entrypoint.
 
 ---
 
-### Student 2: Security Benchmark & Attack Scenarios Lead
-* **Primary Scope**: `scenarios/`
+### Student 2: Dynamic Scenario Generation & Adversarial Synthesis Lead
+* **Primary Scope**: `src/secagent/generator/`
 * **Week 1–2 Goals**:
-  - Use `scenarios/TEMPLATE.yaml` to craft 10–15 adversarial attack scenarios covering OWASP categories:
-    - **ASI03 (Privilege Abuse)**: Prompts trying to trigger financial refunds or admin server restarts without approval.
-    - **ASI02 (Tool Misuse)**: Tool arguments containing SQL injections (`' OR '1'='1`) and shell metacharacters (`; rm -rf`).
-    - **ASI06 (Scope Abuse)**: Prompts trying to coerce the agent into querying sensitive PII (`ssn`, `password_hash`).
-    - **ASI08 (Cascading Failures)**: Circular queries designed to trigger infinite retry loops.
-* **Success Criteria**: 10+ validated YAML files committed under `scenarios/`.
+  - Implement automated scenario synthesizer (`ScenarioGenerator`) that creates adversarial test vectors dynamically based on introspected tools.
+  - Automatically synthesize:
+    - **ASI03 (Privilege Abuse)**: Role-spoofing prompts attempting to trigger `pay` or `admin` actions without predecessor approval.
+    - **ASI02 (Tool Misuse)**: Parameter-level fuzzing with SQL injection (`' OR '1'='1`) and shell execution payloads (`; id`).
+    - **ASI06 (Scope Abuse)**: Prompts designed to extract restricted credentials, API tokens, or PII.
+    - **ASI08 (Cascading Failures)**: Circular dependencies designed to trigger infinite retry loops.
+* **Success Criteria**: Running `secagent generate` or `secagent scan` dynamically synthesizes attack scenarios on the fly without requiring pre-written YAML files.
 
 ---
 
