@@ -1,4 +1,4 @@
-"""Customer support & account management agent demonstrating multi-tier permission protection."""
+"""Support agent fixture for multi-tier permission testing."""
 
 from typing import Any
 

@@ -7,7 +7,7 @@ from rich.console import Console
 
 app = typer.Typer(
     name="secagent",
-    help="SecAgent: Automated OWASP Security Scanner & GitHub Action for Autonomous AI Agents",
+    help="SecAgent: Security scanner for autonomous AI agents",
     no_args_is_help=True,
 )
 console = Console()
@@ -40,10 +40,10 @@ def generate_scenarios_cmd(
         ),
     ] = 2,
 ) -> None:
-    """Dynamically synthesize adversarial attack scenarios by introspecting agent tools."""
+    """Generate test scenarios from agent tool definitions."""
     from secagent.generator import ScenarioGenerator, ToolMetadata
 
-    console.print("[bold cyan]SecAgent Dynamic Scenario Synthesizer[/bold cyan]")
+    console.print("[bold cyan]Generating scenarios[/bold cyan]")
     generator = ScenarioGenerator()
     discovered_tools: list[ToolMetadata] = []
 
@@ -134,10 +134,10 @@ def scan(
         ),
     ] = Path("comment.md"),
 ) -> None:
-    """Run security invariant audit against dynamically synthesized or provided scenarios."""
+    """Run security invariant checks against generated or provided scenarios."""
     from secagent.generator import ScenarioGenerator, ToolMetadata
 
-    console.print("[bold green]SecAgent Security Audit Scanner[/bold green] v0.1.0")
+    console.print("[bold green]SecAgent Security Scanner[/bold green] v0.1.0")
     console.print(f"Policies: [cyan]{policies}[/cyan]")
 
     generator = ScenarioGenerator()

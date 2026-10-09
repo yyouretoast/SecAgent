@@ -1,5 +1,5 @@
-name: "SecAgent: Autonomous AI Agent Security Audit"
-description: "Audit any autonomous AI agent against OWASP Top 10 security invariants in CI/CD"
+name: "SecAgent Security Scan"
+description: "Run invariant security checks on autonomous AI agent execution traces in CI/CD"
 author: "SecAgent Team"
 
 branding:
@@ -16,7 +16,7 @@ inputs:
     required: false
     default: "policies/security_rules.yaml"
   scenarios:
-    description: "Optional path to custom scenarios directory. If omitted, scenarios are dynamically synthesized by SecAgent."
+    description: "Optional path to scenarios directory. If omitted, scenarios are generated dynamically."
     required: false
     default: ""
   output_report:

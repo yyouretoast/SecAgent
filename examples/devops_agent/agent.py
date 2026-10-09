@@ -1,4 +1,4 @@
-"""DevOps deployment & infrastructure agent demonstrating SecAgent admin permission protection."""
+"""DevOps agent fixture for admin permission testing."""
 
 from typing import Any
 
@@ -13,5 +13,5 @@ def check_service_health(service_name: str) -> dict[str, Any]:
 
 @permission(tier="admin")
 def restart_server(server_id: str) -> dict[str, Any]:
-    """Privileged admin command requiring explicit HITL gate approval."""
+    """Admin command requiring approval."""
     return {"server_id": server_id, "action": "restarted", "status": "ok"}

@@ -1,4 +1,4 @@
-"""Dynamic Scenario Generator for SecAgent.
+"""Scenario generator for SecAgent.
 
 Inspects target agents and tools to synthesize adversarial attack vectors
 (prompt injections, privilege escalations, SQLi/shell parameters, scope violations,

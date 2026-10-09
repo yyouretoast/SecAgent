@@ -1,5 +1,3 @@
-"""
-SecAgent: Automated OWASP Security Scanner & GitHub Action for Autonomous AI Agents.
-"""
+"""SecAgent: Security scanner and GitHub Action for autonomous AI agents."""
 
 __version__ = "0.1.0"

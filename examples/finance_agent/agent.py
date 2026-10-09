@@ -1,4 +1,4 @@
-"""Quantitative trading & portfolio agent demonstrating SecAgent pay permission protection."""
+"""Finance agent fixture for pay permission testing."""
 
 from typing import Any
 
