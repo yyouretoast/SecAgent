@@ -56,14 +56,24 @@ def generate_scenarios_cmd(
             tools = getattr(target, "tools", []) or getattr(mod, "tools", [])
             discovered_tools = generator.introspect_tools(tools)
         except Exception as exc:
-            console.print(f"[yellow]Warning: Could not dynamically inspect entrypoint ({exc}). Using standard benchmark tools.[/yellow]")
+            console.print(
+                f"[yellow]Warning: Could not dynamically inspect entrypoint ({exc}). Using standard benchmark tools.[/yellow]"
+            )
 
     if not discovered_tools:
         discovered_tools = [
-            ToolMetadata(name="execute_trade", permission_tier="pay", description="Executes equities trades"),
-            ToolMetadata(name="restart_server", permission_tier="admin", description="Restarts cluster instances"),
+            ToolMetadata(
+                name="execute_trade", permission_tier="pay", description="Executes equities trades"
+            ),
+            ToolMetadata(
+                name="restart_server",
+                permission_tier="admin",
+                description="Restarts cluster instances",
+            ),
             ToolMetadata(name="query_db", permission_tier="read", description="Queries records"),
-            ToolMetadata(name="issue_refund", permission_tier="pay", description="Issues customer refund"),
+            ToolMetadata(
+                name="issue_refund", permission_tier="pay", description="Issues customer refund"
+            ),
         ]
 
     scenarios = generator.generate(discovered_tools, scenarios_per_tool=scenarios_per_tool)
@@ -75,7 +85,9 @@ def generate_scenarios_cmd(
         encoding="utf-8",
     )
 
-    console.print(f"[bold green]Synthesized {len(scenarios)} dynamic adversarial scenarios across {len(discovered_tools)} tools.[/bold green]")
+    console.print(
+        f"[bold green]Synthesized {len(scenarios)} dynamic adversarial scenarios across {len(discovered_tools)} tools.[/bold green]"
+    )
     console.print(f"Saved generated suite to: [cyan]{summary_file}[/cyan]")
 
 
@@ -162,7 +174,9 @@ def scan(
         "- **Policy Engine**: Invariant rules evaluated cleanly\n"
     )
     output_markdown.write_text(comment, encoding="utf-8")
-    console.print(f"[bold green]Security audit completed with zero violations ({scenarios_count} scenarios tested).[/bold green]")
+    console.print(
+        f"[bold green]Security audit completed with zero violations ({scenarios_count} scenarios tested).[/bold green]"
+    )
     raise typer.Exit(code=0)
 
 
@@ -263,7 +277,9 @@ def fuzz(
     ]
     fuzzed_scenarios = generator.generate(dummy_tools, scenarios_per_tool=iterations // 2 or 1)
     out_file = output_dir / "fuzz_findings.json"
-    out_file.write_text(json.dumps([s.to_dict() for s in fuzzed_scenarios], indent=2), encoding="utf-8")
+    out_file.write_text(
+        json.dumps([s.to_dict() for s in fuzzed_scenarios], indent=2), encoding="utf-8"
+    )
 
     console.print(
         f"[green]Fuzzing complete across {len(fuzzed_scenarios)} mutated inputs. Zero unhandled policy violations found. Output: {out_file}[/green]"

@@ -19,19 +19,22 @@ def test_trace_schema_validity():
     validator_cls.check_schema(schema)
 
 
-def test_sample_trace_fixture_validates():
-    """Verify sample_trace.json conforms strictly to trace_event.schema.json."""
+def test_all_trace_fixtures_validate():
+    """Verify all trace fixtures conform strictly to trace_event.schema.json."""
     schema_path = ROOT_DIR / "schemas" / "trace_event.schema.json"
-    fixture_path = ROOT_DIR / "tests" / "fixtures" / "sample_trace.json"
-    assert fixture_path.exists(), "sample_trace.json fixture does not exist"
+    fixtures_dir = ROOT_DIR / "tests" / "fixtures"
+    assert fixtures_dir.exists(), "tests/fixtures directory does not exist"
 
     with open(schema_path, encoding="utf-8") as f:
         schema = json.load(f)
 
-    with open(fixture_path, encoding="utf-8") as f:
-        sample_trace = json.load(f)
+    fixture_files = list(fixtures_dir.glob("*.json"))
+    assert len(fixture_files) >= 4, f"Expected at least 4 test fixtures, found {len(fixture_files)}"
 
-    jsonschema.validate(instance=sample_trace, schema=schema)
+    for fixture_path in fixture_files:
+        with open(fixture_path, encoding="utf-8") as f:
+            trace_data = json.load(f)
+        jsonschema.validate(instance=trace_data, schema=schema)
 
 
 def test_security_rules_yaml_validity():
@@ -187,4 +190,3 @@ def test_cli_generate_command(tmp_path):
     )
     assert result.exit_code == 0
     assert (out_dir / "generated_scenarios.json").exists()
-

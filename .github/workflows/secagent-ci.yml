@@ -26,6 +26,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Run Linters & Formatting Check
+        run: |
+          ruff check .
+          ruff format --check .
+
       - name: Run Contract & Regression Tests
         run: |
           pytest tests/ -v
