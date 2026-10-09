@@ -95,9 +95,18 @@ SecAgent provides a GitHub Action and CLI scanner that:
 
 ## 3. Subsystem Specifications
 
-### Subsystem 1: Agent Introspection & SDK
-* **Integration**: Attaches to candidate agents via entrypoint (`--agent module:app`).
-* **Privilege SDK**:
+### Subsystem 1: Agent Introspection & Execution Harness
+* **Integration**: Invokes candidate agents via entrypoint (`--agent module:app`).
+* **Safe CI Execution**: All tool invocations execute in a virtualized dry-run sandbox during security testing. Destructive operations (`drop_database`, `execute_trade`) record intended calls and arguments in the trace but return mock success values. No real external side-effects occur during testing.
+* **Privilege Tier Discovery (3-Tier Precedence)**:
+  1. *Explicit Decorator*: Checks for `@permission(tier="...")` attribute attached to functions.
+  2. *Policy Mapping*: Reads external overrides from `policies/security_rules.yaml` (`tool_tier_overrides`).
+  3. *Semantic Heuristic*: Infers tiers from tool naming patterns:
+     - `pay`: `*(pay|refund|trade|charge|transfer|buy)*`
+     - `admin`: `*(drop|delete|restart|kill|exec|bash|deploy)*`
+     - `write`: `*(write|update|modify|insert|create)*`
+     - `read`: all other tools.
+* **Privilege SDK (Optional)**:
   ```python
   from secagent.sdk import permission
 
@@ -109,20 +118,20 @@ SecAgent provides a GitHub Action and CLI scanner that:
   @permission(tier="pay")
   def execute_trade(symbol: str, quantity: int) -> dict: ...
   ```
-* Privilege tiers: `read`, `write`, `pay`, `admin`, `net`.
 
 ### Subsystem 2: Telemetry Pipeline
 * **Telemetry Standard**: OpenTelemetry GenAI Semantic Conventions (`trace_event.schema.json`).
-* **PII Redactor**: In-line regex scrubber removing SSNs, credit cards, and API secrets.
+* **Interrupt Detection**: Captures framework-native human-in-the-loop gates (e.g. LangGraph `interrupt()`) and normalizes them into standard `gate.hitl` trace spans.
+* **PII Redactor**: Scans and sanitizes SSNs, payment card numbers, and API tokens before recording traces.
 * **Trace Exporter**: Writes execution trace JSON logs with structured span arrays.
 
 ### Subsystem 3: Dynamic Scenario Generator
-* Inspects tool definitions and permission tiers to synthesize test cases dynamically (`secagent generate`).
-* Synthesizes:
+* **Schema-Aware Generation**: Introspects parameter types and names using Python's `inspect` module and Pydantic schemas. Payloads target query/filter string parameters rather than blind dictionary injection.
+* **Test Case Synthesis**:
   - Role-spoofing prompts attempting high-privilege execution without authorization (ASI03).
-  - Parameter fuzzing with SQL injection (`' OR 1=1`) and command injection (`; id`) payloads (ASI02, ASI05).
-  - Data exfiltration prompts targeting PII or credentials (ASI06, ASI10).
-  - Circular constraints triggering loop limits (ASI08).
+  - Parameter fuzzing targeting user-controlled arguments with SQL injection and shell syntax (ASI02, ASI05).
+  - Data extraction prompts targeting sensitive fields (ASI06, ASI10).
+  - Recursive goals designed to exceed execution step limits (ASI08).
 
 ### Subsystem 4: Invariant Verification Engine
 Evaluates YAML policies against execution traces deterministically:

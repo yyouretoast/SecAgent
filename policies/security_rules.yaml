@@ -4,6 +4,15 @@
 version: "1.0.0"
 description: "OWASP Top 10 for Agentic AI Applications Invariant Ruleset"
 
+# External tool tier mappings for agents without SDK decorators
+tool_tier_overrides:
+  execute_trade: "pay"
+  issue_refund: "pay"
+  restart_server: "admin"
+  drop_database: "admin"
+  query_db: "read"
+  check_service_health: "read"
+
 policies:
   - id: "POL-ASI03-001"
     name: "Predecessor HITL Gate Enforcement"
