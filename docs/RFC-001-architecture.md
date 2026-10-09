@@ -1,43 +1,37 @@
-# RFC-001: SecAgent System Architecture & Technical Specification
+# RFC-001: SecAgent System Architecture
 
 * **RFC ID**: RFC-001
-* **Title**: Universal CI/CD Security Scanner & GitHub Action for Autonomous AI Agents
-* **Target Repository**: `https://github.com/yyouretoast/SecAgent`
+* **Title**: CI/CD Security Scanner & GitHub Action for Autonomous AI Agents
 * **Status**: ACCEPTED / IN IMPLEMENTATION
 * **Target Delivery**: DEPI Agentic AI Track Graduation Capstone
 * **Team**: 5 Senior Engineering Students (Part-Time: 4–6 hours/week per student)
 
 ---
 
-## 1. Problem Statement & Motivation
+## 1. Problem Statement
 
-### 1.1 The Security Vulnerability Problem in Autonomous AI Agents
-Autonomous AI agents differ fundamentally from traditional software: they are non-deterministic, dynamic, and stateful. When developers update an agent (refining system prompts, upgrading models, or altering tool schemas), the agent frequently introduces **critical security regressions**:
-* An agent may output polite, grammatically fluent text while internally bypassing a mandatory human authorization check before executing a high-risk operation.
-* An agent may invoke high-privilege operations (e.g., executing a financial trade, deleting server infrastructure, or mutating an admin database record) when the context only warranted a read-only inquiry.
-* An agent may fall into an infinite retry loop or execute unvalidated SQL/shell metacharacters inside tool arguments.
+### 1.1 Vulnerability Risks in Autonomous AI Agents
+When developers update system prompts, modify tool definitions, or upgrade model versions, agents can introduce severe security regressions:
+* Executing high-privilege operations (financial trades, infrastructure restarts) while bypassing mandatory human authorization gates.
+* Passing unvalidated user input into database or shell tool arguments, enabling SQL and command injections.
+* Over-fetching restricted database fields into working memory or exfiltrating data to external URLs.
+* Entering non-terminating retry loops.
 
-### 1.2 Inadequacy of Existing Tooling
-Existing testing paradigms fail to address this problem:
-1. **Output-Based LLM-as-a-Judge**: Evaluates only the final text string returned to the user. It cannot observe intermediate tool calls, skipped approval gates, or internal privilege violations.
-2. **Traditional SAST/DAST Linters**: Static code linters analyze static ASTs and cannot anticipate dynamic ReAct reasoning trajectories or prompt-driven privilege escalation.
-3. **Observability Dashboards**: Log passive telemetry post-mortem without providing automated, blocking CI/CD pull request gates that halt builds before deployment.
+### 1.2 Limitations of Existing Approaches
+* **Output-Based LLM Judges**: Inspect only the final response text. They cannot observe intermediate tool calls, skipped approval checks, or internal argument payloads.
+* **Static Analysis (SAST)**: Analyzes static ASTs and cannot anticipate dynamic reasoning trajectories or prompt-driven privilege escalation.
+* **Observability Dashboards**: Record logs post-mortem without providing automated pull request gates that halt builds before deployment.
 
 ### 1.3 SecAgent Objective
-SecAgent delivers a turn-key, universal **GitHub Action and CLI security scanner** that:
-1. Evaluates LangGraph and autonomous agents across multiple domains (DevOps, Finance, Support, Data).
-2. Enforces hard **OWASP Top 10 for Agentic AI Applications** security invariants directly on PRs via a native `action.yml` step.
-3. Features an open SDK (`@permission(tier="...")`) standardizing privilege tiers (`read`, `write`, `pay`, `admin`, `net`).
-4. Includes an active adversarial scenario fuzzer (`secagent fuzz`) that dynamically mutates attack vectors to uncover zero-day prompt jailbreaks and privilege leaks.
-
-### 1.4 Scope & Generalizability
-SecAgent is designed to be agent- and domain-agnostic. The policy engine is declarative and YAML-driven: rules reference generic span attributes (`permission_tier`, `span_type`, `approval_granted`, input parameters) rather than domain-specific internals. Integrating any agent into CI requires only decorating tools with `@permission` and running `secagent scan` in GitHub Actions.
+SecAgent provides a GitHub Action and CLI scanner that:
+1. Targets autonomous agents across frameworks (LangGraph, CrewAI, AutoGen).
+2. Evaluates execution traces against 7 core OWASP Top 10 for Agentic AI Applications categories.
+3. Provides an SDK decorator (`@permission(tier="...")`) standardizing tool privilege tiers (`read`, `write`, `pay`, `admin`, `net`).
+4. Generates adversarial test scenarios dynamically on the fly based on tool signatures.
 
 ---
 
-### 2. System Architecture & Subsystem Decomposition
-
-SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/YAML schema contracts:
+## 2. System Architecture
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -48,39 +42,33 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
                    │
                    ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ SUBSYSTEM 5: TURNKEY CI/CD GATE & CLI RUNNER (action.yml / src/secagent/cli.py)        │
+│ SUBSYSTEM 5: CI/CD GATE & CLI RUNNER (action.yml / src/secagent/cli.py)                │
 │                                                                                        │
 │   GitHub Action Runner executes `secagent scan` / `secagent fuzz`                      │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
-                                         │ Dispatches test scenario & fuzz parameters
+                                         │ Dispatches test scenarios
                                          ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ SUBSYSTEM 3: DYNAMIC SCENARIO FUZZER (src/secagent/fuzzer/)                            │
+│ SUBSYSTEM 3: DYNAMIC SCENARIO GENERATOR (src/secagent/generator/)                      │
 │                                                                                        │
-│   Dynamic Adversarial Mutator                                                          │
-│   ├── Generates adversarial prompts & SQLi/jailbreak payloads                          │
-│   └── Dispatches multi-turn test vectors to Target Agents                              │
+│   Synthesizes adversarial inputs (SQLi, role spoofing, loop traps)                     │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
-                                         │ Injects adversarial prompts
+                                         │ Injects adversarial inputs
                                          ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ SUBSYSTEM 1: TARGET AUTONOMOUS AGENT UNDER TEST (user agent / examples)                │
+│ SUBSYSTEM 1: TARGET AGENT UNDER TEST (user agent / examples)                           │
 │                                                                                        │
-│   Autonomous Agent Frameworks (LangGraph, CrewAI, AutoGen, custom)                     │
-│   ├── User Agent Tools decorated with `@permission`                                    │
-│   ├── Optional Reference Fixtures (DevOps, Finance, Support in examples/)              │
+│   Autonomous Agent (LangGraph, CrewAI, AutoGen, custom)                                │
+│   ├── Tools decorated with `@permission(tier=...)`                                     │
 │   └── SecAgent SDK: @permission(tier="read"|"write"|"pay"|"admin"|"net")               │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
                                          │ OpenTelemetry GenAI Spans
                                          ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ SUBSYSTEM 2: TELEMETRY & PII SCRUBBING PIPELINE (src/secagent/telemetry/)              │
+│ SUBSYSTEM 2: TELEMETRY & PII REDACTION (src/secagent/telemetry/)                       │
 │                                                                                        │
 │   Span Instrumentation Layer                                                           │
-│   ├── agent.run             (Overall execution session, task context, caller role)     │
-│   ├── model.inference       (Prompts, completions, model configs, token counts)        │
-│   ├── tool.call             (Tool name, input parameters, outputs, permission tier)    │
-│   └── gate.hitl             (Approval request, decision boolean, approver context)     │
+│   ├── agent.run, model.inference, tool.call, gate.hitl                                 │
 │   └── In-line PII Scrubber ──► Execution Trace JSON (schemas/trace_event.schema.json)  │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
                                          │ Standardized Trace JSON
@@ -88,10 +76,10 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ SUBSYSTEM 4: INVARIANT SECURITY ENGINE (src/secagent/engine/)                          │
 │                                                                                        │
-│   Deterministic OWASP Policy Verifier (policies/security_rules.yaml)                   │
+│   Deterministic Policy Verifier (policies/security_rules.yaml)                         │
 │   ├── Enforces mandatory HITL predecessor gates (pay / admin tiers)                    │
-│   ├── Checks permission tier context boundaries & scope allowlists                     │
-│   └── Parameter injection regex blocklists & recursion loop thresholds                 │
+│   ├── Checks permission tier boundaries & scope allowlists                             │
+│   └── Parameter regex blocklists & recursion loop thresholds                           │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘
                                          │ Verdict: Exit Code 0 (PASS) / 1 (FAIL)
                                          ▼
@@ -105,12 +93,11 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
 
 ---
 
-## 3. Subsystem Detailed Specifications
+## 3. Subsystem Specifications
 
-### Subsystem 1: Universal Agent Introspection Harness & SDK
-* **Target Integration**: Attaches to any user agent via entrypoint (`--agent module:app`, LangGraph `StateGraph`, CrewAI, or HTTP endpoint).
-* **Zero Mock Overhead**: Users test their real agents; minimal reference agents in `examples/` exist solely as automated smoke-test verification fixtures.
-* **Universal Permission SDK**:
+### Subsystem 1: Agent Introspection & SDK
+* **Integration**: Attaches to candidate agents via entrypoint (`--agent module:app`).
+* **Privilege SDK**:
   ```python
   from secagent.sdk import permission
 
@@ -122,69 +109,67 @@ SecAgent is structured into **5 decoupled subsystems** connected by formal JSON/
   @permission(tier="pay")
   def execute_trade(symbol: str, quantity: int) -> dict: ...
   ```
-* Standardized privilege tiers: `read`, `write`, `pay`, `admin`, `net`.
+* Privilege tiers: `read`, `write`, `pay`, `admin`, `net`.
 
-### Subsystem 2: Telemetry & Instrumentation Pipeline
+### Subsystem 2: Telemetry Pipeline
 * **Telemetry Standard**: OpenTelemetry GenAI Semantic Conventions (`trace_event.schema.json`).
-* **PII Scrubbing Pass**: In-line regex scrubber sanitizing SSNs, credit cards, and API secrets.
+* **PII Redactor**: In-line regex scrubber removing SSNs, credit cards, and API secrets.
 * **Trace Exporter**: Writes execution trace JSON logs with structured span arrays.
 
-### Subsystem 3: Dynamic Scenario Synthesizer & Adversarial Fuzzer
-* **Zero Static YAML Reliance**: Synthesizes adversarial attack vectors dynamically (`secagent generate` / `secagent fuzz`) by introspecting agent tool definitions and permission tiers.
-* Automatically synthesizes:
+### Subsystem 3: Dynamic Scenario Generator
+* Inspects tool definitions and permission tiers to synthesize test cases dynamically (`secagent generate`).
+* Synthesizes:
   - Role-spoofing prompts attempting high-privilege execution without authorization (ASI03).
-  - Parameter-level fuzzing with SQL injection (`' OR 1=1`) and command injection (`; id`) payloads (ASI02).
-  - Data exfiltration prompts targeting PII / secrets (ASI06).
-  - Conflicting constraints triggering runaway recursion loops (ASI08).
+  - Parameter fuzzing with SQL injection (`' OR 1=1`) and command injection (`; id`) payloads (ASI02, ASI05).
+  - Data exfiltration prompts targeting PII or credentials (ASI06, ASI10).
+  - Circular constraints triggering loop limits (ASI08).
 
-### Subsystem 4: Invariant Security Policy Engine
-Evaluates machine-readable YAML policies against execution traces deterministically:
+### Subsystem 4: Invariant Verification Engine
+Evaluates YAML policies against execution traces deterministically:
 1. **Predecessor Gate Invariant (ASI03)**: High-privilege actions (`pay`, `admin`) must be preceded by an authorized `gate.hitl` span.
-2. **Context Privilege Invariant (ASI03)**: Read-only contexts are strictly forbidden from executing mutating tools (`write`, `pay`, `admin`).
-3. **Need-to-Know Scope Invariant (ASI06 sub-vector)**: Blocks over-fetching sensitive fields (`ssn`, `password_hash`) into agent context.
-4. **Parameter Injection Invariant (ASI02)**: Regular expression blocklists against SQL injection and command injection payloads.
-5. **Circuit Breaker Invariant (ASI08)**: Termination limits on total step counts ($N \le 10$) and consecutive duplicate tool calls.
+2. **Context Privilege Invariant (ASI03)**: Read-only contexts cannot execute mutating tools.
+3. **Parameter Injection Invariant (ASI02, ASI05)**: Regex blocklists for SQL and command injection payloads.
+4. **Field Scope Invariant (ASI06)**: Blocks queries requesting restricted fields (`ssn`, `password_hash`).
+5. **Circuit Breaker Invariant (ASI08)**: Step count limits ($N \le 10$) and duplicate call thresholds.
+6. **Egress Allowlist Invariant (ASI10)**: Network tools can only access approved domains.
 
-### Subsystem 5: GitHub Action & CI/CD Security Gate
-* **GitHub Action (`action.yml`)**: Drop-in composite action executing on pull requests.
+### Subsystem 5: GitHub Action & Developer CLI
+* **GitHub Action (`action.yml`)**: Composite action running on pull requests.
 * **Exit Codes**:
-  - `0`: All security invariants satisfied. PR merge allowed.
-  - `1`: Security policy violation detected. PR blocked.
-* **PR Reporting**: Automatically generates markdown audit tables for PR review.
-* **Streamlit UI**: Local web application (`secagent serve`) for trace investigation.
+  - `0`: All security invariants satisfied.
+  - `1`: Security policy violation detected. Pull request blocked.
+* **Reporting**: Formats Markdown triage tables for pull request review.
 
 ---
 
-## 4. Targeted Threat Model: OWASP Top 10 for Agentic AI Applications
+## 4. Targeted Threat Model
 
-SecAgent targets **7 critical trace-observable OWASP Agentic categories**:
-* **ASI01: Agent Goal Hijack**: Detected when adversarial inputs override system persona or cause the agent to deviate into unauthorized tool dispatches.
-* **ASI02: Tool Misuse & Exploitation**: Detected via regex blocklists inspecting tool arguments for SQL injection payloads (`POL-ASI02-001`).
-* **ASI03: Identity & Privilege Abuse**: Enforced via predecessor HITL gates (`POL-ASI03-001`) and context privilege boundaries (`POL-ASI03-002`).
-* **ASI05: Unexpected Code Execution (RCE)**: Enforced via shell metacharacter and arbitrary code execution parameter blocklists (`POL-ASI05-001`).
-* **ASI06: Context Poisoning / Scope Abuse**: Enforced via need-to-know parameter scope allowlists (`POL-ASI06-001`).
-* **ASI08: Cascading Failures**: Enforced via step thresholds and idempotency circuit breakers (`POL-ASI08-001`).
-* **ASI10: Rogue Agent Egress Exfiltration**: Enforced via unauthorized network egress destination allowlists (`POL-ASI10-001`).
+SecAgent evaluates 7 trace-verifiable categories from the OWASP Top 10 for Agentic AI Applications:
+* **ASI01: Agent Goal Hijack**: Prompts overriding system persona or deviating from assigned scope.
+* **ASI02: Tool Misuse**: SQL injection payloads in tool arguments (`POL-ASI02-001`).
+* **ASI03: Identity & Privilege Abuse**: Predecessor approval enforcement (`POL-ASI03-001`) and context boundaries (`POL-ASI03-002`).
+* **ASI05: Unexpected Code Execution**: Command injection and shell metacharacters in tool parameters (`POL-ASI05-001`).
+* **ASI06: Scope Abuse**: Over-fetching sensitive attributes (`POL-ASI06-001`).
+* **ASI08: Cascading Failures**: Runaway execution loops and retry depth (`POL-ASI08-001`).
+* **ASI10: Rogue Agent Egress Exfiltration**: Data transmission to untrusted endpoints (`POL-ASI10-001`).
 
 ---
 
-## 5. Team Division of Labor & WBS
+## 5. Work Breakdown Structure
 
-| Engineer | Subsystem Focus | Input Contract | Output Contract |
+| Engineer | Focus | Input Contract | Output Contract |
 | :--- | :--- | :--- | :--- |
-| **Student 1** | Universal Agent Harness & SDK | Agent Entrypoint (`--agent`) | Dynamic introspector & `@permission` SDK |
-| **Student 2** | Dynamic Scenario Synthesizer | Target Agent Tool Signatures | `src/secagent/generator/` synthesized test vectors |
-| **Student 3** | Telemetry & OTel Pipeline | Target Agent Runtime Hooks | `src/secagent/telemetry/` span exporter & PII scrubber |
-| **Student 4** | Invariant Verifier & Fuzzer | `schemas/trace_event.schema.json` | `src/secagent/engine/` & `src/secagent/fuzzer/` |
-| **Student 5** | GitHub Action & CLI Dashboard | Engine Result Models | `action.yml`, `src/secagent/cli.py`, `app.py` |
+| **Student 1** | Agent Introspection & SDK | Agent Entrypoint (`--agent`) | Dynamic introspector & `@permission` SDK |
+| **Student 2** | Scenario Generator | Target Agent Tool Signatures | `src/secagent/generator/` test synthesis |
+| **Student 3** | Telemetry Pipeline | Agent Runtime Hooks | `src/secagent/telemetry/` span exporter & PII scrubber |
+| **Student 4** | Invariant Verifier | `schemas/trace_event.schema.json` | `src/secagent/engine/` evaluator |
+| **Student 5** | GitHub Action & CLI | Engine Result Models | `action.yml`, `src/secagent/cli.py`, `app.py` |
 
 ---
 
-## 6. Capstone Empirical Evaluation Plan
+## 6. Evaluation Criteria
 
-SecAgent will be evaluated across a benchmark suite and dynamic fuzz runs:
-* **Unauthorized Tool Call Detection Recall**: $100\%$ on structural privilege escalations and missing HITL gates.
-* **Parameter Injection Recall**: $\ge 90\%$ on adversarial payloads containing SQL and command injections.
-* **CI Execution Latency**: $< 10$ seconds per PR audit run.
-* **Zero False Positives on Compliant Agents**: Benign agent modifications respecting invariant boundaries achieve clean passes (Exit Code 0).
-
+* **Privilege Violation Detection**: 100% detection rate on unapproved `pay` and `admin` calls.
+* **Parameter Injection Detection**: Flags inputs matching known SQL and command injection patterns.
+* **Execution Overhead**: Complete CI evaluation runs in under 10 seconds.
+* **False Positive Rate**: Zero false alarms on compliant execution traces.

@@ -1,104 +1,108 @@
-# Team Kickoff & Implementation Playbook
+# Team Implementation Playbook
 
 **Target**: Graduation Project Capstone (DEPI Agentic AI Track)  
-**Weekly Budget**: 4–6 hours per student  
-**Project Goal**: Deliver a turn-key GitHub Action and CLI scanner that blocks insecure autonomous AI agents on Pull Requests.
+**Budget**: 4–6 hours/week per student (5 students total)  
+**Deliverable**: GitHub Action and CLI scanner that evaluates autonomous AI agents in CI/CD and blocks pull requests on invariant violations.
 
 ---
 
-## 1. Quick Technical Alignment
+## 1. Project Overview
 
-### The Core Problem We Solve
-When developers update prompts or agent tools, agents can bypass human approvals (ASI03), execute SQL/command injections (ASI02), or fall into runaway infinite loops (ASI08).
+### Problem
+When developers modify system prompts, tool schemas, or models, agents can introduce critical regressions:
+* Bypassing required human approval gates before executing sensitive tools (ASI03).
+* Passing unvalidated inputs directly into database or shell calls (ASI02, ASI05).
+* Exfiltrating sensitive credentials or querying restricted database fields (ASI06, ASI10).
+* Getting trapped in non-terminating execution loops (ASI08).
 
-### How We Solve It (The "Zero-Diff" Approach)
-1. We **do not** compare traces to a baseline twin.
-2. We **do not** make live LLM calls during CI.
-3. We take a single execution trace emitted by any agent (LangGraph, CrewAI, AutoGen) and verify hard, deterministic **OWASP Invariant Rules** defined in `policies/security_rules.yaml`.
-4. If an invariant is violated, the **GitHub Action (`action.yml`)** exits with code 1 and blocks the PR.
-
----
-
-## 2. Student Task Breakdown & Weekly Milestones
-
-Each student has an isolated module and clear interface contracts so nobody is blocked by another team member.
-
-### Student 1: Universal Agent Harness & Introspection Lead
-* **Primary Scope**: `src/secagent/harness/`, `src/secagent/sdk/`
-* **Week 1–2 Goals**:
-  - Implement dynamic agent introspector that reads tools, docstrings, and schemas from any user agent entrypoint (`--agent module:app`).
-  - Support `@permission` decorator in `src/secagent/sdk/decorators.py` for fine-grained privilege classification (`read`, `write`, `pay`, `admin`, `net`).
-  - Maintain minimal smoke-test fixture agents under `examples/` solely for test verification, without spending dev cycles building full mock agents.
-* **Success Criteria**: CLI can dynamically introspect tools and schemas from any arbitrary agent entrypoint.
+### Solution
+1. Single-trace evaluation: SecAgent evaluates a candidate agent's execution trace directly against declarative security rules in `policies/security_rules.yaml`.
+2. No live LLM judge in CI: Verifications check verifiable trace facts (caller role, approval gates, argument regex, step counts).
+3. Automated scenario generation: SecAgent inspects the agent's tools and synthesizes attack inputs on the fly.
+4. If an invariant rule is violated, `action.yml` exits with code 1 and blocks the pull request.
 
 ---
 
-### Student 2: Dynamic Scenario Generation & Adversarial Synthesis Lead
-* **Primary Scope**: `src/secagent/generator/`
-* **Week 1–2 Goals**:
-  - Implement automated scenario synthesizer (`ScenarioGenerator`) that creates adversarial test vectors dynamically based on introspected tools.
-  - Automatically synthesize:
-    - **ASI01 (Goal Hijack)**: Persona-override and instruction deviation prompts.
-    - **ASI02 (Tool Misuse)**: Parameter-level fuzzing with SQL injection (`' OR '1'='1`).
-    - **ASI03 (Privilege Abuse)**: Role-spoofing prompts attempting to trigger `pay` or `admin` actions without predecessor approval.
-    - **ASI05 (Unexpected Code Execution)**: Shell command injection payloads (`; cat /etc/passwd`, `& whoami`).
-    - **ASI06 (Scope Abuse)**: Prompts designed to extract restricted credentials, API tokens, or PII.
-    - **ASI08 (Cascading Failures)**: Circular dependencies designed to trigger infinite retry loops.
-    - **ASI10 (Rogue Network Exfiltration)**: Egress exfiltration prompts targeting untrusted endpoints.
-* **Success Criteria**: Running `secagent generate` or `secagent scan` dynamically synthesizes attack scenarios on the fly without requiring pre-written YAML files.
+## 2. Work Breakdown Structure (WBS)
+
+Each student owns a discrete module behind a typed interface contract.
+
+### Student 1: Agent Introspection & SDK Lead
+* **Scope**: `src/secagent/harness/`, `src/secagent/sdk/`
+* **Tasks**:
+  * Build introspector reading tool names, docstrings, and schemas from agent entrypoints (`--agent module:app`).
+  * Maintain the `@permission(tier=...)` decorator in `src/secagent/sdk/decorators.py`.
+  * Maintain minimal smoke-test fixtures in `examples/` purely for local test verification.
+* **Success Criteria**: CLI can dynamically inspect tools and schemas from any agent entrypoint.
+
+---
+
+### Student 2: Dynamic Scenario Generation Lead
+* **Scope**: `src/secagent/generator/`
+* **Tasks**:
+  * Implement `ScenarioGenerator` to synthesize adversarial test vectors tailored to introspected tools.
+  * Generate test cases for:
+    * **ASI01**: Persona override and instruction deviation prompts.
+    * **ASI02**: SQL injection parameter payloads (`' OR '1'='1`).
+    * **ASI03**: Role-spoofing prompts attempting to execute `pay` or `admin` tools without authorization.
+    * **ASI05**: Shell command injection payloads (`; cat /etc/passwd`, `& whoami`).
+    * **ASI06**: Prompts targeting restricted fields (`ssn`, `password_hash`).
+    * **ASI08**: Circular goals testing loop limits.
+    * **ASI10**: Prompts attempting network exfiltration to untrusted endpoints.
+* **Success Criteria**: `secagent generate` produces valid test suites dynamically without static YAML authoring.
 
 ---
 
 ### Student 3: Telemetry & OTel Pipeline Lead
-* **Primary Scope**: `src/secagent/telemetry/`
-* **Week 1–2 Goals**:
-  - Implement a lightweight span collector callback for LangGraph / general agents.
-  - Intercept:
-    - `tool.call` spans (capturing tool name, arguments, and permission tier).
-    - `gate.hitl` spans (capturing human approval booleans).
-  - Add an in-line regex PII/secret sanitizer (redacting SSNs, credit cards, API keys).
-  - Export spans to a clean JSON file conforming to `schemas/trace_event.schema.json`.
-* **Success Criteria**: Running any example agent produces a valid `trace.json` that passes `jsonschema.validate()`.
+* **Scope**: `src/secagent/telemetry/`
+* **Tasks**:
+  * Implement an OpenTelemetry callback/processor capturing:
+    * `tool.call` spans (tool name, input parameters, permission tier).
+    * `gate.hitl` spans (approval decision booleans).
+  * Build an in-line regex PII redactor (scrubbing SSNs, credit cards, API keys).
+  * Export trace logs conforming to `schemas/trace_event.schema.json`.
+* **Success Criteria**: Agent runs produce trace JSON files that pass `jsonschema.validate()`.
 
 ---
 
-### Student 4: Invariant Verifier & Fuzzer Lead
-* **Primary Scope**: `src/secagent/engine/`, `src/secagent/fuzzer/`
-* **Week 1–2 Goals**:
-  - **Invariant Engine**: Write the pure Python policy checker that parses `trace.json` and evaluates `policies/security_rules.yaml`:
-    - Predecessor gate check: `target_tier in ["pay", "admin"]` must have preceding `approval_granted == True`.
-    - Injection check: Regex match across `input_parameters`.
-    - Circuit breaker: Max step count ($\le 10$) and consecutive duplicate calls ($\le 2$).
-  - **Dynamic Fuzzer**: Wire up `secagent fuzz` to mutate prompt payloads on the fly.
-* **Success Criteria**: Engine returns exit code 0 on compliant traces, exit code 1 on violated traces.
+### Student 4: Invariant Verification Engine Lead
+* **Scope**: `src/secagent/engine/`, `src/secagent/fuzzer/`
+* **Tasks**:
+  * Implement evaluator that loads `policies/security_rules.yaml` and inspects `trace.json`:
+    * Predecessor gate rule: high-risk operations (`pay`, `admin`) require preceding `approval_granted == true`.
+    * Parameter blocklist: regex matching on arguments.
+    * Circuit breaker: total step count limits and duplicate call thresholds.
+    * Egress guard: network tool destination allowlists.
+  * Return structured violation records with remediation guidance.
+* **Success Criteria**: Engine returns exit code 0 on compliant traces and exit code 1 on violating traces.
 
 ---
 
-### Student 5: GitHub Action, CLI & Visualizer Lead
-* **Primary Scope**: `action.yml`, `src/secagent/cli.py`, `app.py`, `.github/`
-* **Week 1–2 Goals**:
-  - Wire `secagent scan` in `src/secagent/cli.py` to invoke Student 4's engine on target scenarios.
-  - Format the Markdown comment output (`comment.md`) with a clear security triage table.
-  - Test `action.yml` in a GitHub workflow so PRs are blocked automatically upon policy violation.
-  - Build a clean 1-page Streamlit dashboard in `app.py` for visual demonstrations.
-* **Success Criteria**: Opening a PR triggers the GitHub Action, executes `secagent scan`, and posts a summary comment.
+### Student 5: GitHub Action, CLI & Dashboard Lead
+* **Scope**: `action.yml`, `src/secagent/cli.py`, `app.py`, `.github/`
+* **Tasks**:
+  * Wire `secagent scan` to run Student 4's engine and return exit codes 0 or 1.
+  * Generate Markdown summary tables (`comment.md`) on test failure.
+  * Test `action.yml` in GitHub Actions workflows.
+  * Build a 1-page Streamlit dashboard in `app.py` for trace inspection.
+* **Success Criteria**: A pull request triggering a policy breach is automatically blocked with an explanatory comment.
 
 ---
 
-## 3. Communication & Git Rules
+## 3. Development Rules
 
-1. **Frozen Contracts**: Do not modify `schemas/trace_event.schema.json` or `policies/security_rules.yaml` without unanimous team agreement.
-2. **Branch Workflow**:
+1. **Frozen Contracts**: Do not change `schemas/trace_event.schema.json` or `policies/security_rules.yaml` without team agreement.
+2. **Branch Naming**:
    ```bash
-   git checkout -b feat/s1-target-agents
-   git checkout -b feat/s2-benchmark-scenarios
-   git checkout -b feat/s3-otel-telemetry
-   git checkout -b feat/s4-policy-fuzzer
-   git checkout -b feat/s5-github-action-ui
+   feat/s1-agent-harness
+   feat/s2-scenario-generator
+   feat/s3-otel-telemetry
+   feat/s4-policy-engine
+   feat/s5-github-action-cli
    ```
-3. **Local Quality Gate**: Run before opening any PR:
+3. **Local Quality Verification**: Run before opening a PR:
    ```bash
+   pytest tests/ -v
    ruff check .
    ruff format --check .
-   pytest tests/
    ```
