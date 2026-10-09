@@ -86,9 +86,9 @@ def generate_scenarios_cmd(
     )
 
     console.print(
-        f"[bold green]Synthesized {len(scenarios)} dynamic adversarial scenarios across {len(discovered_tools)} tools.[/bold green]"
+        f"[bold green]Generated {len(scenarios)} scenarios across {len(discovered_tools)} tools.[/bold green]"
     )
-    console.print(f"Saved generated suite to: [cyan]{summary_file}[/cyan]")
+    console.print(f"Saved to: [cyan]{summary_file}[/cyan]")
 
 
 @app.command(name="scan")
@@ -146,7 +146,7 @@ def scan(
 
     # Dynamic generation of attack vectors if no static directory is provided
     if scenarios is None or not scenarios.exists():
-        console.print("[cyan]Generating dynamic adversarial scenarios tailored to agent...[/cyan]")
+        console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
         dummy_tools = [
             ToolMetadata(name="execute_trade", permission_tier="pay"),
             ToolMetadata(name="restart_server", permission_tier="admin"),
@@ -260,12 +260,10 @@ def fuzz(
         ),
     ] = Path("scenarios/generated/"),
 ) -> None:
-    """Execute dynamic adversarial prompt fuzzing to discover unhandled exploits."""
+    """Run prompt mutations to test policy coverage."""
     from secagent.generator import ScenarioGenerator, ToolMetadata
 
-    console.print(
-        f"[bold magenta]SecAgent Adversarial Fuzzer[/bold magenta] ({iterations} iterations)"
-    )
+    console.print(f"[bold magenta]Running fuzzer[/bold magenta] ({iterations} iterations)")
     console.print(f"Target: [yellow]{agent_entrypoint or 'all configured agents'}[/yellow]")
     generator = ScenarioGenerator()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -282,7 +280,7 @@ def fuzz(
     )
 
     console.print(
-        f"[green]Fuzzing complete across {len(fuzzed_scenarios)} mutated inputs. Zero unhandled policy violations found. Output: {out_file}[/green]"
+        f"[green]Completed across {len(fuzzed_scenarios)} mutated inputs. Output: {out_file}[/green]"
     )
     raise typer.Exit(code=0)
 

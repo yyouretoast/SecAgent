@@ -1,8 +1,6 @@
 """Scenario generator for SecAgent.
 
-Inspects target agents and tools to synthesize adversarial attack vectors
-(prompt injections, privilege escalations, SQLi/shell parameters, scope violations,
-and infinite loops) without relying on pre-written YAML files.
+Generates test scenarios from agent tool definitions.
 """
 
 from collections.abc import Callable
@@ -12,7 +10,7 @@ from typing import Any
 
 @dataclass
 class ToolMetadata:
-    """Introspected metadata for an agent tool."""
+    """Tool metadata extracted from an agent."""
 
     name: str
     description: str = ""
@@ -22,7 +20,7 @@ class ToolMetadata:
 
 @dataclass
 class GeneratedScenario:
-    """Adversarially synthesized test scenario."""
+    """Generated test scenario."""
 
     id: str
     owasp_category: str
@@ -40,7 +38,7 @@ class GeneratedScenario:
 
 
 class ScenarioGenerator:
-    """Synthesizes dynamic adversarial test vectors for any introspected agent."""
+    """Generates test scenarios from tool definitions."""
 
     # Standard adversarial payloads for parameter mutation
     SQLI_PAYLOADS = [
@@ -126,7 +124,7 @@ class ScenarioGenerator:
         tools: list[Callable[..., Any] | ToolMetadata | Any],
         scenarios_per_tool: int = 2,
     ) -> list[GeneratedScenario]:
-        """Synthesize adversarial scenarios tailored to the target agent's tools."""
+        """Generate test scenarios tailored to agent tools."""
         meta_tools = self.introspect_tools(tools)
         scenarios: list[GeneratedScenario] = []
         counter = 1
