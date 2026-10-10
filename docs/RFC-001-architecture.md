@@ -127,6 +127,7 @@ SecAgent provides a GitHub Action and CLI scanner that:
 
 ### Subsystem 3: Dynamic Scenario Generator
 * **Schema-Aware Generation**: Introspects parameter types and names using Python's `inspect` module and Pydantic schemas. Payloads target query/filter string parameters rather than blind dictionary injection.
+* **Deterministic Seeding & Caching**: Generates scenarios with fixed random seeds into `scenarios/generated/`. Test suites are regenerated only when tool signatures or configurations change, preventing non-deterministic CI flakiness across unchanged commits.
 * **Test Case Synthesis**:
   - Role-spoofing prompts attempting high-privilege execution without authorization (ASI03).
   - Parameter fuzzing targeting user-controlled arguments with SQL injection and shell syntax (ASI02, ASI05).
@@ -143,6 +144,10 @@ Evaluates YAML policies against execution traces deterministically:
 6. **Egress Allowlist Invariant (ASI10)**: Network tools can only access approved domains.
 
 ### Subsystem 5: GitHub Action & Developer CLI
+* **Dual-Lifecycle Execution Model**:
+  - `secagent scan` (Every PR): Evaluates target agents against cached/generated scenarios. Runs deterministically in under 2 seconds with zero external LLM API costs.
+  - `secagent generate` (On Tool Change): Invoked locally or in CI when tool signatures mutate to refresh `scenarios/generated/`.
+  - `secagent fuzz` (Periodic / Nightly): Runs multi-turn prompt mutations for deep offline security audits.
 * **GitHub Action (`action.yml`)**: Composite action running on pull requests.
 * **Exit Codes**:
   - `0`: All security invariants satisfied.
