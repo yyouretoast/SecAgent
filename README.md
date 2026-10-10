@@ -24,54 +24,29 @@ SecAgent runs in CI/CD pipelines, synthesizes adversarial attack scenarios tailo
 
 ```mermaid
 flowchart TD
-    classDef pr fill:#eff6ff,stroke:#2563eb,stroke-width:1.5px,color:#1e3a8a,font-weight:bold;
-    classDef cicd fill:#f1f5f9,stroke:#475569,stroke-width:1.5px,color:#0f172a;
-    classDef fuzzer fill:#faf5ff,stroke:#9333ea,stroke-width:1.5px,color:#581c87;
-    classDef sut fill:#f8fafc,stroke:#64748b,stroke-width:1.5px,color:#0f172a;
-    classDef otel fill:#f0fdf4,stroke:#16a34a,stroke-width:1.5px,color:#14532d;
-    classDef rules fill:#fffbeb,stroke:#d97706,stroke-width:1.5px,color:#78350f;
-    classDef pass fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46;
-    classDef fail fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#9f1239;
-
-    PR["Developer Pull Request"]:::pr
-
-    subgraph CI ["CI/CD Gate (action.yml)"]
-        Action["GitHub Action Runner<br/><code>secagent scan / fuzz</code>"]
-        PassGate["Exit 0: PASS<br/>Allow Merge"]:::pass
-        FailGate["Exit 1: FAIL<br/>Block PR & Post Triage"]:::fail
+    PR["Pull Request / Commit"] --> Action["GitHub Action Runner"]
+    Action --> CLI["secagent CLI (scan)"]
+    
+    subgraph Pipeline ["SecAgent Evaluation Pipeline"]
+        Scenarios["Test Scenarios<br/>(Cached / Generated)"]
+        Harness["Execution Harness<br/>(Dry-run sandbox)"]
+        Telemetry["Telemetry Interceptor<br/>(OpenTelemetry + PII Redactor)"]
+        Trace["Execution Trace JSON"]
+        Verifier["Policy Engine<br/>(7 OWASP Invariants)"]
     end
-    class CI cicd;
-
-    subgraph Adversary ["Adversarial Fuzzer (src/secagent/generator/)"]
-        Fuzzer["Scenario Generator<br/><code>secagent generate / fuzz</code>"]
+    
+    subgraph Target ["Agent Under Test"]
+        Agent["Candidate Agent<br/>(LangGraph / CrewAI / AutoGen)"]
     end
-    class Adversary fuzzer;
 
-    subgraph SUT ["Target Agent Under Test"]
-        DevOps["Candidate Agent<br/>Tools decorated with <code>@permission</code>"]
-    end
-    class SUT sut;
-
-    subgraph Telemetry ["Telemetry & Redactor (src/secagent/telemetry/)"]
-        OTel["OTel Span Capture"]
-        Scrubber["PII & Secret Redactor"]
-        TraceJSON["Execution Trace JSON"]
-    end
-    class Telemetry otel;
-
-    subgraph Security ["Invariant Verifier (policies/security_rules.yaml)"]
-        Verifier["Policy Engine<br/>Predecessor gates, regex, circuit breakers"]
-    end
-    class Security rules;
-
-    PR -->|Triggers| Action
-    Action -->|Dispatches Scenarios| Fuzzer
-    Fuzzer -->|Injects Mutated Inputs| SUT
-    SUT -->|Streams Spans| OTel
-    OTel --> Scrubber --> TraceJSON
-    TraceJSON -->|Evaluates| Verifier
-    Verifier -->|Passed| PassGate
-    Verifier -->|Violated| FailGate
+    CLI --> Scenarios
+    Scenarios --> Harness
+    Harness <-->|Invoke / Intercept| Agent
+    Harness --> Telemetry
+    Telemetry --> Trace
+    Trace --> Verifier
+    Verifier -->|Pass (Exit 0)| PassGate["Allow PR Merge"]
+    Verifier -->|Fail (Exit 1)| FailGate["Block PR & Post Triage Comment"]
 ```
 
 ### Execution Lifecycle
@@ -79,34 +54,29 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Dev as Developer / PR
-    participant CI as GitHub Action (action.yml)
-    participant Fuzz as Scenario Generator
-    participant Agent as Target Agent
-    participant Telem as Telemetry & PII Redactor
-    participant Engine as Policy Verifier
+    actor Dev as Developer
+    participant CI as GitHub Action
+    participant Runner as SecAgent Runner
+    participant Agent as Target Agent (Sandboxed)
+    participant Telem as OTel Telemetry
+    participant Engine as Policy Engine
 
-    Dev->>CI: Open Pull Request / Push Commit
-    CI->>Fuzz: Run secagent fuzz / scan
-    loop Adversarial Testing
-        Fuzz->>Agent: Dispatch adversarial prompt / parameters
-        activate Agent
-        Agent->>Agent: Execute tool calls (@permission)
-        Agent->>Telem: Stream execution spans
-        deactivate Agent
-        activate Telem
-        Telem->>Telem: Redact PII / tokens -> write trace.json
-        deactivate Telem
+    Dev->>CI: Open Pull Request
+    CI->>Runner: secagent scan
+    Runner->>Runner: Load test scenarios (cached/generated)
+    loop For each test scenario
+        Runner->>Agent: Invoke with scenario prompt
+        Agent->>Telem: Capture tool calls & HITL gates (via interceptor)
+        Agent-->>Runner: Return execution result
     end
-    CI->>Engine: Evaluate trace.json against policies
-    activate Engine
-    Engine->>Engine: Check predecessor gates, parameter regex, step limits
-    Engine-->>CI: Verdict (Exit 0 or Exit 1)
-    deactivate Engine
-    alt Invariant Violated
-        CI-->>Dev: Block PR & Post Security Triage
-    else Invariants Passed
-        CI-->>Dev: Pass CI & Allow Merge
+    Telem->>Engine: Export execution trace JSON
+    Engine->>Engine: Verify 7 OWASP invariant rules
+    alt Violations Found
+        Engine-->>CI: Exit Code 1 (FAIL)
+        CI-->>Dev: Block PR & Post Remediation Comment
+    else Compliant
+        Engine-->>CI: Exit Code 0 (PASS)
+        CI-->>Dev: Allow PR Merge
     end
 ```
 
