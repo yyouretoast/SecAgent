@@ -99,12 +99,14 @@ SecAgent provides a GitHub Action and CLI scanner that:
 * **Integration**: Invokes candidate agents via entrypoint (`--agent module:app`).
 * **Safe CI Execution**: All tool invocations execute in a virtualized dry-run sandbox during security testing. Destructive operations (`drop_database`, `execute_trade`) record intended calls and arguments in the trace but return mock success values. No real external side-effects occur during testing.
 * **Privilege Tier Discovery (3-Tier Precedence)**:
-  1. *Explicit Decorator*: Checks for `@permission(tier="...")` attribute attached to functions.
+  1. *Explicit Decorator*: Checks for `@permission(tier="...")` attribute attached to functions (`pure`, `read`, `write`, `pay`, `admin`, `net`).
   2. *Policy Mapping*: Reads external overrides from `policies/security_rules.yaml` (`tool_tier_overrides`).
   3. *Semantic Heuristic*: Infers tiers from tool naming patterns:
+     - `pure`: `*(calc|format|parse|convert|validate)*`
      - `pay`: `*(pay|refund|trade|charge|transfer|buy)*`
      - `admin`: `*(drop|delete|restart|kill|exec|bash|deploy)*`
      - `write`: `*(write|update|modify|insert|create)*`
+     - `net`: `*(network|http|webhook|curl|fetch|post_)*`
      - `read`: all other tools.
 * **Privilege SDK (Optional)**:
   ```python
