@@ -183,7 +183,7 @@ SecAgent evaluates 7 trace-verifiable categories from the OWASP Top 10 for Agent
 
 ## 6. Evaluation Criteria
 
-* **Privilege Violation Detection**: 100% detection rate on unapproved `pay` and `admin` calls.
-* **Parameter Injection Detection**: Flags inputs matching known SQL and command injection patterns.
+* **Privilege Violation Detection**: Flags unapproved `pay` and `admin` tool calls when predecessor HITL gate spans are absent in the trace.
+* **Parameter Injection Detection**: Flags inputs matching known SQL and command injection patterns in user-controlled arguments.
 * **Execution Overhead**: Complete CI evaluation runs in under 10 seconds.
-* **False Positive Rate**: Zero false alarms on compliant execution traces.
+* **Deterministic Precision**: Validated against compliant reference fixtures to ensure standard tool invocations pass without spurious policy triggers.

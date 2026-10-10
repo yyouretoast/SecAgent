@@ -1,6 +1,6 @@
 # SecAgent
 
-CI/CD security gate and testing tool for autonomous AI agents (LangGraph, CrewAI, AutoGen). Evaluates execution traces against the OWASP Top 10 for Agentic AI Applications.
+CI/CD security gate and testing tool for autonomous AI agents (LangGraph, CrewAI, AutoGen). Evaluates execution traces against 7 trace-observable categories from the OWASP Top 10 for Agentic AI Applications.
 
 [![CI](https://github.com/yyouretoast/SecAgent/actions/workflows/secagent-ci.yml/badge.svg)](https://github.com/yyouretoast/SecAgent/actions)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)

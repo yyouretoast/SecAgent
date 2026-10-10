@@ -2,7 +2,7 @@
 # Evaluated deterministically against execution traces in CI/CD
 
 version: "1.0.0"
-description: "OWASP Top 10 for Agentic AI Applications Invariant Ruleset"
+description: "Trace-Observable Invariant Ruleset (7 OWASP Categories for Agentic AI Applications)"
 
 # External tool tier mappings for agents without SDK decorators
 tool_tier_overrides:
