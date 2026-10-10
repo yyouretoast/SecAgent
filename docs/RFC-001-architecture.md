@@ -12,8 +12,8 @@
 
 ### 1.1 Vulnerability Risks in Autonomous AI Agents
 When developers update system prompts, modify tool definitions, or upgrade model versions, agents can introduce severe security regressions:
-* Executing high-privilege operations (financial trades, infrastructure restarts) while bypassing mandatory human authorization gates.
-* Passing unvalidated user input into database or shell tool arguments, enabling SQL and command injections.
+* Executing financial or admin tools without required approval gates (ASI03).
+* Passing unvalidated user input directly into database or shell tools (ASI02, ASI05).
 * Over-fetching restricted database fields into working memory or exfiltrating data to external URLs.
 * Entering non-terminating retry loops.
 

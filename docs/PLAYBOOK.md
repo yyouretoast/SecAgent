@@ -17,7 +17,7 @@ When developers modify system prompts, tool schemas, or models, agents can intro
 
 ### Solution
 1. Single-trace evaluation: SecAgent evaluates a candidate agent's execution trace directly against declarative security rules in `policies/security_rules.yaml`.
-2. No live LLM judge in CI: Verifications check verifiable trace facts (caller role, approval gates, argument regex, step counts).
+2. No LLM judge in CI: Checks are deterministic (caller role, approval gates, regex patterns, step counts).
 3. Automated scenario generation: SecAgent inspects the agent's tools and synthesizes attack inputs on the fly.
 4. If an invariant rule is violated, `action.yml` exits with code 1 and blocks the pull request.
 

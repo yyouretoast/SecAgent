@@ -115,8 +115,8 @@ sequenceDiagram
 ## Core Capabilities
 
 * **GitHub Action (`action.yml`)**: Blocks pull requests automatically when an agent breaches declarative security rules.
-* **Deterministic Verification**: Tests trace facts (approval gates, argument patterns, recursion depth) directly on OpenTelemetry traces without subjective LLM-as-a-judge grading.
-* **Dynamic Scenario Synthesis (`secagent generate`)**: Inspects agent tool signatures and generates contextual attack vectors on the fly instead of relying on static YAML manifests.
+* **Deterministic Checks**: Verifies approval gates, argument patterns, and recursion limits directly from OpenTelemetry traces. No LLM-as-a-judge.
+* **Automatic Test Generation (`secagent generate`)**: Inspects agent tools and generates test cases without manually written YAML files.
 * **Privilege SDK (`@secagent.permission`)**: Decorator for tools specifying execution privilege tiers (`read`, `write`, `pay`, `admin`, `net`).
 * **Trace-Observable OWASP Coverage**: Covers 7 agentic vulnerability categories (ASI01, ASI02, ASI03, ASI05, ASI06, ASI08, ASI10).
 
