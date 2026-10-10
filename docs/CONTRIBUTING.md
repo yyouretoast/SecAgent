@@ -27,7 +27,7 @@ Guidelines for contributing to SecAgent.
 | **Student 1** | Agent Harness & Introspection | `src/secagent/harness/`, `src/secagent/sdk/` | Dynamic introspector + `@permission` SDK |
 | **Student 2** | Scenario Generator | `src/secagent/generator/` | Automated scenario synthesizer (`secagent generate`) |
 | **Student 3** | Telemetry & OTel | `src/secagent/telemetry/` | Span collector, PII scrubber, trace exporter |
-| **Student 4** | Policy Engine | `src/secagent/engine/`, `src/secagent/fuzzer/` | Policy invariant evaluator + fuzzer |
+| **Student 4** | Policy Engine | `src/secagent/engine/` | Policy invariant evaluator |
 | **Student 5** | GitHub Action & CLI | `action.yml`, `src/secagent/cli.py`, `app.py`, `.github/` | Composite action, Typer CLI, Streamlit UI |
 
 ---

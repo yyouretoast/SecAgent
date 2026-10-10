@@ -44,7 +44,7 @@ jobs:
             --output-markdown comment.md
 
       - name: Post PR Security Triage Comment
-        if: failure() && github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |

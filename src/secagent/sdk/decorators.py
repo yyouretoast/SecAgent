@@ -2,7 +2,7 @@ import functools
 from collections.abc import Callable
 from typing import Any, Literal
 
-PermissionTier = Literal["read", "write", "pay", "admin", "net"]
+PermissionTier = Literal["pure", "read", "write", "pay", "admin", "net"]
 
 
 def permission(tier: PermissionTier) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -11,7 +11,7 @@ def permission(tier: PermissionTier) -> Callable[[Callable[..., Any]], Callable[
     Applied to any tool in any LangGraph agent (DevOps, Finance, Support, Data).
 
     Args:
-        tier: One of 'read', 'write', 'pay', 'admin', 'net'.
+        tier: One of 'pure', 'read', 'write', 'pay', 'admin', 'net'.
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:

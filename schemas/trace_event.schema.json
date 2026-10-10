@@ -86,7 +86,7 @@
           },
           "permission_tier": {
             "type": "string",
-            "enum": ["read", "write", "pay", "admin", "net", "gate", "none"],
+            "enum": ["pure", "read", "write", "pay", "admin", "net", "gate", "none"],
             "default": "none",
             "description": "Security privilege tier assigned to this operational span"
           },
@@ -113,6 +113,19 @@
           "error_message": {
             "type": ["string", "null"],
             "default": null
+          },
+          "trace_id": {
+            "type": "string",
+            "description": "Optional OpenTelemetry distributed trace identifier"
+          },
+          "parent_span_id": {
+            "type": ["string", "null"],
+            "description": "Optional identifier of enclosing parent span"
+          },
+          "attributes": {
+            "type": "object",
+            "description": "Optional native OpenTelemetry span attributes",
+            "additionalProperties": true
           }
         },
         "additionalProperties": false

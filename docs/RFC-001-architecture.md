@@ -24,7 +24,7 @@ When developers update system prompts, modify tool definitions, or upgrade model
 
 ### 1.3 SecAgent Objective
 SecAgent provides a GitHub Action and CLI scanner that:
-1. Targets autonomous agents across frameworks (LangGraph, CrewAI, AutoGen).
+1. Targets autonomous agents (LangGraph-first in Phase 1, using framework-agnostic OpenTelemetry trace schema).
 2. Evaluates execution traces against 7 core OWASP Top 10 for Agentic AI Applications categories.
 3. Provides an SDK decorator (`@permission(tier="...")`) standardizing tool privilege tiers (`read`, `write`, `pay`, `admin`, `net`).
 4. Generates adversarial test scenarios dynamically on the fly based on tool signatures.
@@ -58,7 +58,7 @@ SecAgent provides a GitHub Action and CLI scanner that:
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │ SUBSYSTEM 1: TARGET AGENT UNDER TEST (user agent / examples)                           │
 │                                                                                        │
-│   Autonomous Agent (LangGraph, CrewAI, AutoGen, custom)                                │
+│   Autonomous Agent (LangGraph-first / generic OTel trace emitter)                      │
 │   ├── Tools decorated with `@permission(tier=...)`                                     │
 │   └── SecAgent SDK: @permission(tier="read"|"write"|"pay"|"admin"|"net")               │
 └────────────────────────────────────────┬───────────────────────────────────────────────┘

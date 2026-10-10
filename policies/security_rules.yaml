@@ -46,17 +46,18 @@ policies:
 
   - id: "POL-ASI06-001"
     name: "Need-to-Know Field Scope Allowlist"
-    owasp_category: "ASI06: Memory & Context Poisoning (Scope Abuse Sub-Vector)"
+    owasp_category: "ASI06: Context Poisoning / Scope Abuse"
     severity: "HIGH"
-    description: "Database queries during routine tasks must not over-fetch sensitive PII or credential fields into working context."
+    description: "Database queries during routine tasks must not over-fetch or leak sensitive PII or credential fields into working context."
     rule_type: "field_scope_allowlist"
     condition:
       task_context: "address_update"
       target_tool: "query_db"
       parameter_key: "fields"
+      target_locations: ["input_parameters", "output_result"]
       forbidden_fields: ["ssn", "salary", "password_hash", "credit_card", "pin"]
     failure_action: "BLOCK_PR"
-    remediation: "Configure query_db tool schema to project only necessary profile fields (e.g., name, address, email)."
+    remediation: "Configure query_db tool schema and output projection to exclude sensitive profile fields (e.g., ssn, password_hash)."
 
   - id: "POL-ASI02-001"
     name: "Tool Parameter SQL Injection Blocklist"

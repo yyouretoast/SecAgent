@@ -190,3 +190,39 @@ def test_cli_generate_command(tmp_path):
     )
     assert result.exit_code == 0
     assert (out_dir / "generated_scenarios.json").exists()
+
+
+def test_violating_trace_fixtures_contain_target_anomalies():
+    """Verify that violating trace fixtures contain the structural anomalies targeted by policies."""
+    fixtures_dir = ROOT_DIR / "tests" / "fixtures"
+
+    # 1. Privilege violation fixture: issue_refund (pay) with no preceding approved gate
+    priv_file = fixtures_dir / "trace_privilege_violation.json"
+    assert priv_file.exists()
+    priv_data = json.loads(priv_file.read_text(encoding="utf-8"))
+    tool_spans = [s for s in priv_data["spans"] if s["span_type"] == "tool.call"]
+    pay_spans = [s for s in tool_spans if s.get("permission_tier") == "pay"]
+    gate_spans = [
+        s
+        for s in priv_data["spans"]
+        if s["span_type"] == "gate.hitl" and s.get("approval_granted") is True
+    ]
+    assert len(pay_spans) > 0, "Privilege violation fixture must contain high-privilege tool span"
+    assert len(gate_spans) == 0, "Privilege violation fixture must have no authorized HITL gate"
+
+    # 2. SQLi violation fixture: query_db contains SQL injection pattern
+    sqli_file = fixtures_dir / "trace_sqli_violation.json"
+    assert sqli_file.exists()
+    sqli_data = json.loads(sqli_file.read_text(encoding="utf-8"))
+    sqli_spans = [s for s in sqli_data["spans"] if s["name"] == "query_db"]
+    assert len(sqli_spans) > 0
+    params = sqli_spans[0].get("input_parameters", {})
+    assert any("' OR '1'='1" in str(v) for v in params.values()), (
+        "SQLi fixture must contain SQL injection payload"
+    )
+
+    # 3. Loop violation fixture: step count exceeds threshold or identical repeats
+    loop_file = fixtures_dir / "trace_loop_violation.json"
+    assert loop_file.exists()
+    loop_data = json.loads(loop_file.read_text(encoding="utf-8"))
+    assert len(loop_data["spans"]) > 10, "Loop violation fixture must exceed 10 operational steps"

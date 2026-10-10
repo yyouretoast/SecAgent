@@ -1,6 +1,6 @@
 # SecAgent
 
-CI/CD security gate and testing tool for autonomous AI agents (LangGraph, CrewAI, AutoGen). Evaluates execution traces against 7 trace-observable categories from the OWASP Top 10 for Agentic AI Applications.
+CI/CD security gate and testing tool for autonomous AI agents (LangGraph-first, with framework-agnostic OpenTelemetry traces). Evaluates execution traces against 7 trace-observable categories from the OWASP Top 10 for Agentic AI Applications.
 
 [![CI](https://github.com/yyouretoast/SecAgent/actions/workflows/secagent-ci.yml/badge.svg)](https://github.com/yyouretoast/SecAgent/actions)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -36,7 +36,7 @@ flowchart TD
     end
     
     subgraph Target ["Agent Under Test"]
-        Agent["Candidate Agent<br/>(LangGraph / CrewAI / AutoGen)"]
+        Agent["Candidate Agent<br/>(LangGraph / Generic OTel)"]
     end
 
     CLI --> Scenarios
@@ -124,10 +124,10 @@ def execute_trade(symbol: str, quantity: int) -> dict:
 
 ### 3. Run a Security Scan
 
-Run a scan against an agent entrypoint:
+Run a scan against an agent module:
 
 ```bash
-secagent scan --agent examples.finance_agent.agent:run_finance_agent --policies policies/security_rules.yaml
+secagent scan --agent examples.finance_agent.agent --policies policies/security_rules.yaml
 ```
 
 ### 4. Synthesize Test Scenarios
@@ -135,7 +135,7 @@ secagent scan --agent examples.finance_agent.agent:run_finance_agent --policies 
 Generate adversarial test cases by inspecting the agent's tool definitions:
 
 ```bash
-secagent generate --agent examples.devops_agent.agent:run_devops_agent --per-tool 3
+secagent generate --agent examples.devops_agent.agent --per-tool 3
 ```
 
 ### 5. GitHub Action Integration
