@@ -45,8 +45,8 @@ flowchart TD
     Harness --> Telemetry
     Telemetry --> Trace
     Trace --> Verifier
-    Verifier -->|Pass (Exit 0)| PassGate["Allow PR Merge"]
-    Verifier -->|Fail (Exit 1)| FailGate["Block PR & Post Triage Comment"]
+    Verifier -->|"Pass (Exit 0)"| PassGate["Allow PR Merge"]
+    Verifier -->|"Fail (Exit 1)"| FailGate["Block PR & Post Triage Comment"]
 ```
 
 ### Execution Lifecycle
