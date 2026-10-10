@@ -1,6 +1,6 @@
 # SecAgent
 
-CI/CD security gate and testing tool for autonomous AI agents (LangGraph, CrewAI, AutoGen). Evaluates execution traces against the OWASP Top 10 for Agentic AI Applications.
+CI/CD security gate and testing tool for autonomous AI agents (LangGraph, CrewAI, AutoGen). SecAgent generates adversarial scenarios locally, then evaluates deterministic execution traces against the OWASP Top 10 for Agentic AI Applications.
 
 [![CI](https://github.com/yyouretoast/SecAgent/actions/workflows/secagent-ci.yml/badge.svg)](https://github.com/yyouretoast/SecAgent/actions)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -11,102 +11,88 @@ CI/CD security gate and testing tool for autonomous AI agents (LangGraph, CrewAI
 ## What SecAgent Does
 
 When developers change system prompts, tool schemas, or underlying models, agents can introduce security regressions:
-* Executing sensitive financial actions without required approval gates (ASI03).
-* Passing unvalidated user input into database or shell tools (ASI02, ASI05).
-* Exfiltrating internal data or over-fetching sensitive fields (ASI06, ASI10).
-* Getting trapped in non-terminating execution loops (ASI08).
 
-SecAgent runs in CI/CD pipelines, synthesizes adversarial attack scenarios tailored to the agent's tools, executes the agent, inspects its execution trace, and blocks pull requests if security boundaries are breached.
+- Executing sensitive financial actions without required approval gates (ASI03).
+- Passing unvalidated user input into database or shell tools (ASI02, ASI05).
+- Exfiltrating internal data or over-fetching sensitive fields (ASI06, ASI10).
+- Getting trapped in non-terminating execution loops (ASI08).
 
----
+SecAgent uses a **two-phase decoupled architecture** that keeps dynamic LLM generation out of the CI/CD critical path:
+
+1. **Phase 1 - Local generation:** The developer runs `secagent generate` after changing the agent's tools or prompts. SecAgent uses an LLM to inspect the agent's tools, synthesize adversarial prompts, calculate a SHA-256 hash of the tool schemas, and save the prompts and hash to the static `secagent-tests.json` artifact. The artifact is committed to Git and reviewed like source code.
+2. **Phase 2 - Deterministic CI/CD gate:** The GitHub Action runs `secagent ci-run`. It reads the committed JSON file, checks the schema hash for drift, injects the static prompts, captures the OpenTelemetry trace, and evaluates that trace against security policies. **No LLM API calls happen in this phase.**
+
+This separation makes pull-request checks reproducible, faster, and less expensive. It also provides **Schema Drift Detection**: if the agent's tools change without regenerating the scenarios, the hash check fails immediately and blocks the pull request. This prevents a stale test corpus from silently validating a changed tool interface.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    classDef pr fill:#eff6ff,stroke:#2563eb,stroke-width:1.5px,color:#1e3a8a,font-weight:bold;
-    classDef cicd fill:#f1f5f9,stroke:#475569,stroke-width:1.5px,color:#0f172a;
-    classDef fuzzer fill:#faf5ff,stroke:#9333ea,stroke-width:1.5px,color:#581c87;
-    classDef sut fill:#f8fafc,stroke:#64748b,stroke-width:1.5px,color:#0f172a;
-    classDef otel fill:#f0fdf4,stroke:#16a34a,stroke-width:1.5px,color:#14532d;
-    classDef rules fill:#fffbeb,stroke:#d97706,stroke-width:1.5px,color:#78350f;
-    classDef pass fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46;
-    classDef fail fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#9f1239;
+   classDef localEnv fill:#fdf4ff,stroke:#c026d3,stroke-width:1.5px,color:#701a75;
+   classDef cicd fill:#f1f5f9,stroke:#475569,stroke-width:1.5px,color:#0f172a;
+   classDef artifact fill:#fffbeb,stroke:#d97706,stroke-width:1.5px,color:#78350f;
+   classDef pass fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46;
+   classDef fail fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#9f1239;
 
-    PR["Developer Pull Request"]:::pr
+   subgraph Local ["Phase 1: Local Generation (Developer Machine)"]
+       Dev["Developer edits Tools & Prompts"] --> GenCLI["secagent generate"]
+       GenCLI --> LLM["LLM synthesizes payloads"]
+       LLM --> Artifact[("secagent-tests.json<br/>(Scenarios + Schema Hash)")]:::artifact
+   end
+   class Local localEnv;
 
-    subgraph CI ["CI/CD Gate (action.yml)"]
-        Action["GitHub Action Runner<br/><code>secagent scan / fuzz</code>"]
-        PassGate["Exit 0: PASS<br/>Allow Merge"]:::pass
-        FailGate["Exit 1: FAIL<br/>Block PR & Post Triage"]:::fail
-    end
-    class CI cicd;
+   Artifact -.->|"Committed to Git"| Repo[(GitHub Repo)]
 
-    subgraph Adversary ["Adversarial Fuzzer (src/secagent/generator/)"]
-        Fuzzer["Scenario Generator<br/><code>secagent generate / fuzz</code>"]
-    end
-    class Adversary fuzzer;
+   subgraph CI ["Phase 2: Deterministic CI/CD Gate (GitHub Actions)"]
+       PR["Pull Request triggers Action"] --> CIRunner["secagent ci-run"]
+       CIRunner --> ReadFile["Read secagent-tests.json"]
 
-    subgraph SUT ["Target Agent Under Test"]
-        DevOps["Candidate Agent<br/>Tools decorated with <code>@permission</code>"]
-    end
-    class SUT sut;
+       ReadFile --> Validator{"Schema Hash<br/>Match?"}
 
-    subgraph Telemetry ["Telemetry & Redactor (src/secagent/telemetry/)"]
-        OTel["OTel Span Capture"]
-        Scrubber["PII & Secret Redactor"]
-        TraceJSON["Execution Trace JSON"]
-    end
-    class Telemetry otel;
+       Validator -- "No (Schema Drift)" --> DriftFail["Exit 1: Block PR<br/>(Must regenerate scenarios)"]:::fail
 
-    subgraph Security ["Invariant Verifier (policies/security_rules.yaml)"]
-        Verifier["Policy Engine<br/>Predecessor gates, regex, circuit breakers"]
-    end
-    class Security rules;
+       Validator -- "Yes" --> Harness["Test Harness<br/>(Injects Static Prompts)"]
 
-    PR -->|Triggers| Action
-    Action -->|Dispatches Scenarios| Fuzzer
-    Fuzzer -->|Injects Mutated Inputs| SUT
-    SUT -->|Streams Spans| OTel
-    OTel --> Scrubber --> TraceJSON
-    TraceJSON -->|Evaluates| Verifier
-    Verifier -->|Passed| PassGate
-    Verifier -->|Violated| FailGate
+       Harness <--> Agent["Target Agent<br/>(LangGraph MVP)"]
+
+       Harness --> Telemetry["Telemetry Pipeline<br/>(OTel + PII Redactor)"]
+       Telemetry --> Trace["Execution Trace JSON"]
+
+       Trace --> Verifier["Policy Engine<br/>(Evaluate OWASP Invariants)"]
+
+       Verifier -->|"Invariants Passed"| PassGate["Exit 0: Allow Merge"]:::pass
+       Verifier -->|"Invariant Violated"| FailGate["Exit 1: Block PR & Post Triage"]:::fail
+   end
+   class CI cicd;
 ```
 
-### Execution Lifecycle
+## Execution Lifecycle
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Dev as Developer / PR
-    participant CI as GitHub Action (action.yml)
-    participant Fuzz as Scenario Generator
+    actor Dev as Developer
+    participant Gen as Local CLI (secagent generate)
+    participant Repo as Git Repository (secagent-tests.json)
+    participant CI as CI/CD (GitHub Action)
     participant Agent as Target Agent
-    participant Telem as Telemetry & PII Redactor
     participant Engine as Policy Verifier
 
-    Dev->>CI: Open Pull Request / Push Commit
-    CI->>Fuzz: Run secagent fuzz / scan
-    loop Adversarial Testing
-        Fuzz->>Agent: Dispatch adversarial prompt / parameters
-        activate Agent
-        Agent->>Agent: Execute tool calls (@permission)
-        Agent->>Telem: Stream execution spans
-        deactivate Agent
-        activate Telem
-        Telem->>Telem: Redact PII / tokens -> write trace.json
-        deactivate Telem
+    Dev->>Gen: Run generation after tool updates
+    Gen->>Repo: Commit adversarial payloads & Hash
+    Dev->>CI: Open Pull Request
+    CI->>Repo: Read secagent-tests.json & verify Hash
+    
+    loop Deterministic Testing
+        CI->>Agent: Inject static adversarial prompt
+        Agent-->>CI: Output OpenTelemetry Trace
     end
-    CI->>Engine: Evaluate trace.json against policies
-    activate Engine
-    Engine->>Engine: Check predecessor gates, parameter regex, step limits
-    Engine-->>CI: Verdict (Exit 0 or Exit 1)
-    deactivate Engine
-    alt Invariant Violated
-        CI-->>Dev: Block PR & Post Security Triage
-    else Invariants Passed
-        CI-->>Dev: Pass CI & Allow Merge
+    
+    CI->>Engine: Evaluate trace against YAML rules
+    alt Hash mismatch or Invariant Violated
+        Engine-->>CI: Fail (Exit 1)
+    else Hash matches & Invariants Passed
+        Engine-->>CI: Pass (Exit 0)
     end
 ```
 
@@ -114,11 +100,12 @@ sequenceDiagram
 
 ## Core Capabilities
 
-* **GitHub Action (`action.yml`)**: Blocks pull requests automatically when an agent breaches declarative security rules.
-* **Deterministic Verification**: Tests trace facts (approval gates, argument patterns, recursion depth) directly on OpenTelemetry traces without subjective LLM-as-a-judge grading.
-* **Dynamic Scenario Synthesis (`secagent generate`)**: Inspects agent tool signatures and generates contextual attack vectors on the fly instead of relying on static YAML manifests.
-* **Privilege SDK (`@secagent.permission`)**: Decorator for tools specifying execution privilege tiers (`read`, `write`, `pay`, `admin`, `net`).
-* **Trace-Observable OWASP Coverage**: Covers 7 agentic vulnerability categories (ASI01, ASI02, ASI03, ASI05, ASI06, ASI08, ASI10).
+- **Schema Drift Detection:** Fails the CI gate when the target agent's tool schemas differ from the hash stored in `secagent-tests.json`.
+- **Deterministic Verification:** Tests trace facts directly on OpenTelemetry traces without subjective LLM-as-a-judge grading.
+- **Static Scenario Artifact:** Keeps generated adversarial payloads versioned, reviewable, and reproducible across CI runs.
+- **Privilege SDK (`@secagent.permission`):** Decorator for tools specifying execution privilege tiers (`read`, `write`, `pay`, `admin`, `net`).
+- **Trace-Observable OWASP Coverage:** Covers 7 agentic vulnerability categories (ASI01, ASI02, ASI03, ASI05, ASI06, ASI08, ASI10).
+- **No CI LLM Calls:** CI/CD consumes the committed artifact and does not contact an LLM provider.
 
 ---
 
@@ -152,46 +139,65 @@ def execute_trade(symbol: str, quantity: int) -> dict:
     return {"order": "filled", "symbol": symbol, "quantity": quantity}
 ```
 
-### 3. Run a Security Scan
+### 3. Generate Scenarios Locally
 
-Run a scan against an agent entrypoint:
-
-```bash
-secagent scan --agent examples.finance_agent.agent:run_finance_agent --policies policies/security_rules.yaml
-```
-
-### 4. Synthesize Test Scenarios
-
-Generate adversarial test cases by inspecting the agent's tool definitions:
+Run generation whenever the agent's tools or security-relevant prompts change:
 
 ```bash
 secagent generate --agent examples.devops_agent.agent:run_devops_agent --per-tool 3
+git add secagent-tests.json
+git commit -m "chore: regenerate SecAgent scenarios"
 ```
+
+Review the generated artifact and commit it with the code change. It contains the adversarial scenarios and the SHA-256 tool-schema hash used for drift detection.
+
+### 4. Run the Deterministic CI Gate
+
+Configure the GitHub Action to run:
+
+```bash
+secagent ci-run
+```
+
+The command exits with status `1` when schema drift or a policy invariant violation is detected, and with status `0` when all checks pass. The CI gate requires no LLM API credentials.
 
 ### 5. GitHub Action Integration
 
-Add `SecAgent` to `.github/workflows/security.yml`:
+Add SecAgent to `.github/workflows/security.yml`:
 
 ```yaml
 name: Agent Security Audit
 on: [pull_request]
 
 jobs:
-  secagent-scan:
+  secagent-gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Run SecAgent Security Gate
+      - name: Run deterministic SecAgent gate
         uses: ./
         with:
           agent_entrypoint: "my_agent.graph:app"
           policies: "policies/security_rules.yaml"
+          tests_artifact: "secagent-tests.json"
           output_report: "report.json"
           output_markdown: "comment.md"
 ```
+
+---
+
+## Repository Workflow
+
+1. Update the agent's tools or prompts.
+2. Run `secagent generate` locally.
+3. Review and commit `secagent-tests.json` with the code change.
+4. Open a pull request.
+5. Let `secagent ci-run` verify schema integrity and execute the deterministic security gate.
+
+If the schema hash does not match, regenerate the artifact locally and commit the resulting update before merging.
 
 ---
 
@@ -199,34 +205,27 @@ jobs:
 
 ```
 secagent/
-├── action.yml                         # GitHub Action composite definition
-├── pyproject.toml                     # Project packaging & CLI entrypoints
-├── .github/
-│   ├── workflows/secagent-ci.yml      # CI workflow running scanner & pytest
-│   └── pull_request_template.md       # Team PR checklist & template
-├── docs/
-│   ├── RFC-001-architecture.md        # Technical specification
-│   ├── CONTRIBUTING.md                # Development workflow & conventions
-│   └── PLAYBOOK.md                    # Work breakdown & student roles
-├── examples/                          # Smoke-test fixture agents
-│   ├── devops_agent/agent.py          # DevOps agent (admin tier)
-│   ├── finance_agent/agent.py         # Finance agent (pay tier)
-│   └── support_agent/agent.py         # Support agent (multi-tier)
-├── schemas/
-│   └── trace_event.schema.json        # Trace JSON schema (Draft 2020-12)
-├── policies/
-│   └── security_rules.yaml            # OWASP invariant policy rules
-├── scenarios/
-│   └── TEMPLATE.yaml                  # Scenario manifest template
-├── src/
-│   └── secagent/
-│       ├── cli.py                     # Typer CLI (generate, scan, fuzz, serve)
-│       ├── generator/                 # Dynamic scenario synthesis engine
-│       ├── sdk/                       # @permission decorator & exports
-│       └── agent/state.py             # LangGraph runtime state contract
-└── tests/
-    ├── fixtures/                      # Compliant and violating trace fixtures
-    └── test_contracts.py              # Schema and CLI contract test suite
++-- action.yml                         # GitHub Action composite definition
++-- pyproject.toml                     # Project packaging & CLI entrypoints
++-- .github/
+|   +-- workflows/secagent-ci.yml      # CI workflow running the deterministic gate
+|   +-- pull_request_template.md       # Team PR checklist & template
++-- docs/
+|   +-- RFC-001-architecture.md        # Technical specification
+|   +-- CONTRIBUTING.md                # Development workflow & conventions
+|   +-- PLAYBOOK.md                    # Work breakdown & student roles
++-- examples/                          # Smoke-test fixture agents
++-- policies/
+|   +-- security_rules.yaml            # OWASP invariant policy rules
++-- schemas/
+|   +-- trace_event.schema.json        # Trace JSON schema (Draft 2020-12)
++-- src/
+|   +-- secagent/
+|       +-- cli.py                     # Typer CLI (generate, ci-run)
+|       +-- generator/                 # Local scenario synthesis engine
+|       +-- sdk/                       # @permission decorator & exports
+|       +-- telemetry/                 # OTel capture and PII redaction
++-- tests/                             # Contract and security-gate tests
 ```
 
 ---
