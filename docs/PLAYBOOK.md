@@ -18,7 +18,7 @@ When developers modify system prompts, tool schemas, or models, agents can intro
 ### Solution
 1. Single-trace evaluation: SecAgent evaluates a candidate agent's execution trace directly against declarative security rules in `policies/security_rules.yaml`.
 2. No LLM judge in CI: Checks are deterministic (caller role, approval gates, regex patterns, step counts).
-3. Automated scenario generation: SecAgent inspects the agent's tools and synthesizes attack inputs on the fly.
+3. Tool-aware scenario generation: SecAgent inspects the agent's tools and synthesizes attack inputs, caching test suites for deterministic CI replay.
 4. If an invariant rule is violated, `action.yml` exits with code 1 and blocks the pull request.
 
 ---
@@ -27,13 +27,15 @@ When developers modify system prompts, tool schemas, or models, agents can intro
 
 Each student owns a discrete module behind a typed interface contract.
 
-### Student 1: Agent Introspection & SDK Lead
+### Student 1: Agent Introspection & Execution Harness Lead
 * **Scope**: `src/secagent/harness/`, `src/secagent/sdk/`
 * **Tasks**:
-  * Build introspector reading tool names, docstrings, and schemas from agent entrypoints (`--agent module:app`).
+  * Build introspector to inspect tool names, docstrings, and parameter schemas from agent entrypoints (`--agent module:app`).
+  * Implement `ExecutionHarness` runner that executes the agent safely with timeouts and error trapping.
+  * Implement dry-run virtualization so destructive tools (`drop_database`, `execute_trade`) return mock data during testing.
   * Maintain the `@permission(tier=...)` decorator in `src/secagent/sdk/decorators.py`.
-  * Maintain minimal smoke-test fixtures in `examples/` purely for local test verification.
-* **Success Criteria**: CLI can dynamically inspect tools and schemas from any agent entrypoint.
+  * Maintain smoke-test fixtures in `examples/` for local testing.
+* **Success Criteria**: Harness runs candidate agents safely in a dry-run sandbox and extracts tool metadata without crashing on timeouts.
 
 ---
 
@@ -56,17 +58,17 @@ Each student owns a discrete module behind a typed interface contract.
 ### Student 3: Telemetry & OTel Pipeline Lead
 * **Scope**: `src/secagent/telemetry/`
 * **Tasks**:
-  * Implement an OpenTelemetry callback/processor capturing:
+  * Implement an OpenTelemetry callback handler capturing:
     * `tool.call` spans (tool name, input parameters, permission tier).
-    * `gate.hitl` spans (approval decision booleans).
+    * `gate.hitl` spans by normalizing framework-native approval interrupts (e.g. LangGraph `interrupt()`).
   * Build an in-line regex PII redactor (scrubbing SSNs, credit cards, API keys).
-  * Export trace logs conforming to `schemas/trace_event.schema.json`.
+  * Export trace logs conforming strictly to `schemas/trace_event.schema.json`.
 * **Success Criteria**: Agent runs produce trace JSON files that pass `jsonschema.validate()`.
 
 ---
 
 ### Student 4: Invariant Verification Engine Lead
-* **Scope**: `src/secagent/engine/`, `src/secagent/fuzzer/`
+* **Scope**: `src/secagent/engine/`
 * **Tasks**:
   * Implement evaluator that loads `policies/security_rules.yaml` and inspects `trace.json`:
     * Predecessor gate rule: high-risk operations (`pay`, `admin`) require preceding `approval_granted == true`.
