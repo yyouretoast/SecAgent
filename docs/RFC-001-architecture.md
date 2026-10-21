@@ -3,7 +3,7 @@
 * **RFC ID**: RFC-001
 * **Title**: CI/CD Security Scanner & GitHub Action for Autonomous AI Agents
 * **Status**: ACCEPTED / IN IMPLEMENTATION
-* **Target Delivery**: DEPI Agentic AI Track Graduation Capstone
+* **Target Delivery**: Late November 2026 (DEPI Agentic AI Track Capstone)
 * **Team**: 5 Senior Engineering Students (Part-Time: 4–6 hours/week per student)
 
 ---

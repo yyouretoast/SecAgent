@@ -1,6 +1,7 @@
 # Team Implementation Playbook
 
 **Target**: Graduation Project Capstone (DEPI Agentic AI Track)  
+**Deadline**: Late November 2026 (~5 Weeks Remaining)  
 **Budget**: 4–6 hours/week per student (5 students total)  
 **Deliverable**: GitHub Action and CLI scanner that evaluates autonomous AI agents in CI/CD and blocks pull requests on invariant violations.
 
@@ -23,7 +24,19 @@ When developers modify system prompts, tool schemas, or models, agents can intro
 
 ---
 
-## 2. Work Breakdown Structure (WBS)
+## 2. 5-Week Milestone Timeline (Target: Late November 2026)
+
+| Week / Target Date | Milestone Focus | Deliverables & Integration Gates |
+| :--- | :--- | :--- |
+| **Week 1 (Oct 21 – Oct 27)** | **Subsystem Scaffolding & Isolated Unit Logic** | S1 (Harness runner & timeouts), S2 (Pydantic schema-aware mutation), S3 (OTel callback span recording), S4 (Rule evaluators logic), S5 (CLI integration wiring). |
+| **Week 2 (Oct 28 – Nov 03)** | **Subsystem Integration Gate 1 (Harness + Telemetry)** | Merge S1 (`harness/`) and S3 (`telemetry/`). Verify candidate agent runs emit compliant trace JSON passing `jsonschema.validate()`. |
+| **Week 3 (Nov 04 – Nov 10)** | **Subsystem Integration Gate 2 (Engine + Generator)** | Merge S2 (`generator/`) and S4 (`engine/`). Verify generated attack scenarios execute against Policy Engine, yielding exit code 1 on violating fixtures. |
+| **Week 4 (Nov 11 – Nov 17)** | **End-to-End Pipeline & Dashboard** | Merge S5 (`cli.py`, `action.yml`, `app.py`). Connect `secagent scan` to runner and engine. Build Streamlit trace inspection dashboard. |
+| **Week 5 (Nov 18 – Nov 25)** | **Hardening, Benchmarking & Defense Rehearsal** | Multi-agent matrix testing, Promptfoo comparison benchmark, documentation finalization, and live "Broken vs. Fixed" PR demonstration rehearsal. |
+
+---
+
+## 3. Work Breakdown Structure (WBS)
 
 Each student owns a discrete module behind a typed interface contract.
 
@@ -91,7 +104,7 @@ Each student owns a discrete module behind a typed interface contract.
 
 ---
 
-## 3. Development Rules
+## 4. Development Rules
 
 1. **Frozen Contracts**: Do not change `schemas/trace_event.schema.json` or `policies/security_rules.yaml` without team agreement.
 2. **Branch Naming**:
