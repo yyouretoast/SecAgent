@@ -1,10 +1,13 @@
 import importlib
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
+
+MAX_GITHUB_COMMENT_LENGTH = 65000
+_SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 
 app = typer.Typer(
     name="secagent",
@@ -12,6 +15,99 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+
+def _field(obj: Any, key: str, default: Any = None) -> Any:
+    """Read a field from either a dict or an object attribute."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _escape_cell(value: Any) -> str:
+    """Escape pipe characters, backticks, and newlines inside a Markdown table cell."""
+    return (
+        str(value)
+        .replace("|", "\\|")
+        .replace("`", "'")
+        .replace("\r\n", " ")
+        .replace("\n", " ")
+        .strip()
+    )
+
+
+def _format_markdown_report(
+    result: Any,
+    agent_name: str = "default_fixture",
+    scenarios_evaluated: int = 0,
+) -> str:
+    """Format an evaluation result (dict or object) as a GitHub PR Markdown triage comment."""
+    status = str(_field(result, "status", "PASS") or "PASS")
+    raw_violations = _field(result, "violations", [])
+    violations = list(raw_violations) if isinstance(raw_violations, (list, tuple)) else []
+    effective_agent = _escape_cell(
+        agent_name or _field(result, "agent", "default_fixture") or "default_fixture"
+    )
+    effective_scenarios = scenarios_evaluated or int(_field(result, "scenarios_evaluated", 0) or 0)
+
+    if status == "PASS" and not violations:
+        return (
+            "### SecAgent Security Gate: PASS\n\n"
+            f"- **Target Agent**: `{effective_agent}`\n"
+            f"- **Scenarios Evaluated**: {effective_scenarios}\n"
+            "- **Violations Detected**: 0\n"
+            "- **Status**: All invariant security policies satisfied.\n"
+        )
+
+    sorted_violations = sorted(
+        violations,
+        key=lambda v: (
+            _SEVERITY_ORDER.get(str(_field(v, "severity", "")), 99),
+            int(_field(v, "offending_step_index", 0) or 0),
+        ),
+    )
+
+    header = (
+        f"### SecAgent Security Gate: {status}\n\n"
+        f"- **Target Agent**: `{effective_agent}`\n"
+        f"- **Scenarios Evaluated**: {effective_scenarios}\n"
+        f"- **Violations Detected**: {len(sorted_violations)}\n\n"
+    )
+
+    if not sorted_violations:
+        return header
+
+    table_header = (
+        "| Rule ID | Severity | OWASP Category | Offending Span | Remediation |\n"
+        "| :--- | :--- | :--- | :--- | :--- |\n"
+    )
+
+    rows: list[str] = []
+    base_len = len(header) + len(table_header) + 120
+    running_len = base_len
+
+    for v in sorted_violations:
+        rule_id = _escape_cell(_field(v, "rule_id", "UNKNOWN"))
+        severity = _escape_cell(_field(v, "severity", "HIGH"))
+        owasp = _escape_cell(_field(v, "owasp_category", "UNKNOWN"))
+        tool_name = _escape_cell(_field(v, "offending_tool_name", ""))
+        span_id = _escape_cell(_field(v, "offending_span_id", "unknown"))
+        span_cell = f"`{tool_name}` (`{span_id}`)" if tool_name else f"`{span_id}`"
+        remediation = _escape_cell(_field(v, "remediation", ""))
+
+        row = f"| `{rule_id}` | {severity} | {owasp} | {span_cell} | {remediation} |"
+        if running_len + len(row) + 1 > MAX_GITHUB_COMMENT_LENGTH:
+            break
+        rows.append(row)
+        running_len += len(row) + 1
+
+    body = header + table_header + "\n".join(rows) + "\n"
+    if len(rows) < len(sorted_violations):
+        body += (
+            f"\n*Truncated: showing {len(rows)} of {len(sorted_violations)} violations "
+            "(see report.json for full details).*\n"
+        )
+    return body
 
 
 @app.command(name="generate")
@@ -170,24 +266,27 @@ def scan(
         synth_scenarios = generator.generate(target_tools)
         scenarios_count = len(synth_scenarios)
     else:
-        scenarios_count = len(list(scenarios.glob("*.yaml")))
+        scenarios_count = len(list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json")))
 
     report = {
         "status": "PASS",
         "agent": agent_entrypoint or "baseline_smoke",
         "scenarios_evaluated": scenarios_count,
         "violations_detected": 0,
-        "generation_mode": "dynamic_synthetic" if scenarios is None else "custom_directory",
+        "violations": [],
+        "generation_mode": (
+            "dynamic_synthetic"
+            if (scenarios is None or not scenarios.exists())
+            else "custom_directory"
+        ),
         "message": f"SecAgent baseline smoke check passed across {scenarios_count} scenarios. Ready for Subsystems 1-4 pipeline execution.",
     }
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    comment = (
-        "### SecAgent Security Gate: Baseline Smoke PASS\n\n"
-        f"- **Scenarios Prepared**: {scenarios_count} ({report['generation_mode']})\n"
-        "- **Target Agent**: `" + (agent_entrypoint or "default_fixture") + "`\n"
-        "- **Status**: Baseline interface contracts and scenario schemas verified\n"
-        "- **Engine Status**: Ready for subsystem trace evaluation\n"
+    comment = _format_markdown_report(
+        report,
+        agent_name=agent_entrypoint or "default_fixture",
+        scenarios_evaluated=scenarios_count,
     )
     output_markdown.write_text(comment, encoding="utf-8")
     console.print(
