@@ -3,7 +3,11 @@
 **Target**: Graduation Project Capstone (DEPI Agentic AI Track)  
 **Deadline**: Late November 2026 (~5 Weeks Remaining)  
 **Budget**: 4–6 hours/week per student (5 students total)  
-**Deliverable**: GitHub Action and CLI scanner that evaluates autonomous AI agents in CI/CD and blocks pull requests on invariant violations.
+**Deliverable**: GitHub Action and CLI scanner that evaluates autonomous AI agents in CI/CD and blocks pull requests on invariant violations.  
+**Companion Documents**:
+- [Architecture RFC (RFC-001)](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/RFC-001-architecture.md)
+- [Detailed Technical Implementation Plan](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/IMPLEMENTATION_PLAN.md)
+- [Agile User Stories & Acceptance Criteria (105 pts)](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md)
 
 ---
 
@@ -41,7 +45,8 @@ When developers modify system prompts, tool schemas, or models, agents can intro
 Each student owns a discrete module behind a typed interface contract.
 
 ### Student 1: Agent Introspection & Execution Harness Lead
-* **Scope**: `src/secagent/harness/`, `src/secagent/sdk/`
+* **Scope**: `src/secagent/harness/` (`introspector.py`, `runner.py`, `sandbox.py`), `src/secagent/sdk/` (`decorators.py`), `examples/`
+* **Assigned Stories**: [US-1.1](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-11-multi-strategy-dynamic-tool-introspection), [US-1.2](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-12-privilege-tier-resolution--sdk-decorator), [US-1.3](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-13-isolated-dry-run-sandbox--virtualized-mock-dispatcher), [US-1.4](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-14-timeout--fault-tolerant-execution-harness), [US-1.5](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-15-reference-agent-fixtures-finance-devops-support) (26 pts)
 * **Tasks**:
   * Build introspector to inspect tool names, docstrings, and parameter schemas from agent entrypoints (`--agent module:app`).
   * Implement `ExecutionHarness` runner that executes the agent safely with timeouts and error trapping.
@@ -53,7 +58,8 @@ Each student owns a discrete module behind a typed interface contract.
 ---
 
 ### Student 2: Dynamic Scenario Generation Lead
-* **Scope**: `src/secagent/generator/`
+* **Scope**: `src/secagent/generator/` (`__init__.py`, `fuzzer.py`, `cache.py`, `templates.py`)
+* **Assigned Stories**: [US-3.1](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-31-7-category-owasp-attack-vector-synthesizer), [US-3.2](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-32-schema-directed-parameter-fuzzing-engine), [US-3.3](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-33-deterministic-seeding--test-suite-caching) (16 pts)
 * **Tasks**:
   * Implement `ScenarioGenerator` to synthesize adversarial test vectors tailored to introspected tools.
   * Generate test cases for:
@@ -69,7 +75,8 @@ Each student owns a discrete module behind a typed interface contract.
 ---
 
 ### Student 3: Telemetry & OTel Pipeline Lead
-* **Scope**: `src/secagent/telemetry/`
+* **Scope**: `src/secagent/telemetry/` (`__init__.py`, `callbacks.py`, `hitl.py`, `redactor.py`, `exporter.py`)
+* **Assigned Stories**: [US-2.1](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-21-opentelemetry-genai-callback-interceptor), [US-2.2](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-22-langgraph-hitl-interrupt-normalizer-gatehitl), [US-2.3](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-23-recursive-in-line-pii--secret-redactor), [US-2.4](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-24-trace-exporter--schema-draft-2020-12-validation) (18 pts)
 * **Tasks**:
   * Implement an OpenTelemetry callback handler capturing:
     * `tool.call` spans (tool name, input parameters, permission tier).
@@ -81,7 +88,8 @@ Each student owns a discrete module behind a typed interface contract.
 ---
 
 ### Student 4: Invariant Verification Engine Lead
-* **Scope**: `src/secagent/engine/`
+* **Scope**: `src/secagent/engine/` (`loader.py`, `reporter.py`, `rules/`)
+* **Assigned Stories**: [US-4.1](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-41-policy-ruleset-loader--schema-validator) to [US-4.8](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-48-structured-violation-record--remediation-generator) (27 pts)
 * **Tasks**:
   * Implement evaluator that loads `policies/security_rules.yaml` and inspects `trace.json`:
     * Predecessor gate rule: high-risk operations (`pay`, `admin`) require preceding `approval_granted == true`.
@@ -94,7 +102,8 @@ Each student owns a discrete module behind a typed interface contract.
 ---
 
 ### Student 5: GitHub Action, CLI & Dashboard Lead
-* **Scope**: `action.yml`, `src/secagent/cli.py`, `app.py`, `.github/`
+* **Scope**: `action.yml`, `src/secagent/cli.py`, `src/secagent/app.py`, `.github/`
+* **Assigned Stories**: [US-5.1](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-51-cli-scan-command-pipeline-orchestration) to [US-5.5](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-55-interactive-streamlit-audit-dashboard-apppy) (24 pts)
 * **Tasks**:
   * Wire `secagent scan` to run Student 4's engine and return exit codes 0 or 1.
   * Generate Markdown summary tables (`comment.md`) on test failure.
