@@ -40,24 +40,9 @@ jobs:
 
       - name: Run SecAgent Dynamic Security Scan
         id: secagent_scan
-        run: |
-          secagent scan \
-            --policies policies/security_rules.yaml \
-            --output-report report.json \
-            --output-markdown comment.md
-
-      - name: Post PR Security Triage Comment
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: ./
         with:
-          script: |
-            const fs = require('fs');
-            if (fs.existsSync('comment.md')) {
-              const body = fs.readFileSync('comment.md', 'utf8');
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: body
-              });
-            }
+          agent_entrypoint: "examples.devops_agent.agent"
+          policies: "policies/security_rules.yaml"
+          output_report: "report.json"
+          output_markdown: "comment.md"

@@ -1,5 +1,6 @@
 import importlib
 import json
+import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -15,6 +16,17 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+
+def _load_entrypoint(agent_entrypoint: str) -> tuple[Any, Any]:
+    """Import an agent entrypoint ('module:attr' or 'module') with cwd on sys.path."""
+    cwd = str(Path.cwd())
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+    mod_name, _, obj_name = agent_entrypoint.partition(":")
+    mod = importlib.import_module(mod_name)
+    target = getattr(mod, obj_name) if obj_name else mod
+    return target, mod
 
 
 def _field(obj: Any, key: str, default: Any = None) -> Any:
@@ -147,9 +159,7 @@ def generate_scenarios_cmd(
     if agent_entrypoint:
         console.print(f"Introspecting agent entrypoint: [yellow]{agent_entrypoint}[/yellow]")
         try:
-            mod_name, _, obj_name = agent_entrypoint.partition(":")
-            mod = importlib.import_module(mod_name)
-            target = getattr(mod, obj_name) if obj_name else mod
+            target, mod = _load_entrypoint(agent_entrypoint)
             raw_tools = generator.discover_tools(target, mod)
             discovered_tools = generator.introspect_tools(raw_tools)
         except Exception as exc:
@@ -247,9 +257,7 @@ def scan(
         target_tools: list[ToolMetadata] = []
         if agent_entrypoint:
             try:
-                mod_name, _, obj_name = agent_entrypoint.partition(":")
-                mod = importlib.import_module(mod_name)
-                target = getattr(mod, obj_name) if obj_name else mod
+                target, mod = _load_entrypoint(agent_entrypoint)
                 raw = generator.discover_tools(target, mod)
                 target_tools = generator.introspect_tools(raw)
             except Exception as exc:
@@ -386,9 +394,7 @@ def fuzz(
     target_tools: list[ToolMetadata] = []
     if agent_entrypoint:
         try:
-            mod_name, _, obj_name = agent_entrypoint.partition(":")
-            mod = importlib.import_module(mod_name)
-            target = getattr(mod, obj_name) if obj_name else mod
+            target, mod = _load_entrypoint(agent_entrypoint)
             raw = generator.discover_tools(target, mod)
             target_tools = generator.introspect_tools(raw)
         except Exception as exc:
