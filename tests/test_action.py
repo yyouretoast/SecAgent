@@ -41,6 +41,19 @@ def test_action_yml_contract_and_injection_safety():
             f"Raw template expression in JS script step: {step.get('name')}"
         )
 
+    step_names = [s.get("name") for s in action["runs"]["steps"]]
+    scan_idx = step_names.index("Execute SecAgent Security Scan")
+    comment_idx = step_names.index("Post PR Security Triage Comment")
+    gate_idx = step_names.index("Enforce Security Gate Verdict")
+    assert scan_idx < comment_idx < gate_idx, (
+        "Action must execute scan, then post PR comment, then enforce exit code 1"
+    )
+    gate_step = action["runs"]["steps"][gate_idx]
+    assert "exit 1" in gate_step["run"]
+    assert (
+        gate_step.get("env", {}).get("SCAN_STATUS") == "${{ steps.secagent_scan.outputs.status }}"
+    )
+
 
 def test_ci_workflow_uses_composite_action():
     """Verify .github/workflows/secagent-ci.yml invokes ./ composite action with write permissions."""
