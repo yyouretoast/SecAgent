@@ -7,7 +7,7 @@
 **Companion Documents**:
 - [Architecture RFC (RFC-001)](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/RFC-001-architecture.md)
 - [Detailed Technical Implementation Plan](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/IMPLEMENTATION_PLAN.md)
-- [Agile User Stories & Acceptance Criteria (105 pts)](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md)
+- [Agile User Stories & Acceptance Criteria (116 pts)](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md)
 
 ---
 
@@ -89,7 +89,7 @@ Each student owns a discrete module behind a typed interface contract.
 
 ### Student 4: Invariant Verification Engine Lead
 * **Scope**: `src/secagent/engine/` (`loader.py`, `reporter.py`, `rules/`)
-* **Assigned Stories**: [US-4.1](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-41-policy-ruleset-loader--schema-validator) to [US-4.8](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-48-structured-violation-record--remediation-generator) (27 pts)
+* **Assigned Stories**: [US-4.1](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-41-policy-ruleset-loader--schema-validator) to [US-4.8](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md#us-48-structured-violation-record--remediation-generator) (32 pts)
 * **Tasks**:
   * Implement evaluator that loads `policies/security_rules.yaml` and inspects `trace.json`:
     * Predecessor gate rule: high-risk operations (`pay`, `admin`) require preceding `approval_granted == true`.

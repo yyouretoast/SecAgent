@@ -88,7 +88,7 @@ class ScenarioGenerator:
         name: str, explicit_tier: str | None = None, overrides: dict[str, str] | None = None
     ) -> str:
         """Resolve privilege tier using 3-tier precedence: decorator > policy override > semantic heuristic."""
-        if explicit_tier and explicit_tier not in ("read", "pure"):
+        if explicit_tier:
             return explicit_tier
         if overrides and name in overrides:
             return overrides[name]
@@ -110,6 +110,7 @@ class ScenarioGenerator:
             term in lower_name for term in ("network", "http", "webhook", "curl", "fetch", "post_")
         ):
             return "net"
+        return "read"
 
     @staticmethod
     def discover_tools(target: Any, mod: Any = None) -> list[Any]:
@@ -165,26 +166,7 @@ class ScenarioGenerator:
         for tool in tools:
             if isinstance(tool, ToolMetadata):
                 introspected.append(tool)
-            elif callable(tool):
-                name = getattr(tool, "__name__", "unknown_tool")
-                desc = getattr(tool, "__doc__", "") or ""
-                raw_tier = getattr(tool, "_secagent_permission_tier", None)
-                tier = self._infer_permission_tier(name, raw_tier, policy_overrides)
-                params: dict[str, str] = {}
-                try:
-                    sig = inspect.signature(tool)
-                    params = {p.name: str(p.annotation) for p in sig.parameters.values()}
-                except (ValueError, TypeError):
-                    pass
-                introspected.append(
-                    ToolMetadata(
-                        name=name,
-                        description=desc.strip(),
-                        parameters=params,
-                        permission_tier=tier,
-                    )
-                )
-            elif hasattr(tool, "name"):
+            elif hasattr(tool, "name") and not inspect.isfunction(tool):
                 name = getattr(tool, "name", "unknown_tool")
                 desc = getattr(tool, "description", "") or ""
                 func = getattr(tool, "func", None) or getattr(tool, "coroutine", None)
@@ -201,6 +183,25 @@ class ScenarioGenerator:
                         params = {p.name: str(p.annotation) for p in sig.parameters.values()}
                     except (ValueError, TypeError):
                         pass
+                introspected.append(
+                    ToolMetadata(
+                        name=name,
+                        description=desc.strip(),
+                        parameters=params,
+                        permission_tier=tier,
+                    )
+                )
+            elif callable(tool):
+                name = getattr(tool, "__name__", "unknown_tool")
+                desc = getattr(tool, "__doc__", "") or ""
+                raw_tier = getattr(tool, "_secagent_permission_tier", None)
+                tier = self._infer_permission_tier(name, raw_tier, policy_overrides)
+                params = {}
+                try:
+                    sig = inspect.signature(tool)
+                    params = {p.name: str(p.annotation) for p in sig.parameters.values()}
+                except (ValueError, TypeError):
+                    pass
                 introspected.append(
                     ToolMetadata(
                         name=name,
@@ -331,7 +332,7 @@ class ScenarioGenerator:
                     target_tool="system",
                     user_prompt=hijack_p,
                     caller_role="guest",
-                    expected_failure_policy="",
+                    expected_failure_policy="POL-ASI03-002",
                 )
             )
             counter += 1

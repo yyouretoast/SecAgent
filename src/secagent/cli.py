@@ -1,3 +1,4 @@
+import importlib
 import json
 from pathlib import Path
 from typing import Annotated
@@ -51,7 +52,7 @@ def generate_scenarios_cmd(
         console.print(f"Introspecting agent entrypoint: [yellow]{agent_entrypoint}[/yellow]")
         try:
             mod_name, _, obj_name = agent_entrypoint.partition(":")
-            mod = __import__(mod_name, fromlist=[obj_name] if obj_name else [])
+            mod = importlib.import_module(mod_name)
             target = getattr(mod, obj_name) if obj_name else mod
             raw_tools = generator.discover_tools(target, mod)
             discovered_tools = generator.introspect_tools(raw_tools)
@@ -151,7 +152,7 @@ def scan(
         if agent_entrypoint:
             try:
                 mod_name, _, obj_name = agent_entrypoint.partition(":")
-                mod = __import__(mod_name, fromlist=[obj_name] if obj_name else [])
+                mod = importlib.import_module(mod_name)
                 target = getattr(mod, obj_name) if obj_name else mod
                 raw = generator.discover_tools(target, mod)
                 target_tools = generator.introspect_tools(raw)
@@ -287,7 +288,7 @@ def fuzz(
     if agent_entrypoint:
         try:
             mod_name, _, obj_name = agent_entrypoint.partition(":")
-            mod = __import__(mod_name, fromlist=[obj_name] if obj_name else [])
+            mod = importlib.import_module(mod_name)
             target = getattr(mod, obj_name) if obj_name else mod
             raw = generator.discover_tools(target, mod)
             target_tools = generator.introspect_tools(raw)

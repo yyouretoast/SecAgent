@@ -226,3 +226,45 @@ def test_violating_trace_fixtures_contain_target_anomalies():
     assert loop_file.exists()
     loop_data = json.loads(loop_file.read_text(encoding="utf-8"))
     assert len(loop_data["spans"]) > 10, "Loop violation fixture must exceed 10 operational steps"
+
+
+def test_permission_tier_precedence_and_fallback():
+    """Verify _infer_permission_tier respects explicit tiers (including read/pure) and defaults to read."""
+    from secagent.generator import ScenarioGenerator
+
+    assert ScenarioGenerator._infer_permission_tier("custom_tool", explicit_tier="read") == "read"
+    assert ScenarioGenerator._infer_permission_tier("custom_tool", explicit_tier="pure") == "pure"
+    assert (
+        ScenarioGenerator._infer_permission_tier("custom_tool", overrides={"custom_tool": "admin"})
+        == "admin"
+    )
+    assert ScenarioGenerator._infer_permission_tier("check_service_health") == "read"
+    assert ScenarioGenerator._infer_permission_tier("unknown_nonmatching_tool") == "read"
+
+
+def test_cli_agent_entrypoint_discovery(tmp_path):
+    """Verify CLI dynamically imports agent module path without object qualifier and discovers tools."""
+    from typer.testing import CliRunner
+
+    from secagent.cli import app
+
+    runner = CliRunner()
+    report_file = tmp_path / "report_agent.json"
+    comment_file = tmp_path / "comment_agent.md"
+
+    result = runner.invoke(
+        app,
+        [
+            "scan",
+            "--agent",
+            "examples.devops_agent.agent",
+            "--output-report",
+            str(report_file),
+            "--output-markdown",
+            str(comment_file),
+        ],
+    )
+    assert result.exit_code == 0
+    assert report_file.exists()
+    data = json.loads(report_file.read_text(encoding="utf-8"))
+    assert data["agent"] == "examples.devops_agent.agent"

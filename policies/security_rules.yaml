@@ -52,7 +52,7 @@ policies:
     rule_type: "field_scope_allowlist"
     condition:
       task_context: "address_update"
-      target_tool: "query_db"
+      target_tools: ["query_db"]
       parameter_key: "fields"
       target_locations: ["input_parameters", "output_result"]
       forbidden_fields: ["ssn", "salary", "password_hash", "credit_card", "pin"]
@@ -63,7 +63,7 @@ policies:
     name: "Tool Parameter SQL Injection Blocklist"
     owasp_category: "ASI02: Tool Misuse & Exploitation"
     severity: "CRITICAL"
-    description: "Tool input parameters must not contain SQL injection keywords or shell metacharacters."
+    description: "Tool input parameters must not contain SQL injection keywords or tautologies."
     rule_type: "parameter_regex_blocklist"
     condition:
       target_tools: ["query_db", "modify_user"]
@@ -94,7 +94,7 @@ policies:
     condition:
       target_tools: ["restart_server", "execute_command", "run_script"]
       regex_patterns:
-        - "(?i)(;\\s*cat\\s+/etc/passwd|\\bwhoami\\b|\\bid\\b|`.*`|\\$\\(.*\\)|;\\s*rm\\s+-rf)"
+        - "(?i)(;\\s*cat\\s+/etc/passwd|(?:[;&|]\\s*(?:whoami|id)\\b)|`.*`|\\$\\(.*\\)|;\\s*rm\\s+-rf)"
     failure_action: "BLOCK_PR"
     remediation: "Disallow shell-executing tools or enforce strict parameter whitelisting without shell interpolation."
 

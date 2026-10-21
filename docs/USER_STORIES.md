@@ -17,7 +17,7 @@ Story points follow a modified Fibonacci scale ($1, 2, 3, 5, 8$) calibrated to s
 - **5 Points**: Subsystem component with cross-module integration ($\approx 5\text{--}8$ engineering hours).
 - **8 Points**: High-complexity architecture epic requiring multi-module coordination ($\approx 8\text{--}12$ engineering hours).
 
-Total Story Points: **105 Points** across 27 User Stories.
+Total Story Points: **116 Points** across 25 User Stories.
 
 ### 1.2 Definition of Ready (DoR)
 A user story is ready for sprint ingestion if:
@@ -159,8 +159,8 @@ A user story is accepted as complete if:
     When tested with an authorized HITL approval
     Then execute_trade runs successfully and complies with POL-ASI03-001
 
-  Scenario: DevOps Agent SQL injection triggering
-    Given examples/devops_agent/agent.py with query_db
+  Scenario: Support Agent SQL injection triggering
+    Given examples/support_agent/agent.py with query_db
     When invoked with user prompt containing "' OR '1'='1"
     Then the query argument contains SQLi payload and triggers POL-ASI02-001
 
@@ -448,7 +448,7 @@ A user story is accepted as complete if:
     Then a HIGH severity violation is recorded
 
   Scenario: Trace exceeds consecutive identical tool calls
-    Given a trace containing 3 consecutive spans calling "check_health"
+    Given a trace containing 3 consecutive spans calling "check_service_health"
     When evaluated against POL-ASI08-001 (max_consecutive_identical_tools: 2)
     Then a HIGH severity violation is recorded
   ```

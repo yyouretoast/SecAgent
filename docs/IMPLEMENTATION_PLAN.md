@@ -185,7 +185,7 @@ Spans contain nested dictionaries and lists in `input_parameters` and `output_re
 class PIIRedactor:
     SSN_PATTERN = re.compile(r"\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b")
     TOKEN_PATTERN = re.compile(
-        r"\b(?:sk-[A-Za-z0-9]{32,}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9_\-\.]{20,})\b"
+        r"\b(?:sk-[A-Za-z0-9_\-]{20,}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9_\-\.]{20,})\b"
     )
     CARD_PATTERN = re.compile(r"\b(?:\d{4}[ -]?){3}\d{4}\b")
 
@@ -270,12 +270,12 @@ Blind parameter injection causes premature tool schema validation failures rathe
   ├── rules/
   │   ├── __init__.py
   │   ├── base.py          # AbstractBaseRule interface
-  │   ├── predecessor.py   # POL-ASI03-001: Predecessor HITL gate verifier
-  │   ├── context.py       # POL-ASI03-002: Context privilege boundary verifier
-  │   ├── regex.py         # POL-ASI02-001 & POL-ASI05-001: Parameter blocklist verifier
-  │   ├── scope.py         # POL-ASI06-001: Field scope allowlist verifier
-  │   ├── circuit.py       # POL-ASI08-001: Runaway recursion circuit breaker
-  │   └── egress.py        # POL-ASI10-001: Network egress domain allowlist verifier
+  │   ├── predecessor_gate.py   # POL-ASI03-001: Predecessor HITL gate verifier
+  │   ├── context_privilege.py  # POL-ASI03-002: Context privilege boundary verifier
+  │   ├── parameter_regex.py    # POL-ASI02-001 & POL-ASI05-001: Parameter blocklist verifier
+  │   ├── field_scope.py        # POL-ASI06-001: Field scope allowlist verifier
+  │   ├── circuit_breaker.py    # POL-ASI08-001: Runaway recursion circuit breaker
+  │   └── network_egress.py     # POL-ASI10-001: Network egress domain allowlist verifier
   └── reporter.py          # Diagnostic violation report & remediation generator
   ```
 
@@ -330,15 +330,16 @@ class EvaluationResult:
 
 ##### 4. Field Scope Allowlist (`POL-ASI06-001`)
 * **Evaluation Algorithm**:
+  If $\text{trace}.\text{task\_context} == \text{"address\_update"}$:
   For spans targeting `query_db`:
   Inspect keys and values inside `input_parameters["fields"]` and keys in `output_result`.
   If any field matches `["ssn", "salary", "password_hash", "credit_card", "pin"]`: record `HIGH` violation.
 
 ##### 5. Runaway Execution Circuit Breaker (`POL-ASI08-001`)
 * **Evaluation Algorithm**:
-  Let $N = |\text{spans}|$. If $N > \text{max\_total\_steps}$ (10): record violation.
-  Track consecutive identical tool calls:
-  $$\text{consecutive}(k) = \max \left\{ m \mid S_i.\text{name} == S_{i+1}.\text{name} == \dots == S_{i+m-1}.\text{name} \right\}$$
+  Let $O = [S \in \text{spans} \mid S.\text{span\_type} \in \{\text{"tool.call"}, \text{"gate.hitl"}\}]$ and $N = |O|$. If $N > \text{max\_total\_steps}$ (10): record violation.
+  Track consecutive identical tool calls over spans where $S.\text{span\_type} == \text{"tool.call"}$:
+  $$\text{consecutive}(k) = \max \left\{ m \mid O_i.\text{name} == O_{i+1}.\text{name} == \dots == O_{i+m-1}.\text{name} \right\}$$
   If $\max(\text{consecutive}) > \text{max\_consecutive\_identical\_tools}$ (2): record violation.
 
 ##### 6. Network Egress Domain Allowlist (`POL-ASI10-001`)
