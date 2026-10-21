@@ -50,7 +50,7 @@ def _escape_cell(value: Any) -> str:
 
 def _format_markdown_report(
     result: Any,
-    agent_name: str = "default_fixture",
+    agent_name: str = "",
     scenarios_evaluated: int = 0,
 ) -> str:
     """Format an evaluation result (dict or object) as a GitHub PR Markdown triage comment."""
@@ -129,7 +129,7 @@ def generate_scenarios_cmd(
         typer.Option(
             "--agent",
             "-a",
-            help="Import path of target agent (e.g. 'examples.finance_agent.agent:run_finance_agent')",
+            help="Import path of target agent (e.g. 'examples.finance_agent.agent' or 'module:attr')",
         ),
     ] = "",
     output_dir: Annotated[
