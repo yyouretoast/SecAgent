@@ -69,26 +69,23 @@ def test_non_target_unknown_required_type_is_retained_without_payload():
     assert args == {"query": "attack", "context": None}
 
 
-#added new tests
+# added new tests
+
 
 def test_fuzzer_does_not_crash_on_string_annotation():
     def query_db(query: str, limit: int):
         return None
 
-    args = SchemaDirectedFuzzer().build_arguments(
-        query_db, "sqli", "attack"
-    )
+    args = SchemaDirectedFuzzer().build_arguments(query_db, "sqli", "attack")
 
     assert args == {"query": "attack", "limit": 10}
 
 
 def test_optional_string_target_is_supported():
-    def query_db(query: str|None, limit: int):
+    def query_db(query: str | None, limit: int):
         return None
 
-    args = SchemaDirectedFuzzer().build_arguments(
-        query_db, "sqli", "attack"
-    )
+    args = SchemaDirectedFuzzer().build_arguments(query_db, "sqli", "attack")
 
     assert args == {"query": "attack", "limit": 10}
 
@@ -97,9 +94,7 @@ def test_annotated_string_target_is_supported():
     def query_db(query: Annotated[str, "SQL query"], limit: int):
         return None
 
-    args = SchemaDirectedFuzzer().build_arguments(
-        query_db, "sqli", "attack"
-    )
+    args = SchemaDirectedFuzzer().build_arguments(query_db, "sqli", "attack")
 
     assert args == {"query": "attack", "limit": 10}
 
@@ -108,8 +103,6 @@ def test_no_matching_target_does_not_inject_payload():
     def lookup(note: str, limit: int):
         return None
 
-    args = SchemaDirectedFuzzer().build_arguments(
-        lookup, "sqli", "attack"
-    )
+    args = SchemaDirectedFuzzer().build_arguments(lookup, "sqli", "attack")
 
     assert args == {"note": "", "limit": 10}

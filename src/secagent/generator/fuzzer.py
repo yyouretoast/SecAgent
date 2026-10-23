@@ -87,13 +87,18 @@ class SchemaDirectedFuzzer:
                 return {}
             specs = {}
             for name, parameter in signature.parameters.items():
-                if parameter.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                if parameter.kind in (
+                    inspect.Parameter.VAR_POSITIONAL,
+                    inspect.Parameter.VAR_KEYWORD,
+                ):
                     continue
                 annotation = parameter.annotation
                 specs[name] = {
                     "annotation": annotation,
                     "required": parameter.default is inspect.Parameter.empty,
-                    "default": None if parameter.default is inspect.Parameter.empty else parameter.default,
+                    "default": None
+                    if parameter.default is inspect.Parameter.empty
+                    else parameter.default,
                 }
             return specs
 
