@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Annotated, Any
 
 from secagent.generator import ScenarioGenerator, ToolMetadata
 from secagent.generator.fuzzer import SchemaDirectedFuzzer
@@ -69,10 +69,7 @@ def test_non_target_unknown_required_type_is_retained_without_payload():
     assert args == {"query": "attack", "context": None}
 
 
-#added new tests 
-
-from typing import Annotated, Optional
-
+#added new tests
 
 def test_fuzzer_does_not_crash_on_string_annotation():
     def query_db(query: str, limit: int):
@@ -86,7 +83,7 @@ def test_fuzzer_does_not_crash_on_string_annotation():
 
 
 def test_optional_string_target_is_supported():
-    def query_db(query: Optional[str], limit: int):
+    def query_db(query: str|None, limit: int):
         return None
 
     args = SchemaDirectedFuzzer().build_arguments(
