@@ -3,7 +3,9 @@ import inspect
 from typing import Any
 
 import pytest
+
 from secagent.sdk import permission
+
 
 def test_permission_sets_tier_and_preserves_function():
     @permission(tier="pay")
@@ -23,6 +25,7 @@ def test_every_tier_is_stored(tier):
     @permission(tier=tier)
     def tool() -> None:
         return None
+
     assert getattr(tool, "_secagent_permission_tier") == tier
 
 
@@ -35,3 +38,9 @@ def test_async_tool_stays_async():
     assert inspect.iscoroutinefunction(restart_server)
     assert getattr(restart_server, "_secagent_permission_tier") == "admin"
     assert asyncio.run(restart_server("srv-1")) == "restarted srv-1"
+
+
+@pytest.mark.parametrize("bad", ["payy", "root", "PAY", "", None])
+def test_invalid_tier_is_rejected_at_decoration_time(bad):
+    with pytest.raises(ValueError, match="Invalid permission tier"):
+        permission(tier=bad)
