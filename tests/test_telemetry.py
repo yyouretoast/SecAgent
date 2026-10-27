@@ -187,6 +187,12 @@ def test_redactor_scrubs_ssn_token_and_valid_card_in_text():
     assert "[REDACTED_TOKEN]" in scrubbed
 
 
+def test_redactor_scrubs_valid_15_digit_card():
+    scrubbed = PIIRedactor.scrub_text("card=3782 822463 10005")
+
+    assert scrubbed == "card=[REDACTED_CARD]"
+
+
 def test_redactor_preserves_invalid_card_and_recurses_without_mutating():
     original = {
         "nested": ["123-45-6789", {"card": "4111 1111 1111 1112"}],

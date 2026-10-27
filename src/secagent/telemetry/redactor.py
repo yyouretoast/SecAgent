@@ -13,7 +13,7 @@ class PIIRedactor:
     TOKEN_PATTERN = re.compile(
         r"\b(?:sk-[A-Za-z0-9_\-]{20,}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9_\-\.]{20,})\b"
     )
-    CARD_PATTERN = re.compile(r"\b(?:\d{4}[ -]?){3}\d{4}\b")
+    CARD_PATTERN = re.compile(r"\b(?:\d[ -]?){13,16}\b")
 
     @classmethod
     def _validate_luhn(cls, card_str: str) -> bool:
