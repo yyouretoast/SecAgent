@@ -62,6 +62,15 @@ def _format_markdown_report(
     )
     effective_scenarios = scenarios_evaluated or int(_field(result, "scenarios_evaluated", 0) or 0)
 
+    if status == "NOT_EVALUATED":
+        return (
+            "### SecAgent Security Gate: NOT_EVALUATED\n\n"
+            f"- **Target Agent**: `{effective_agent}`\n"
+            f"- **Scenarios Prepared**: {effective_scenarios}\n"
+            "- **Status**: Policy evaluation is not implemented yet (subsystem 4); "
+            "no policies were evaluated in this run.\n"
+        )
+
     if status == "PASS" and not violations:
         return (
             "### SecAgent Security Gate: PASS\n\n"
@@ -277,7 +286,7 @@ def scan(
         scenarios_count = len(list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json")))
 
     report = {
-        "status": "PASS",
+        "status": "NOT_EVALUATED",
         "agent": agent_entrypoint or "baseline_smoke",
         "scenarios_evaluated": scenarios_count,
         "violations_detected": 0,
@@ -287,7 +296,7 @@ def scan(
             if (scenarios is None or not scenarios.exists())
             else "custom_directory"
         ),
-        "message": f"SecAgent baseline smoke check passed across {scenarios_count} scenarios. Ready for Subsystems 1-4 pipeline execution.",
+        "message": f"Smoke run prepared {scenarios_count} scenarios. Policy evaluation is pending subsystem 4 (engine not implemented).",
     }
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
@@ -298,7 +307,7 @@ def scan(
     )
     output_markdown.write_text(comment, encoding="utf-8")
     console.print(
-        f"[bold green]Baseline security smoke check passed ({scenarios_count} scenarios prepared).[/bold green]"
+        f"[bold yellow]Smoke run complete ({scenarios_count} scenarios prepared); policy evaluation pending subsystem 4.[/bold yellow]"
     )
     raise typer.Exit(code=0)
 

@@ -96,7 +96,7 @@ def test_cli_subprocess_discovers_workspace_agent(tmp_path: Path):
     assert "Notice: Introspection fell back" not in proc.stdout
 
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    assert report["status"] == "PASS"
+    assert report["status"] == "NOT_EVALUATED"
     assert report["agent"] == "examples.devops_agent.agent"
     # examples.devops_agent.agent has 2 tools (check_service_health: read, restart_server: admin) -> supports 9 scenarios
     assert report["scenarios_evaluated"] == 9

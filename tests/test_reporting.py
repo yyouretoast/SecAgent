@@ -47,6 +47,17 @@ def test_format_markdown_report_pass():
     assert "| Rule ID |" not in md
 
 
+def test_format_markdown_report_not_evaluated():
+    """Verify the pre-engine stopgap reports scenarios as prepared, not evaluated."""
+    result = {"status": "NOT_EVALUATED", "violations": []}
+    md = _format_markdown_report(result, agent_name="devops_agent", scenarios_evaluated=9)
+
+    assert "### SecAgent Security Gate: NOT_EVALUATED" in md
+    assert "- **Scenarios Prepared**: 9" in md
+    assert "no policies were evaluated" in md
+    assert "Scenarios Evaluated" not in md
+
+
 def test_format_markdown_report_with_critical_and_high_violations():
     """Verify US-5.3 Gherkin scenario with 1 CRITICAL and 1 HIGH violation."""
     v_critical = _MockViolation(
@@ -160,5 +171,5 @@ def test_cli_scan_generates_markdown_comment(tmp_path: Path):
     )
     assert res.exit_code == 0
     content = comment_path.read_text(encoding="utf-8")
-    assert "### SecAgent Security Gate: PASS" in content
+    assert "### SecAgent Security Gate: NOT_EVALUATED" in content
     assert "`examples.finance_agent.agent`" in content
