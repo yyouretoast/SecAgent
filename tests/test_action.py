@@ -98,5 +98,5 @@ def test_cli_subprocess_discovers_workspace_agent(tmp_path: Path):
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["status"] == "PASS"
     assert report["agent"] == "examples.devops_agent.agent"
-    # examples.devops_agent.agent has 2 tools (check_service_health: read, restart_server: admin) -> 10 scenarios
-    assert report["scenarios_evaluated"] == 10
+    # examples.devops_agent.agent has 2 tools (check_service_health: read, restart_server: admin) -> supports 9 scenarios
+    assert report["scenarios_evaluated"] == 9

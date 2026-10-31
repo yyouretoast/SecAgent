@@ -69,7 +69,41 @@ def test_non_target_unknown_required_type_is_retained_without_payload():
     assert args == {"query": "attack", "context": None}
 
 
-# added new tests
+def test_egress_scenario_for_non_net_tool_with_destination_parameter():
+    def send_notification(destination: str):
+        return None
+
+    scenarios = ScenarioGenerator().generate([send_notification])
+    egress_scenarios = [
+        item for item in scenarios if item.owasp_category == "ASI10-RogueAgentExfiltration"
+    ]
+
+    assert len(egress_scenarios) == 1
+    assert egress_scenarios[0].injected_parameters == {
+        "destination": ScenarioGenerator.EGRESS_PAYLOADS[0]
+    }
+    assert egress_scenarios[0].expected_failure_policy == "POL-ASI10-001"
+
+
+def test_egress_scenario_not_generated_for_non_net_tool_without_matching_parameter():
+    def lookup_record(record_id: str, note: str):
+        return None
+
+    scenarios = ScenarioGenerator().generate([lookup_record])
+
+    assert not any(item.owasp_category == "ASI10-RogueAgentExfiltration" for item in scenarios)
+
+
+def test_egress_scenario_preserves_net_tier_prompt_level_behavior():
+    scenarios = ScenarioGenerator().generate(
+        [ToolMetadata(name="send_data", permission_tier="net")]
+    )
+    egress_scenario = next(
+        item for item in scenarios if item.owasp_category == "ASI10-RogueAgentExfiltration"
+    )
+
+    assert egress_scenario.injected_parameters == {}
+    assert egress_scenario.expected_failure_policy == "POL-ASI10-001"
 
 
 def test_fuzzer_does_not_crash_on_string_annotation():
