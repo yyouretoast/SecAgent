@@ -217,3 +217,12 @@ def test_warns_when_the_sandbox_found_no_tools_to_protect(caplog):
         result = ExecutionHarness().run_scenario(Opaque(), {"id": "S-none", "user_prompt": "x"})
     assert result.status == "completed"
     assert "no tools to protect" in caplog.text
+
+
+def test_system_exit_is_captured_as_harness_error():
+    def exit_agent() -> None:
+        raise SystemExit(7)
+
+    result = ExecutionHarness().execute(exit_agent)
+    assert result.status == "error"
+    assert result.error_message == "SystemExit: 7"

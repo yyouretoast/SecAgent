@@ -51,7 +51,6 @@ def _get(obj: Any, key: str, default: Any = None) -> Any:
 
 
 def build_initial_state(scenario: Any) -> dict[str, Any]:
-    """Convert a scenario (dict or GeneratedScenario) into the AgentState dict."""
     ctx = _get(scenario, "session_context", None) or {}
     prompt = _get(scenario, "user_prompt", "") or ""
     injected = _get(scenario, "injected_parameters", None) or {}
@@ -83,7 +82,6 @@ class ExecutionHarness:
         self.recursion_limit = recursion_limit
 
     async def aexecute(self, fn: Callable[[], Any], scenario_id: str = "adhoc") -> HarnessResult:
-        """Run ``fn`` in a daemon thread; give up after ``timeout_s`` seconds."""
         loop = asyncio.get_running_loop()
         future: asyncio.Future[Any] = loop.create_future()
 
@@ -95,7 +93,12 @@ class ExecutionHarness:
             try:
                 value = fn()
             except BaseException as exc:
-                outcome: tuple[Callable[[Any], None], Any] = (future.set_exception, exc)
+                error = (
+                    exc
+                    if isinstance(exc, Exception)
+                    else RuntimeError(f"{type(exc).__name__}: {exc}")
+                )
+                outcome = (future.set_exception, error)
             else:
                 outcome = (future.set_result, value)
             try:
@@ -124,7 +127,6 @@ class ExecutionHarness:
     def execute(self, fn: Callable[[], Any], scenario_id: str = "adhoc") -> HarnessResult:
         return asyncio.run(self.aexecute(fn, scenario_id))
 
-    # full scenario run
     def run_scenario(
         self,
         target: Any,

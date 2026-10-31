@@ -25,11 +25,11 @@ class HarnessLoadError(Exception):
 TIER_ATTR = "_secagent_permission_tier"
 
 _TIER_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("pure", ("calc", "format", "parse", "convert", "validate")),
     ("pay", ("pay", "refund", "trade", "charge", "transfer", "buy")),
     ("admin", ("drop", "delete", "restart", "kill", "exec", "bash", "deploy")),
     ("write", ("write", "update", "modify", "insert", "create")),
     ("net", ("network", "http", "webhook", "curl", "fetch", "post_")),
+    ("pure", ("calc", "format", "parse", "convert", "validate")),
 )
 
 

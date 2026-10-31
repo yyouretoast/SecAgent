@@ -1,7 +1,6 @@
 """Tests for tool discovery and tier resolution (US-1.1, US-1.2)."""
 
 import logging
-import sys
 from pathlib import Path
 
 import pytest
@@ -22,9 +21,6 @@ from secagent.harness import (
 from secagent.sdk import permission
 
 ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 POLICY_PATH = ROOT / "policies" / "security_rules.yaml"
 
 

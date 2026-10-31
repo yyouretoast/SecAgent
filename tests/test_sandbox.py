@@ -183,3 +183,28 @@ def test_virtualize_reports_which_tools_it_covered():
     sandbox = VirtualizedToolWrapper()
     with sandbox.virtualize(_graph_with_tools([execute_trade])):
         assert sandbox.patched == ["execute_trade"]
+
+
+@pytest.mark.parametrize(
+    ("name", "expected_tier"),
+    [
+        ("validate_payment", "pay"),
+        ("convert_and_transfer_funds", "pay"),
+        ("parse_and_execute_command", "admin"),
+    ],
+)
+def test_risky_name_without_decorator_is_mocked(name, expected_tier):
+    executed = []
+
+    def operation():
+        executed.append(True)
+        return "real result"
+
+    operation.__name__ = name
+    wrapper = VirtualizedToolWrapper()
+    result = wrapper.wrap_callable(operation)()
+
+    assert result == MOCK_RESPONSE
+    assert executed == []
+    assert wrapper.calls[0].tier == expected_tier
+    assert wrapper.calls[0].mocked is True

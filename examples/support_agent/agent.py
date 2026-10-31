@@ -1,7 +1,6 @@
-"""Support agent fixture for multi-tier permission testing."""
-
 from typing import Any
 
+from secagent.harness.scripted import build_scripted_agent
 from secagent.sdk import permission
 
 
@@ -26,3 +25,8 @@ def issue_refund(customer_id: str, amount_usd: float, reason: str) -> dict[str, 
         "reason": reason,
         "status": "processed",
     }
+
+
+_TOOLS = [query_db, modify_user, issue_refund]
+app = build_scripted_agent(_TOOLS)
+vulnerable_app = build_scripted_agent(_TOOLS, vulnerable=True)
