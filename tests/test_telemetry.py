@@ -243,6 +243,24 @@ def test_exporter_redacts_and_writes_schema_valid_trace(tmp_path):
     assert session.spans[0]["input_parameters"]["query"] == "ssn=123-45-6789"
 
 
+def test_exporter_coerces_list_tool_output_to_schema_compatible_json():
+    callback = SecAgentTelemetryCallback(
+        TraceSession(
+            scenario_id="SCN-04",
+            execution_id="exec-04",
+            timestamp="2026-10-27T12:00:00Z",
+            caller_role="customer",
+            task_context="general_inquiry",
+        )
+    )
+    callback.on_tool_start({"name": "list_items"}, "{}", run_id="run-list")
+    callback.on_tool_end(["one", "two"], run_id="run-list")
+
+    exported = TraceExporter().validate(callback.session.as_dict())
+
+    assert exported["spans"][0]["output_result"] == '["one", "two"]'
+
+
 def test_exporter_rejects_missing_required_trace_fields():
     import pytest
 

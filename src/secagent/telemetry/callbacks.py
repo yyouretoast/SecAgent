@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -17,7 +18,9 @@ except ImportError:  # pragma: no cover - supports contract use without LangChai
 
 def _json_value(value: Any) -> Any:
     """Convert common callback payloads to values accepted by the trace schema."""
-    if value is None or isinstance(value, (dict, list, str, int, float, bool)):
+    if isinstance(value, list):
+        return json.dumps(value)
+    if value is None or isinstance(value, (dict, str, int, float, bool)):
         return value
     return str(value)
 
