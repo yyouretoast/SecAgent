@@ -1,8 +1,10 @@
 import importlib
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
+from uuid import uuid4
 
 import typer
 from rich.console import Console
@@ -46,6 +48,23 @@ def _escape_cell(value: Any) -> str:
         .replace("\n", " ")
         .strip()
     )
+
+
+def _parse_manual_parameters(items: list[str] | None) -> dict[str, Any]:
+    """Parse repeatable ``KEY=VALUE`` CLI parameters, decoding JSON values when possible."""
+    parameters: dict[str, Any] = {}
+    for item in items or []:
+        key, separator, raw_value = item.partition("=")
+        key = key.strip()
+        if not separator or not key:
+            raise typer.BadParameter(
+                f"Invalid parameter '{item}'. Use --param KEY=VALUE (for example: --param amount=50)."
+            )
+        try:
+            parameters[key] = json.loads(raw_value)
+        except json.JSONDecodeError:
+            parameters[key] = raw_value
+    return parameters
 
 
 def _format_markdown_report(
@@ -427,6 +446,133 @@ def fuzz(
         f"[green]Completed across {len(fuzzed_scenarios)} mutated inputs. Output: {out_file}[/green]"
     )
     raise typer.Exit(code=0)
+
+
+@app.command(name="check")
+def check_policy(
+    tool: Annotated[
+        str,
+        typer.Option("--tool", "-t", help="Tool name to evaluate (for example: query_db)."),
+    ],
+    tier: Annotated[
+        str,
+        typer.Option(
+            "--tier",
+            help="Permission tier: pure, read, write, pay, admin, or net.",
+        ),
+    ] = "read",
+    params: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--param",
+            "-P",
+            help="Repeatable KEY=VALUE tool input. JSON arrays/objects are supported.",
+        ),
+    ] = None,
+    context: Annotated[
+        str,
+        typer.Option(
+            "--context",
+            "-c",
+            help="Task context used by context-sensitive policies.",
+        ),
+    ] = "manual_check",
+    approved: Annotated[
+        bool,
+        typer.Option(
+            "--approved",
+            help="Insert an approved human gate immediately before the tool call.",
+        ),
+    ] = False,
+    policies: Annotated[
+        Path,
+        typer.Option("--policies", "-p", help="Path to security rules YAML."),
+    ] = Path("policies/security_rules.yaml"),
+    output_report: Annotated[
+        Path | None,
+        typer.Option("--output-report", "-o", help="Optional JSON report output path."),
+    ] = None,
+) -> None:
+    """Evaluate one manually supplied tool call against all security policies."""
+    from secagent.engine import PolicyEngine, PolicyReporter
+
+    valid_tiers = {"pure", "read", "write", "pay", "admin", "net"}
+    normalized_tier = tier.casefold()
+    if normalized_tier not in valid_tiers:
+        expected = ", ".join(sorted(valid_tiers))
+        raise typer.BadParameter(f"Unknown tier '{tier}'. Expected one of: {expected}")
+
+    input_parameters = _parse_manual_parameters(params)
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    spans: list[dict[str, Any]] = []
+    if approved:
+        spans.append(
+            {
+                "span_id": "manual-gate",
+                "step_index": 0,
+                "span_type": "gate.hitl",
+                "name": "approval_gate",
+                "start_time_ns": 1,
+                "end_time_ns": 2,
+                "permission_tier": "gate",
+                "approval_granted": True,
+                "input_parameters": {"operation": tool},
+                "output_result": {"status": "APPROVED", "approver": "manual_check"},
+            }
+        )
+
+    step_index = len(spans)
+    spans.append(
+        {
+            "span_id": "manual-tool-call",
+            "step_index": step_index,
+            "span_type": "tool.call",
+            "name": tool,
+            "start_time_ns": step_index * 10 + 1,
+            "end_time_ns": step_index * 10 + 2,
+            "permission_tier": normalized_tier,
+            "approval_granted": None,
+            "input_parameters": input_parameters,
+            "output_result": None,
+            "is_error": False,
+            "error_message": None,
+        }
+    )
+    trace = {
+        "scenario_id": "MANUAL-CHECK",
+        "execution_id": str(uuid4()),
+        "timestamp": now,
+        "caller_role": "manual_tester",
+        "task_context": context,
+        "metadata": {"framework": "manual_cli"},
+        "spans": spans,
+    }
+
+    result = PolicyEngine(policies).evaluate(trace)
+    verdict_style = "bold green" if result.status == "PASS" else "bold red"
+    console.print(f"[{verdict_style}]Policy verdict: {result.status}[/{verdict_style}]")
+    console.print(f"Tool: [cyan]{tool}[/cyan] | Tier: [cyan]{normalized_tier}[/cyan]")
+    console.print(f"Context: [cyan]{context}[/cyan] | Approved gate: [cyan]{approved}[/cyan]")
+
+    if result.violations:
+        for violation in result.violations:
+            console.print(
+                f"- [bold]{violation.rule_id}[/bold] ({violation.severity}): {violation.rule_name}"
+            )
+            console.print(f"  Remediation: {violation.remediation}")
+    else:
+        console.print("No policy violations detected.")
+
+    if output_report is not None:
+        PolicyReporter.write_json(
+            result,
+            output_report,
+            agent="manual_cli",
+            scenario_id="MANUAL-CHECK",
+        )
+        console.print(f"Report saved to: [cyan]{output_report}[/cyan]")
+
+    raise typer.Exit(code=1 if result.status == "FAIL" else 0)
 
 
 @app.command(name="serve")
