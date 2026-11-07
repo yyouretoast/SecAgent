@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secagent.dev/schemas/trace_event.schema.json",
+  "title": "SecAgent Trace Event Schema",
+  "description": "Standardized schema for OpenTelemetry-compatible GenAI execution traces in SecAgent",
+  "type": "object",
+  "required": ["scenario_id", "execution_id", "timestamp", "caller_role", "task_context", "spans"],
+  "properties": {
+    "scenario_id": {"type": "string"},
+    "execution_id": {"type": "string"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "caller_role": {"type": "string"},
+    "task_context": {"type": "string"},
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "agent_version": {"type": "string"},
+        "model_name": {"type": "string"},
+        "framework": {"type": "string"},
+        "total_latency_ms": {"type": "number", "minimum": 0.0}
+      },
+      "additionalProperties": true
+    },
+    "spans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["span_id", "step_index", "span_type", "name", "start_time_ns", "end_time_ns"],
+        "properties": {
+          "span_id": {"type": "string"},
+          "step_index": {"type": "integer", "minimum": 0},
+          "span_type": {"type": "string", "enum": ["agent.run", "model.inference", "tool.call", "gate.hitl"]},
+          "name": {"type": "string"},
+          "start_time_ns": {"type": "integer"},
+          "end_time_ns": {"type": "integer"},
+          "permission_tier": {"type": "string", "enum": ["pure", "read", "write", "pay", "admin", "net", "gate", "none"]},
+          "approval_granted": {"type": ["boolean", "null"]},
+          "input_parameters": {"type": "object", "additionalProperties": true},
+          "output_result": {"type": ["object", "string", "number", "boolean", "null"]},
+          "is_error": {"type": "boolean"},
+          "error_message": {"type": ["string", "null"]},
+          "trace_id": {"type": "string"},
+          "parent_span_id": {"type": ["string", "null"]},
+          "attributes": {"type": "object", "additionalProperties": true}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
