@@ -160,7 +160,8 @@ def test_scenario_generator_synthesis():
     assert len(scenarios) > 0
 
     categories = {s.owasp_category for s in scenarios}
-    assert "ASI01-AgentGoalHijack" in categories
+    assert "ASI01-AgentGoalHijack" not in categories
+    assert all(s.expected_failure_policy for s in scenarios)
     assert "ASI02-ToolMisuse" in categories
     assert "ASI03-PrivilegeAbuse" in categories
     assert "ASI05-UnexpectedCodeExecution" in categories

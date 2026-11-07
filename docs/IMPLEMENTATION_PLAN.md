@@ -23,7 +23,7 @@ SecAgent restricts evaluation scope to vulnerability classes with deterministic,
 
 | OWASP ID | Category Name | Trace-Observable Evidence | Declarative Invariant Rule |
 | :--- | :--- | :--- | :--- |
-| **ASI01** | Agent Goal Hijack | Unintended tool invocation sequences; out-of-scope tool calls | `POL-ASI03-002` |
+| **ASI01** | Agent Goal Hijack | Unintended tool invocation sequences; out-of-scope tool calls | `POL-ASI01-001` (planned; #15) |
 | **ASI02** | Tool Misuse & Exploitation | SQL keywords and tautologies in tool argument payloads | `POL-ASI02-001` |
 | **ASI03** | Identity & Privilege Abuse | High-privilege tool calls (`pay`, `admin`) lacking preceding approved `gate.hitl` span | `POL-ASI03-001` |
 | **ASI05** | Unexpected Code Execution | Shell metacharacters and binary execution strings in parameters | `POL-ASI05-001` |

@@ -88,7 +88,7 @@ sequenceDiagram
 * **Deterministic Checks**: Verifies approval gates, argument patterns, and recursion limits directly from OpenTelemetry traces. No LLM-as-a-judge.
 * **Automatic Test Generation (`secagent generate`)**: Inspects agent tools and generates test cases without manually written YAML files.
 * **Privilege SDK (`@secagent.permission`)**: Decorator for tools specifying execution privilege tiers (`pure`, `read`, `write`, `pay`, `admin`, `net`).
-* **Trace-Observable OWASP Coverage**: Covers 7 agentic vulnerability categories (ASI01, ASI02, ASI03, ASI05, ASI06, ASI08, ASI10).
+* **Trace-Observable OWASP Coverage**: 6 active categories (ASI02, ASI03, ASI05, ASI06, ASI08, ASI10); ASI01 pending `POL-ASI01-001` (#15).
 
 ---
 
