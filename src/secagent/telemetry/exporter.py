@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -16,17 +17,30 @@ class TraceExporter:
     """Validate trace documents against the repository's frozen JSON schema."""
 
     def __init__(self, schema_path: str | Path | None = None) -> None:
-        default_schema = Path(__file__).resolve().parents[3] / "schemas" / "trace_event.schema.json"
-        self.schema_path = Path(schema_path) if schema_path else default_schema
-        with self.schema_path.open(encoding="utf-8") as handle:
+        schema_source: Any
+        if schema_path:
+            schema_source = Path(schema_path)
+        else:
+            repository_schema = (
+                Path(__file__).resolve().parents[3] / "schemas" / "trace_event.schema.json"
+            )
+            schema_source = (
+                repository_schema
+                if repository_schema.exists()
+                else resources.files("secagent").joinpath("schemas/trace_event.schema.json")
+            )
+        self.schema_path = schema_source
+        with schema_source.open("r", encoding="utf-8") as handle:
             self.schema = json.load(handle)
         jsonschema.Draft202012Validator.check_schema(self.schema)
 
     @staticmethod
     def redact(trace: dict[str, Any]) -> dict[str, Any]:
         document = copy.deepcopy(trace)
+        if "metadata" in document:
+            document["metadata"] = PIIRedactor.scrub_container(document["metadata"])
         for span in document.get("spans", []):
-            for field in ("input_parameters", "output_result", "error_message"):
+            for field in ("input_parameters", "output_result", "error_message", "attributes"):
                 if field in span:
                     span[field] = PIIRedactor.scrub_container(span[field])
         return document
