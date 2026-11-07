@@ -9,12 +9,21 @@ from secagent.engine import PolicyLoader
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT_DIR / "policies" / "security_rules.yaml"
+EXPECTED_POLICY_IDS = {
+    "POL-ASI02-001",
+    "POL-ASI03-001",
+    "POL-ASI03-002",
+    "POL-ASI05-001",
+    "POL-ASI06-001",
+    "POL-ASI08-001",
+    "POL-ASI10-001",
+}
 
 
 def test_loader_parses_configured_policy_types():
     ruleset = PolicyLoader(POLICY_PATH).load()
 
-    assert ruleset.policies
+    assert {policy.id for policy in ruleset.policies} == EXPECTED_POLICY_IDS
     assert all(policy.id and policy.rule_type for policy in ruleset.policies)
     assert any(policy.condition for policy in ruleset.policies)
 
@@ -191,3 +200,53 @@ policies:
     ruleset = PolicyLoader(policy).load()
 
     assert ruleset.policies[0].rule_type == "goal_hijack"
+
+
+def test_loader_rejects_duplicate_policy_ids(tmp_path: Path):
+    policy = tmp_path / "duplicate-ids.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - &circuit_breaker
+    id: POL-ASI08-001
+    name: Circuit breaker
+    owasp_category: ASI08
+    severity: HIGH
+    rule_type: circuit_breaker
+    condition:
+      max_total_steps: 10
+      max_consecutive_identical_tools: 2
+    failure_action: BLOCK_PR
+  - <<: *circuit_breaker
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="Duplicate policy ids: POL-ASI08-001"):
+        PolicyLoader(policy).load()
+
+
+def test_loader_rejects_missing_required_condition_field(tmp_path: Path):
+    policy = tmp_path / "missing-condition-field.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI08-001
+    name: Circuit breaker
+    owasp_category: ASI08
+    severity: HIGH
+    rule_type: circuit_breaker
+    condition:
+      max_total_steps: 10
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="missing condition fields: max_consecutive_identical_tools",
+    ):
+        PolicyLoader(policy).load()
