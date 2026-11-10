@@ -152,7 +152,7 @@ version: "1"
 policies:
   - id: POL-ASI03-001
     name: Circuit breaker
-    owasp_category: ASI08
+    owasp_category: ASI03
     severity: HIGH
     rule_type: circuit_breaker
     condition:
@@ -249,4 +249,52 @@ policies:
         ValidationError,
         match="missing condition fields: max_consecutive_identical_tools",
     ):
+        PolicyLoader(policy).load()
+
+
+def test_loader_rejects_owasp_category_that_disagrees_with_id(tmp_path: Path):
+    policy = tmp_path / "wrong-owasp-category.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI08-001
+    name: Circuit breaker
+    owasp_category: ASI99
+    severity: HIGH
+    rule_type: circuit_breaker
+    condition:
+      max_total_steps: 10
+      max_consecutive_identical_tools: 2
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="owasp_category 'ASI99'.*id category 'ASI08'"):
+        PolicyLoader(policy).load()
+
+
+def test_loader_rejects_unknown_target_location(tmp_path: Path):
+    policy = tmp_path / "unknown-target-location.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI06-001
+    name: Field scope
+    owasp_category: ASI06
+    severity: HIGH
+    rule_type: field_scope_allowlist
+    condition:
+      task_context: address_update
+      target_tools: [query_db]
+      target_locations: [bogus_field]
+      forbidden_fields: [ssn]
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="invalid span locations: bogus_field"):
         PolicyLoader(policy).load()

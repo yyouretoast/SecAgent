@@ -14,6 +14,7 @@ from secagent.sdk import PermissionTier
 DEFAULT_POLICY_PATH = Path(__file__).resolve().parents[3] / "policies" / "security_rules.yaml"
 
 PERMISSION_TIERS = frozenset(get_args(PermissionTier))
+SPAN_LOCATIONS = frozenset({"input_parameters", "output_result", "attributes"})
 
 SUPPORTED_RULE_TYPES = {
     "goal_hijack",
@@ -59,7 +60,7 @@ CONDITION_FIELD_TYPES = {
         "task_context": "string",
         "target_tools": "string_list",
         "parameter_key": "string",
-        "target_locations": "string_list",
+        "target_locations": "span_location_list",
         "forbidden_fields": "string_list",
     },
     "circuit_breaker": {
@@ -116,6 +117,19 @@ def _validate_condition_field(policy_id: str, field: str, kind: str, value: Any)
             raise ValueError(
                 f"Policy {policy_id} field {field} contains invalid permission tiers: "
                 f"{', '.join(invalid)}"
+            )
+
+    if kind == "span_location_list":
+        if not _is_string_list(value):
+            raise ValueError(
+                f"Policy {policy_id} field {field} must be a non-empty list of span locations"
+            )
+        invalid = sorted(set(value) - SPAN_LOCATIONS)
+        if invalid:
+            allowed = ", ".join(sorted(SPAN_LOCATIONS))
+            raise ValueError(
+                f"Policy {policy_id} field {field} contains invalid span locations: "
+                f"{', '.join(invalid)}; expected one of: {allowed}"
             )
 
     if kind == "approval_gate":
@@ -199,6 +213,14 @@ class PolicyDefinition(BaseModel):
 
     @model_validator(mode="after")
     def validate_condition_shape(self) -> PolicyDefinition:
+        id_category = self.id.split("-", maxsplit=2)[1] if self.id.count("-") >= 2 else ""
+        declared_category = self.owasp_category.split(":", maxsplit=1)[0].strip()
+        if declared_category != id_category:
+            raise ValueError(
+                f"Policy {self.id} owasp_category {declared_category!r} does not match "
+                f"id category {id_category!r}"
+            )
+
         expected_prefixes = RULE_ID_PREFIXES[self.rule_type]
         if not self.id.startswith(expected_prefixes):
             expected = " or ".join(expected_prefixes)
