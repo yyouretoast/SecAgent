@@ -1,0 +1,65 @@
+import asyncio
+import inspect
+from typing import Any
+
+import pytest
+
+from secagent.sdk import permission
+
+
+def test_permission_sets_tier_and_preserves_function():
+    @permission(tier="pay")
+    def execute_trade(symbol: str, quantity: int) -> dict[str, Any]:
+        """Trade docstring."""
+        return {"symbol": symbol, "quantity": quantity}
+
+    assert getattr(execute_trade, "_secagent_permission_tier") == "pay"
+    assert execute_trade.__name__ == "execute_trade"
+    assert execute_trade.__doc__ == "Trade docstring."
+    assert list(inspect.signature(execute_trade).parameters) == ["symbol", "quantity"]
+    assert execute_trade("AAPL", 3) == {"symbol": "AAPL", "quantity": 3}
+
+
+def test_permission_preserves_langchain_tool():
+    from langchain_core.tools import tool
+
+    @tool
+    def execute_trade(symbol: str, quantity: int) -> str:
+        """Execute a simulated trade."""
+        return f"{symbol}:{quantity}"
+
+    protected_tool = permission(tier="pay")(execute_trade)
+
+    assert protected_tool is execute_trade
+    assert protected_tool.name == "execute_trade"
+    assert "symbol" in protected_tool.args
+    assert protected_tool.args_schema is not None
+    assert protected_tool._secagent_permission_tier == "pay"
+    assert protected_tool.func._secagent_permission_tier == "pay"
+    assert protected_tool.invoke({"symbol": "AAPL", "quantity": 2}) == "AAPL:2"
+
+
+@pytest.mark.parametrize("tier", ["pure", "read", "write", "pay", "admin", "net"])
+def test_every_tier_is_stored(tier):
+    @permission(tier=tier)
+    def tool() -> None:
+        return None
+
+    assert getattr(tool, "_secagent_permission_tier") == tier
+
+
+def test_async_tool_stays_async():
+    @permission(tier="admin")
+    async def restart_server(server_id: str) -> str:
+        """Restart a server."""
+        return f"restarted {server_id}"
+
+    assert inspect.iscoroutinefunction(restart_server)
+    assert getattr(restart_server, "_secagent_permission_tier") == "admin"
+    assert asyncio.run(restart_server("srv-1")) == "restarted srv-1"
+
+
+@pytest.mark.parametrize("bad", ["payy", "root", "PAY", "", None])
+def test_invalid_tier_is_rejected_at_decoration_time(bad):
+    with pytest.raises(ValueError, match="Invalid permission tier"):
+        permission(tier=bad)
