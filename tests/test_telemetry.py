@@ -96,6 +96,22 @@ def test_callback_records_tool_start_and_end_with_metadata():
     assert span["output_result"] == {"rows": 1}
 
 
+def test_callback_redacts_payloads_before_storing_them():
+    session = TraceSession(metadata={"token": "Bearer sk-proj-1234567890abcdef12345678"})
+    callback = SecAgentTelemetryCallback(session)
+
+    callback.on_tool_start(
+        {"name": "lookup"},
+        '{"ssn": "123-45-6789"}',
+        run_id="run-redact",
+    )
+    callback.on_tool_end({"card": "4111 1111 1111 1111"}, run_id="run-redact")
+
+    assert session.spans[0]["input_parameters"] == {"ssn": "[REDACTED_SSN]"}
+    assert session.spans[0]["output_result"] == {"card": "[REDACTED_CARD]"}
+    assert session.metadata["token"] == "[REDACTED_TOKEN]"
+
+
 def test_callback_correlates_concurrent_tool_runs_and_errors():
     callback = SecAgentTelemetryCallback()
     callback.on_tool_start({"name": "first"}, "{}", run_id="run-1")
@@ -240,7 +256,29 @@ def test_exporter_redacts_and_writes_schema_valid_trace(tmp_path):
 
     assert exported["spans"][0]["input_parameters"]["query"] == "ssn=[REDACTED_SSN]"
     assert json.loads(output_path.read_text())["scenario_id"] == "SCN-03"
-    assert session.spans[0]["input_parameters"]["query"] == "ssn=123-45-6789"
+    assert session.spans[0]["input_parameters"]["query"] == "ssn=[REDACTED_SSN]"
+
+
+def test_exporter_redacts_metadata_and_span_attributes_added_after_capture():
+    session = TraceSession()
+    trace = session.as_dict()
+    trace["metadata"] = {"api_key": "Bearer sk-proj-1234567890abcdef12345678"}
+    trace["spans"] = [
+        {
+            "span_id": "span-attributes",
+            "step_index": 0,
+            "span_type": "tool.call",
+            "name": "lookup",
+            "start_time_ns": 1,
+            "end_time_ns": 2,
+            "attributes": {"ssn": "123-45-6789"},
+        }
+    ]
+
+    exported = TraceExporter().validate(trace)
+
+    assert exported["metadata"]["api_key"] == "[REDACTED_TOKEN]"
+    assert exported["spans"][0]["attributes"]["ssn"] == "[REDACTED_SSN]"
 
 
 def test_exporter_coerces_list_tool_output_to_schema_compatible_json():
@@ -259,6 +297,20 @@ def test_exporter_coerces_list_tool_output_to_schema_compatible_json():
     exported = TraceExporter().validate(callback.session.as_dict())
 
     assert exported["spans"][0]["output_result"] == '["one", "two"]'
+
+
+def test_callback_serializes_non_json_objects_inside_list_output():
+    class ToolResult:
+        def __str__(self):
+            return "tool-result"
+
+    callback = SecAgentTelemetryCallback()
+    callback.on_tool_start({"name": "list_items"}, "{}", run_id="run-object-list")
+    callback.on_tool_end([ToolResult()], run_id="run-object-list")
+
+    exported = TraceExporter().validate(callback.session.as_dict())
+
+    assert exported["spans"][0]["output_result"] == '["tool-result"]'
 
 
 def test_exporter_rejects_missing_required_trace_fields():

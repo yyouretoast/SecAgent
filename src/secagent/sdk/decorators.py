@@ -11,7 +11,7 @@ def permission(tier: PermissionTier) -> Callable[[Callable[..., Any]], Callable[
     """Universal SecAgent tool decorator specifying execution privilege tier.
 
     Applied to any tool in any LangGraph agent (DevOps, Finance, Support, Data).
-    Works on both regular and ``async def`` tools (an async tool stays awaitable).
+    Works on regular functions, async functions, and LangChain tools.
 
     Args:
         tier: One of 'pure', 'read', 'write', 'pay', 'admin', 'net'.
@@ -22,6 +22,16 @@ def permission(tier: PermissionTier) -> Callable[[Callable[..., Any]], Callable[
         )
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        # Preserve LangChain StructuredTool objects and their metadata.
+        if hasattr(func, "name") and not inspect.isfunction(func):
+            setattr(func, "_secagent_permission_tier", tier)
+
+            inner_func = getattr(func, "func", None)
+            if inner_func is not None:
+                setattr(inner_func, "_secagent_permission_tier", tier)
+
+            return func
+
         setattr(func, "_secagent_permission_tier", tier)
 
         if inspect.iscoroutinefunction(func):
