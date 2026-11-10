@@ -19,6 +19,15 @@ def test_trace_schema_validity():
     validator_cls.check_schema(schema)
 
 
+def test_packaged_trace_schema_matches_canonical_schema():
+    """Keep the installed schema copy synchronized with the canonical contract."""
+    canonical_path = ROOT_DIR / "schemas" / "trace_event.schema.json"
+    packaged_path = ROOT_DIR / "src" / "secagent" / "schemas" / "trace_event.schema.json"
+
+    assert packaged_path.exists(), "Packaged trace_event.schema.json does not exist"
+    assert canonical_path.read_bytes() == packaged_path.read_bytes()
+
+
 def test_all_trace_fixtures_validate():
     """Verify all trace fixtures conform strictly to trace_event.schema.json."""
     schema_path = ROOT_DIR / "schemas" / "trace_event.schema.json"
