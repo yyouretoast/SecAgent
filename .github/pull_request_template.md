@@ -18,6 +18,9 @@
 - [ ] ASI08: Cascading Failures / Infinite Loops
 - [ ] ASI10: Rogue Agent Egress Exfiltration
 
+## Related Issues
+<!-- Link the issue or user story this PR closes, e.g. "Closes #11". A PR without a linked story needs a one-line justification of its scope. -->
+
 ## Quality Checklist
 - [ ] Local tests pass (`pytest tests/ -v`)
 - [ ] Linter checks pass (`ruff check .`)
