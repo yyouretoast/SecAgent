@@ -10,6 +10,7 @@ from secagent.engine import PolicyLoader
 ROOT_DIR = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT_DIR / "policies" / "security_rules.yaml"
 EXPECTED_POLICY_IDS = {
+    "POL-ASI01-001",
     "POL-ASI02-001",
     "POL-ASI03-001",
     "POL-ASI03-002",

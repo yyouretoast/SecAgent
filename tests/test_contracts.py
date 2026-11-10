@@ -50,6 +50,7 @@ def test_security_rules_yaml_validity():
 
     policy_ids = {p["id"] for p in data["policies"]}
     expected_ids = {
+        "POL-ASI01-001",
         "POL-ASI03-001",
         "POL-ASI03-002",
         "POL-ASI06-001",
