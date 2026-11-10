@@ -1,11 +1,13 @@
 """US-4.1 policy ruleset loader tests."""
 
+import json
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from secagent.engine import PolicyLoader
+from secagent.engine import loader as loader_module
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT_DIR / "policies" / "security_rules.yaml"
@@ -298,3 +300,69 @@ policies:
 
     with pytest.raises(ValidationError, match="invalid span locations: bogus_field"):
         PolicyLoader(policy).load()
+
+
+@pytest.mark.parametrize(
+    "span_type",
+    ["agent.run", "model.inference", "tool.call", "gate.hitl"],
+)
+def test_loader_accepts_trace_schema_span_types(tmp_path: Path, span_type: str):
+    policy = tmp_path / "valid-gate-span-type.yaml"
+    policy.write_text(
+        f"""
+version: "1"
+policies:
+  - id: POL-ASI03-001
+    name: Predecessor gate
+    owasp_category: ASI03
+    severity: CRITICAL
+    rule_type: predecessor_gate
+    condition:
+      target_tiers: [pay]
+      required_gate:
+        span_type: {span_type}
+        name: approval_gate
+        approval_granted: true
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    ruleset = PolicyLoader(policy).load()
+
+    assert ruleset.policies[0].condition["required_gate"]["span_type"] == span_type
+
+
+def test_loader_rejects_span_type_outside_trace_schema(tmp_path: Path):
+    policy = tmp_path / "invalid-gate-span-type.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI03-001
+    name: Predecessor gate
+    owasp_category: ASI03
+    severity: CRITICAL
+    rule_type: predecessor_gate
+    condition:
+      target_tiers: [pay]
+      required_gate:
+        span_type: gate.hit1
+        name: approval_gate
+        approval_granted: true
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="unsupported value 'gate.hit1'"):
+        PolicyLoader(policy).load()
+
+
+def test_loader_span_types_match_trace_schema_enum():
+    schema = json.loads(
+        (ROOT_DIR / "schemas" / "trace_event.schema.json").read_text(encoding="utf-8")
+    )
+    schema_span_types = schema["properties"]["spans"]["items"]["properties"]["span_type"]["enum"]
+
+    assert loader_module.TRACE_SPAN_TYPES == frozenset(schema_span_types)
