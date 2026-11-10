@@ -1,11 +1,13 @@
 """US-4.1 policy ruleset loader tests."""
 
+import tomllib
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from secagent.engine import PolicyLoader
+from secagent.engine import loader as loader_module
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT_DIR / "policies" / "security_rules.yaml"
@@ -173,6 +175,76 @@ def test_loader_default_path_is_independent_of_cwd(tmp_path: Path, monkeypatch):
     ruleset = PolicyLoader().load()
 
     assert ruleset.version == "1.0.0"
+
+
+def test_loader_falls_back_to_packaged_policy_resource(tmp_path: Path, monkeypatch):
+    package_root = tmp_path / "package"
+    packaged_policy = package_root / "policies" / "security_rules.yaml"
+    packaged_policy.parent.mkdir(parents=True)
+    packaged_policy.write_text(POLICY_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(loader_module, "DEFAULT_POLICY_PATH", tmp_path / "missing.yaml")
+    monkeypatch.setattr(loader_module.resources, "files", lambda package: package_root)
+
+    ruleset = PolicyLoader().load()
+
+    assert ruleset.version == "1.0.0"
+
+
+def test_wheel_build_maps_canonical_policy_into_package():
+    configuration = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text(encoding="utf-8"))
+    force_include = configuration["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+
+    assert force_include["policies/security_rules.yaml"] == (
+        "secagent/policies/security_rules.yaml"
+    )
+
+
+def test_loader_accepts_empty_optional_destination_blocklist(tmp_path: Path):
+    policy = tmp_path / "empty-destination-blocklist.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI10-001
+    name: Network egress
+    owasp_category: ASI10
+    severity: CRITICAL
+    rule_type: network_egress_allowlist
+    condition:
+      target_tiers: [net]
+      allowed_domains: [api.github.com]
+      forbidden_destination_patterns: []
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    ruleset = PolicyLoader(policy).load()
+
+    assert ruleset.policies[0].condition["forbidden_destination_patterns"] == []
+
+
+def test_loader_still_rejects_empty_required_string_list(tmp_path: Path):
+    policy = tmp_path / "empty-required-list.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI02-001
+    name: Parameter blocklist
+    owasp_category: ASI02
+    severity: CRITICAL
+    rule_type: parameter_regex_blocklist
+    condition:
+      target_tools: [query_db]
+      regex_patterns: []
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="regex_patterns must be a non-empty list"):
+        PolicyLoader(policy).load()
 
 
 def test_loader_accepts_typed_goal_hijack_contexts(tmp_path: Path):
