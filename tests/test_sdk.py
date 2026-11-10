@@ -19,6 +19,7 @@ def test_permission_sets_tier_and_preserves_function():
     assert list(inspect.signature(execute_trade).parameters) == ["symbol", "quantity"]
     assert execute_trade("AAPL", 3) == {"symbol": "AAPL", "quantity": 3}
 
+
 def test_permission_preserves_langchain_tool():
     from langchain_core.tools import tool
 
@@ -36,6 +37,7 @@ def test_permission_preserves_langchain_tool():
     assert protected_tool._secagent_permission_tier == "pay"
     assert protected_tool.func._secagent_permission_tier == "pay"
     assert protected_tool.invoke({"symbol": "AAPL", "quantity": 2}) == "AAPL:2"
+
 
 @pytest.mark.parametrize("tier", ["pure", "read", "write", "pay", "admin", "net"])
 def test_every_tier_is_stored(tier):
