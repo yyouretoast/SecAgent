@@ -7,11 +7,20 @@ from pathlib import Path
 from typing import Any, Literal, get_args
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from secagent.sdk import PermissionTier
 
 DEFAULT_POLICY_PATH = Path(__file__).resolve().parents[3] / "policies" / "security_rules.yaml"
+
+
+class PolicyLoadError(Exception):
+    """A policy bundle could not be read, parsed, or validated."""
+
+    def __init__(self, path: str | Path, message: str) -> None:
+        self.path = str(path)
+        super().__init__(f"Cannot load policy file {self.path}: {message}")
+
 
 PERMISSION_TIERS = frozenset(get_args(PermissionTier))
 SPAN_LOCATIONS = frozenset({"input_parameters", "output_result", "attributes"})
@@ -302,13 +311,16 @@ class PolicyLoader:
         self.path = Path(path) if path is not None else DEFAULT_POLICY_PATH
 
     def load(self) -> PolicyRuleset:
-        if not self.path.exists():
-            raise FileNotFoundError(f"Policy file does not exist: {self.path}")
+        try:
+            if not self.path.exists():
+                raise FileNotFoundError(f"Policy file does not exist: {self.path}")
 
-        with self.path.open(encoding="utf-8") as handle:
-            raw = yaml.safe_load(handle)
+            with self.path.open(encoding="utf-8") as handle:
+                raw = yaml.safe_load(handle)
 
-        if not isinstance(raw, dict):
-            raise ValueError(f"Policy file must contain a YAML mapping: {self.path}")
+            if not isinstance(raw, dict):
+                raise ValueError("Policy file must contain a YAML mapping")
 
-        return PolicyRuleset.model_validate(raw)
+            return PolicyRuleset.model_validate(raw)
+        except (OSError, ValueError, yaml.YAMLError, ValidationError) as exc:
+            raise PolicyLoadError(self.path, str(exc)) from exc

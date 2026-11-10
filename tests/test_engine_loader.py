@@ -3,9 +3,10 @@
 from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
-from secagent.engine import PolicyLoader
+from secagent.engine import PolicyLoader, PolicyLoadError
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT_DIR / "policies" / "security_rules.yaml"
@@ -45,7 +46,7 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="Unsupported rule_type"):
+    with pytest.raises(PolicyLoadError, match="Unsupported rule_type"):
         PolicyLoader(policy).load()
 
 
@@ -68,7 +69,7 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="invalid regex"):
+    with pytest.raises(PolicyLoadError, match="invalid regex"):
         PolicyLoader(policy).load()
 
 
@@ -93,7 +94,7 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="invalid permission tiers: root"):
+    with pytest.raises(PolicyLoadError, match="invalid permission tiers: root"):
         PolicyLoader(policy).load()
 
 
@@ -117,7 +118,7 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="unknown condition fields.*ignored_limit"):
+    with pytest.raises(PolicyLoadError, match="unknown condition fields.*ignored_limit"):
         PolicyLoader(policy).load()
 
 
@@ -140,7 +141,7 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="max_total_steps must be a positive integer"):
+    with pytest.raises(PolicyLoadError, match="max_total_steps must be a positive integer"):
         PolicyLoader(policy).load()
 
 
@@ -163,7 +164,7 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="expected id prefix POL-ASI08-"):
+    with pytest.raises(PolicyLoadError, match="expected id prefix POL-ASI08-"):
         PolicyLoader(policy).load()
 
 
@@ -223,7 +224,7 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="Duplicate policy ids: POL-ASI08-001"):
+    with pytest.raises(PolicyLoadError, match="Duplicate policy ids: POL-ASI08-001"):
         PolicyLoader(policy).load()
 
 
@@ -246,7 +247,7 @@ policies:
     )
 
     with pytest.raises(
-        ValidationError,
+        PolicyLoadError,
         match="missing condition fields: max_consecutive_identical_tools",
     ):
         PolicyLoader(policy).load()
@@ -271,7 +272,7 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="owasp_category 'ASI99'.*id category 'ASI08'"):
+    with pytest.raises(PolicyLoadError, match="owasp_category 'ASI99'.*id category 'ASI08'"):
         PolicyLoader(policy).load()
 
 
@@ -296,5 +297,51 @@ policies:
         encoding="utf-8",
     )
 
-    with pytest.raises(ValidationError, match="invalid span locations: bogus_field"):
+    with pytest.raises(PolicyLoadError, match="invalid span locations: bogus_field"):
         PolicyLoader(policy).load()
+
+
+def test_loader_wraps_missing_file_with_path_and_cause(tmp_path: Path):
+    missing = tmp_path / "missing.yaml"
+
+    with pytest.raises(PolicyLoadError, match="Policy file does not exist") as captured:
+        PolicyLoader(missing).load()
+
+    assert captured.value.path == str(missing)
+    assert isinstance(captured.value.__cause__, FileNotFoundError)
+
+
+def test_loader_wraps_pydantic_validation_error(tmp_path: Path):
+    policy = tmp_path / "invalid-model.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PolicyLoadError, match="List should have at least 1 item") as captured:
+        PolicyLoader(policy).load()
+
+    assert isinstance(captured.value.__cause__, ValidationError)
+
+
+def test_loader_wraps_malformed_yaml_error(tmp_path: Path):
+    policy = tmp_path / "malformed.yaml"
+    policy.write_text("version: [unterminated", encoding="utf-8")
+
+    with pytest.raises(PolicyLoadError, match="Cannot load policy file") as captured:
+        PolicyLoader(policy).load()
+
+    assert isinstance(captured.value.__cause__, yaml.YAMLError)
+
+
+def test_loader_wraps_non_mapping_document_error(tmp_path: Path):
+    policy = tmp_path / "list.yaml"
+    policy.write_text("- not\n- a\n- mapping", encoding="utf-8")
+
+    with pytest.raises(PolicyLoadError, match="must contain a YAML mapping") as captured:
+        PolicyLoader(policy).load()
+
+    assert isinstance(captured.value.__cause__, ValueError)
