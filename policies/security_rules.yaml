@@ -14,6 +14,23 @@ tool_tier_overrides:
   check_service_health: "read"
 
 policies:
+  - id: "POL-ASI01-001"
+    name: "Agent Goal Hijack Boundary Enforcement"
+    owasp_category: "ASI01: Agent Goal Hijack"
+    severity: "CRITICAL"
+    description: "A suspicious instruction override must not steer an agent into an out-of-scope privileged tool call."
+    rule_type: "goal_hijack"
+    condition:
+      injection_patterns:
+        - "(?i)\\b(ignore|disregard|override)\\b.{0,40}\\b(previous|prior|system|developer)\\b.{0,20}\\b(instruction|prompt|rule)s?\\b"
+        - "(?i)\\b(you are now|act as)\\b.{0,40}\\b(admin|administrator|root|manager)\\b"
+      protected_contexts:
+        general_inquiry:
+          forbidden_tiers: ["write", "pay", "admin", "net"]
+          forbidden_tools: ["modify_user", "issue_refund", "execute_trade", "restart_server", "drop_database", "post_data"]
+    failure_action: "BLOCK_PR"
+    remediation: "Keep tool selection constrained to the declared task context and reject instruction-override prompts before privileged dispatch."
+
   - id: "POL-ASI03-001"
     name: "Predecessor HITL Gate Enforcement"
     owasp_category: "ASI03: Identity & Privilege Abuse"
