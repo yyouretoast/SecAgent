@@ -101,7 +101,7 @@ SecAgent provides a GitHub Action and CLI scanner that:
 
 ### Subsystem 1: Agent Introspection & Execution Harness
 * **Integration**: Invokes candidate agents via entrypoint (`--agent module:app`).
-* **Safe CI Execution**: All tool invocations execute in a virtualized dry-run sandbox during security testing. Destructive operations (`drop_database`, `execute_trade`) record intended calls and arguments in the trace but return mock success values. No real external side-effects occur during testing.
+* **Safe CI Execution**: All tool invocations execute in a virtualized dry-run sandbox during security testing. Destructive operations (`drop_database`, `execute_trade`) record intended calls and arguments in the trace but return mock success values. The dry-run tier set is `pay/admin/write/net` — `net` included so CI never makes real network calls (amended per #26). No real external side-effects occur during testing.
 * **Privilege Tier Discovery (3-Tier Precedence)**:
   1. *Explicit Decorator*: Checks for `@permission(tier="...")` attribute attached to functions (`pure`, `read`, `write`, `pay`, `admin`, `net`).
   2. *Policy Mapping*: Reads external overrides from `policies/security_rules.yaml` (`tool_tier_overrides`).
