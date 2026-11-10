@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
+
+from secagent.telemetry.redactor import PIIRedactor
 
 try:
     from langchain_core.callbacks import BaseCallbackHandler
@@ -19,7 +22,7 @@ except ImportError:  # pragma: no cover - supports contract use without LangChai
 def _json_value(value: Any) -> Any:
     """Convert common callback payloads to values accepted by the trace schema."""
     if isinstance(value, list):
-        return json.dumps(value)
+        return json.dumps(value, default=str)
     if value is None or isinstance(value, (dict, str, int, float, bool)):
         return value
     return str(value)
@@ -76,10 +79,17 @@ class TraceSession:
     metadata: dict[str, Any] = field(default_factory=dict)
     spans: list[dict[str, Any]] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        self.metadata = PIIRedactor.scrub_container(self.metadata)
+
     def append(self, span: dict[str, Any]) -> dict[str, Any]:
-        span["step_index"] = len(self.spans)
-        self.spans.append(span)
-        return span
+        safe_span = copy.deepcopy(span)
+        for field_name in ("input_parameters", "output_result", "error_message", "attributes"):
+            if field_name in safe_span:
+                safe_span[field_name] = PIIRedactor.scrub_container(safe_span[field_name])
+        safe_span["step_index"] = len(self.spans)
+        self.spans.append(safe_span)
+        return safe_span
 
     def as_dict(self) -> dict[str, Any]:
         result = {
@@ -88,10 +98,10 @@ class TraceSession:
             "timestamp": self.timestamp,
             "caller_role": self.caller_role,
             "task_context": self.task_context,
-            "spans": self.spans,
+            "spans": copy.deepcopy(self.spans),
         }
         if self.metadata:
-            result["metadata"] = self.metadata
+            result["metadata"] = copy.deepcopy(self.metadata)
         return result
 
 
@@ -156,7 +166,7 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
         if span is None:
             return
         span["end_time_ns"] = time.time_ns()
-        span["output_result"] = _json_value(output)
+        span["output_result"] = PIIRedactor.scrub_container(_json_value(output))
 
     def on_tool_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
         span = self._close(run_id)
@@ -164,7 +174,7 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
             return
         span["end_time_ns"] = time.time_ns()
         span["is_error"] = True
-        span["error_message"] = str(error)
+        span["error_message"] = PIIRedactor.scrub_text(str(error))
 
     def record_hitl(self, approval_granted: bool, **kwargs: Any) -> dict[str, Any]:
         """Append a normalized approval event to this callback's trace session."""

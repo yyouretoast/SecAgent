@@ -7,6 +7,7 @@ import uuid
 from typing import Any
 
 from secagent.telemetry.callbacks import TraceSession
+from secagent.telemetry.redactor import PIIRedactor
 
 
 class HITLNormalizer:
@@ -41,7 +42,7 @@ class HITLNormalizer:
             "is_error": False,
             "error_message": None,
         }
-        return self.session.append(span)
+        return self.session.append(PIIRedactor.scrub_container(span))
 
     def normalize_interrupt(
         self,
