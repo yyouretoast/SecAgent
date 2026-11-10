@@ -38,14 +38,16 @@ Guidelines for contributing to SecAgent.
    ```bash
    git checkout -b feat/your-feature-name
    ```
-2. Verify locally:
+2. **One user story per pull request.** A PR that lands several stories (or a full subsystem) in one branch gets closed and re-landed as a sequence of story-sized PRs, each keeping `main` green.
+3. **Branch names follow the repo convention:** `feat/<story-id>-<short-name>`, `fix/<issue>-<short-name>`, or `docs/<short-name>`. Rename the branch before opening the PR if it doesn't match.
+4. Verify locally:
    ```bash
    pytest tests/ -v
    ruff check .
    ruff format --check .
    ```
-3. Open a pull request against `main`. Fill out the checklist in `.github/pull_request_template.md`.
-4. Merging requires a passing CI workflow and review approval.
+5. Open a pull request against `main`. Fill out the checklist in `.github/pull_request_template.md`.
+6. Merging requires a passing CI workflow and review approval.
 
 ---
 
