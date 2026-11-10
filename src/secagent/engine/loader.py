@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from importlib import resources
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Literal, get_args
 
@@ -17,13 +19,14 @@ DEFAULT_POLICY_PATH = Path(__file__).resolve().parents[3] / "policies" / "securi
 class PolicyLoadError(Exception):
     """A policy bundle could not be read, parsed, or validated."""
 
-    def __init__(self, path: str | Path, message: str) -> None:
+    def __init__(self, path: str | Path | Traversable, message: str) -> None:
         self.path = str(path)
         super().__init__(f"Cannot load policy file {self.path}: {message}")
 
 
 PERMISSION_TIERS = frozenset(get_args(PermissionTier))
 SPAN_LOCATIONS = frozenset({"input_parameters", "output_result", "attributes"})
+TRACE_SPAN_TYPES = frozenset({"agent.run", "model.inference", "tool.call", "gate.hitl"})
 
 SUPPORTED_RULE_TYPES = {
     "goal_hijack",
@@ -79,7 +82,7 @@ CONDITION_FIELD_TYPES = {
     "network_egress_allowlist": {
         "target_tiers": "tier_list",
         "allowed_domains": "string_list",
-        "forbidden_destination_patterns": "string_list",
+        "forbidden_destination_patterns": "optional_string_list",
     },
 }
 
@@ -94,14 +97,21 @@ RULE_ID_PREFIXES = {
 }
 
 
+def _default_policy_source() -> Traversable:
+    """Prefer a repository policy file, then fall back to the packaged resource."""
+    if DEFAULT_POLICY_PATH.is_file():
+        return DEFAULT_POLICY_PATH
+    return resources.files("secagent").joinpath("policies/security_rules.yaml")
+
+
 def _is_non_empty_string(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-def _is_string_list(value: Any) -> bool:
+def _is_string_list(value: Any, *, allow_empty: bool = False) -> bool:
     return (
         isinstance(value, list)
-        and bool(value)
+        and (allow_empty or bool(value))
         and all(_is_non_empty_string(item) for item in value)
     )
 
@@ -112,6 +122,9 @@ def _validate_condition_field(policy_id: str, field: str, kind: str, value: Any)
 
     if kind == "string_list" and not _is_string_list(value):
         raise ValueError(f"Policy {policy_id} field {field} must be a non-empty list of strings")
+
+    if kind == "optional_string_list" and not _is_string_list(value, allow_empty=True):
+        raise ValueError(f"Policy {policy_id} field {field} must be a list of non-empty strings")
 
     if kind == "positive_int" and (
         not isinstance(value, int) or isinstance(value, bool) or value < 1
@@ -156,7 +169,15 @@ def _validate_condition_field(policy_id: str, field: str, kind: str, value: Any)
                 f"Policy {policy_id} field {field} contains unknown fields: {', '.join(unknown)}"
             )
         if not _is_non_empty_string(value["span_type"]):
-            raise ValueError(f"Policy {policy_id} field {field}.span_type must be a string")
+            raise ValueError(
+                f"Policy {policy_id} field {field}.span_type must be a non-empty string"
+            )
+        if value["span_type"] not in TRACE_SPAN_TYPES:
+            allowed = ", ".join(sorted(TRACE_SPAN_TYPES))
+            raise ValueError(
+                f"Policy {policy_id} field {field}.span_type contains unsupported value "
+                f"{value['span_type']!r}; expected one of: {allowed}"
+            )
         if not _is_non_empty_string(value["name"]):
             raise ValueError(f"Policy {policy_id} field {field}.name must be a string")
         if not isinstance(value["approval_granted"], bool):
@@ -308,11 +329,11 @@ class PolicyLoader:
     """Load and validate a declarative SecAgent policy bundle."""
 
     def __init__(self, path: str | Path | None = None) -> None:
-        self.path = Path(path) if path is not None else DEFAULT_POLICY_PATH
+        self.path: Traversable = Path(path) if path is not None else _default_policy_source()
 
     def load(self) -> PolicyRuleset:
         try:
-            if not self.path.exists():
+            if not self.path.is_file():
                 raise FileNotFoundError(f"Policy file does not exist: {self.path}")
 
             with self.path.open(encoding="utf-8") as handle:

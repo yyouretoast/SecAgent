@@ -1,5 +1,7 @@
 """US-4.1 policy ruleset loader tests."""
 
+import json
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -7,6 +9,7 @@ import yaml
 from pydantic import ValidationError
 
 from secagent.engine import PolicyLoader, PolicyLoadError
+from secagent.engine import loader as loader_module
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT_DIR / "policies" / "security_rules.yaml"
@@ -174,6 +177,76 @@ def test_loader_default_path_is_independent_of_cwd(tmp_path: Path, monkeypatch):
     ruleset = PolicyLoader().load()
 
     assert ruleset.version == "1.0.0"
+
+
+def test_loader_falls_back_to_packaged_policy_resource(tmp_path: Path, monkeypatch):
+    package_root = tmp_path / "package"
+    packaged_policy = package_root / "policies" / "security_rules.yaml"
+    packaged_policy.parent.mkdir(parents=True)
+    packaged_policy.write_text(POLICY_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(loader_module, "DEFAULT_POLICY_PATH", tmp_path / "missing.yaml")
+    monkeypatch.setattr(loader_module.resources, "files", lambda package: package_root)
+
+    ruleset = PolicyLoader().load()
+
+    assert ruleset.version == "1.0.0"
+
+
+def test_wheel_build_maps_canonical_policy_into_package():
+    configuration = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text(encoding="utf-8"))
+    force_include = configuration["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+
+    assert force_include["policies/security_rules.yaml"] == (
+        "secagent/policies/security_rules.yaml"
+    )
+
+
+def test_loader_accepts_empty_optional_destination_blocklist(tmp_path: Path):
+    policy = tmp_path / "empty-destination-blocklist.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI10-001
+    name: Network egress
+    owasp_category: ASI10
+    severity: CRITICAL
+    rule_type: network_egress_allowlist
+    condition:
+      target_tiers: [net]
+      allowed_domains: [api.github.com]
+      forbidden_destination_patterns: []
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    ruleset = PolicyLoader(policy).load()
+
+    assert ruleset.policies[0].condition["forbidden_destination_patterns"] == []
+
+
+def test_loader_still_rejects_empty_required_string_list(tmp_path: Path):
+    policy = tmp_path / "empty-required-list.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI02-001
+    name: Parameter blocklist
+    owasp_category: ASI02
+    severity: CRITICAL
+    rule_type: parameter_regex_blocklist
+    condition:
+      target_tools: [query_db]
+      regex_patterns: []
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PolicyLoadError, match="regex_patterns must be a non-empty list"):
+        PolicyLoader(policy).load()
 
 
 def test_loader_accepts_typed_goal_hijack_contexts(tmp_path: Path):
@@ -345,3 +418,69 @@ def test_loader_wraps_non_mapping_document_error(tmp_path: Path):
         PolicyLoader(policy).load()
 
     assert isinstance(captured.value.__cause__, ValueError)
+
+
+@pytest.mark.parametrize(
+    "span_type",
+    ["agent.run", "model.inference", "tool.call", "gate.hitl"],
+)
+def test_loader_accepts_trace_schema_span_types(tmp_path: Path, span_type: str):
+    policy = tmp_path / "valid-gate-span-type.yaml"
+    policy.write_text(
+        f"""
+version: "1"
+policies:
+  - id: POL-ASI03-001
+    name: Predecessor gate
+    owasp_category: ASI03
+    severity: CRITICAL
+    rule_type: predecessor_gate
+    condition:
+      target_tiers: [pay]
+      required_gate:
+        span_type: {span_type}
+        name: approval_gate
+        approval_granted: true
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    ruleset = PolicyLoader(policy).load()
+
+    assert ruleset.policies[0].condition["required_gate"]["span_type"] == span_type
+
+
+def test_loader_rejects_span_type_outside_trace_schema(tmp_path: Path):
+    policy = tmp_path / "invalid-gate-span-type.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI03-001
+    name: Predecessor gate
+    owasp_category: ASI03
+    severity: CRITICAL
+    rule_type: predecessor_gate
+    condition:
+      target_tiers: [pay]
+      required_gate:
+        span_type: gate.hit1
+        name: approval_gate
+        approval_granted: true
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PolicyLoadError, match="unsupported value 'gate.hit1'"):
+        PolicyLoader(policy).load()
+
+
+def test_loader_span_types_match_trace_schema_enum():
+    schema = json.loads(
+        (ROOT_DIR / "schemas" / "trace_event.schema.json").read_text(encoding="utf-8")
+    )
+    schema_span_types = schema["properties"]["spans"]["items"]["properties"]["span_type"]["enum"]
+
+    assert loader_module.TRACE_SPAN_TYPES == frozenset(schema_span_types)
