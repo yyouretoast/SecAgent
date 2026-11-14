@@ -26,6 +26,16 @@ def _stretch_kwargs(fn: Any) -> dict[str, Any]:
     return {"use_container_width": True}
 
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    """Coerce ``value`` to ``int``, returning ``default`` on ``None``, ``bool``, or invalid values."""
+    if value is None or isinstance(value, bool):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def parse_app_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse dashboard CLI arguments forwarded after Streamlit's ``--`` separator."""
     parser = argparse.ArgumentParser(add_help=False)
@@ -109,12 +119,16 @@ def span_violations(
     candidates: list[dict[str, Any]] = []
     if isinstance(span_id, str) and span_id in by_span_id:
         candidates.extend(by_span_id[span_id])
-    elif (
+    if (
         isinstance(step_index, int)
         and not isinstance(step_index, bool)
         and step_index in by_step_index
     ):
-        candidates.extend(by_step_index[step_index])
+        candidates.extend(
+            v
+            for v in by_step_index[step_index]
+            if not v.get("offending_span_id") or v.get("offending_span_id") == span_id
+        )
 
     for item in candidates:
         key = (
@@ -140,21 +154,28 @@ def build_timeline_rows(
 
     ordered = sorted(
         dict_spans,
-        key=lambda s: (int(s.get("step_index", 0)), int(s.get("start_time_ns", 0))),
+        key=lambda s: (_safe_int(s.get("step_index"), 0), _safe_int(s.get("start_time_ns"), 0)),
     )
-    trace_start_ns = min(int(s.get("start_time_ns", 0)) for s in ordered)
+    trace_start_ns = min(_safe_int(s.get("start_time_ns"), 0) for s in ordered)
+    trace_end_ns = max(
+        max(_safe_int(s.get("start_time_ns"), trace_start_ns), _safe_int(s.get("end_time_ns"), 0))
+        for s in ordered
+    )
+    total_span_ms = max(0, trace_end_ns - trace_start_ns) / 1_000_000.0
+    min_bar_ms = max(total_span_ms * 0.015, 0.05)
 
     by_span_id, by_step_index = index_violations(violations)
     rows: list[dict[str, Any]] = []
+    seen_labels: set[str] = set()
 
     for span in ordered:
-        step_index = int(span.get("step_index", len(rows)))
-        span_id = str(span.get("span_id", f"span-{step_index}"))
-        span_type = str(span.get("span_type", "tool.call"))
-        name = str(span.get("name", "unknown"))
-        permission_tier = str(span.get("permission_tier", "none"))
-        start_ns = int(span.get("start_time_ns", trace_start_ns))
-        end_ns = int(span.get("end_time_ns", start_ns))
+        step_index = _safe_int(span.get("step_index"), len(rows))
+        span_id = str(span.get("span_id") or f"span-{step_index}")
+        span_type = str(span.get("span_type") or "tool.call")
+        name = str(span.get("name") or "unknown")
+        permission_tier = str(span.get("permission_tier") or "none")
+        start_ns = _safe_int(span.get("start_time_ns"), trace_start_ns)
+        end_ns = _safe_int(span.get("end_time_ns"), start_ns)
         duration_ns = max(0, end_ns - start_ns)
         offset_ns = max(0, start_ns - trace_start_ns)
         offset_ms = offset_ns / 1_000_000.0
@@ -168,9 +189,13 @@ def build_timeline_rows(
             else (span_type if span_type in ("gate.hitl", "tool.call") else "other")
         )
 
+        base_label = f"#{step_index} {name} [{permission_tier}]"
+        label = base_label if base_label not in seen_labels else f"{base_label} ({span_id})"
+        seen_labels.add(label)
+
         rows.append(
             {
-                "label": f"#{step_index} {name} [{permission_tier}]",
+                "label": label,
                 "step_index": step_index,
                 "span_id": span_id,
                 "span_type": span_type,
@@ -185,7 +210,7 @@ def build_timeline_rows(
                 "duration_ns": duration_ns,
                 "offset_ms": round(offset_ms, 6),
                 "duration_ms": round(duration_ms, 6),
-                "end_ms": round(offset_ms + max(duration_ms, 0.05), 6),
+                "end_ms": round(offset_ms + max(duration_ms, min_bar_ms), 6),
                 "violated": violated,
                 "category": category,
                 "rule_ids": ", ".join(str(v.get("rule_id", "")) for v in matched) or "None",
@@ -230,6 +255,7 @@ def build_waterfall_chart_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "type": "nominal",
                 "sort": None,
                 "title": "Execution Span",
+                "axis": {"labelLimit": 320, "labelFont": "monospace"},
             },
             "x": {
                 "field": "offset_ms",
@@ -241,6 +267,7 @@ def build_waterfall_chart_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "field": "category",
                 "type": "nominal",
                 "title": "Span Status",
+                "legend": {"orient": "top"},
                 "scale": {
                     "domain": list(_STATUS_COLORS.keys()),
                     "range": list(_STATUS_COLORS.values()),
@@ -285,20 +312,17 @@ def render_dashboard(
     raw_status = report.get("status")
     is_raw_trace = raw_status is None and isinstance(report.get("spans"), list)
     status = "TRACE_ONLY" if is_raw_trace else str(raw_status or "UNKNOWN")
-    agent_name = str(
-        report.get("agent")
-        or report.get("metadata", {}).get("framework")
-        or report.get("scenario_id")
-        or "unknown"
-    )
+    metadata = report.get("metadata")
+    framework = metadata.get("framework") if isinstance(metadata, dict) else None
+    agent_name = str(report.get("agent") or framework or report.get("scenario_id") or "unknown")
     violations = sorted(
         [v for v in (report.get("violations") or []) if isinstance(v, dict)],
         key=lambda v: (
             _SEVERITY_ORDER.get(str(v.get("severity", "")), 99),
-            int(v.get("offending_step_index", 0) or 0),
+            _safe_int(v.get("offending_step_index"), 0),
         ),
     )
-    scenarios_count = int(report.get("scenarios_evaluated") or len(traces))
+    scenarios_count = _safe_int(report.get("scenarios_evaluated"), len(traces)) or len(traces)
 
     st.title("SecAgent Security Audit Dashboard")
 
@@ -321,11 +345,11 @@ def render_dashboard(
     all_rows: list[dict[str, Any]] = []
     if selected_trace is not None and len(traces) > 1:
         labels = [
-            f"{t.get('scenario_id', f'Trace {idx}')} ({t.get('task_context', 'unknown')})"
+            f"#{idx + 1}: {t.get('scenario_id', f'trace-{idx}')} ({t.get('task_context', 'unknown')})"
             for idx, t in enumerate(traces)
         ]
         selected_label = st.selectbox("Select Scenario Trace", labels)
-        selected_trace = traces[labels.index(selected_label)]
+        selected_trace = traces[labels.index(selected_label) if selected_label in labels else 0]
 
     if selected_trace is not None:
         trace_scenario_id = selected_trace.get("scenario_id")
@@ -338,7 +362,9 @@ def render_dashboard(
                 and v.get("scenario_id") != trace_scenario_id
             )
         ]
-        all_rows = build_timeline_rows(selected_trace.get("spans", []), trace_violations)
+        spans_raw = selected_trace.get("spans")
+        spans_list = spans_raw if isinstance(spans_raw, list) else []
+        all_rows = build_timeline_rows(spans_list, trace_violations)
 
     trace_ms = _total_trace_duration_ms(all_rows)
     exec_ms = report.get("execution_time_ms")
@@ -396,12 +422,14 @@ def render_dashboard(
         st.info("Selected trace contains no spans.")
         return
 
+    active_types = set(selected_types) if selected_types else None
+    active_tiers = set(selected_tiers) if selected_tiers else None
     filtered_rows = [
         row
         for row in all_rows
         if (not violations_only or row["violated"])
-        and (selected_types is None or row["span_type"] in selected_types)
-        and (selected_tiers is None or row["permission_tier"] in selected_tiers)
+        and (active_types is None or row["span_type"] in active_types)
+        and (active_tiers is None or row["permission_tier"] in active_tiers)
     ]
 
     if not filtered_rows:
@@ -435,24 +463,21 @@ def render_dashboard(
             if row["is_error"]:
                 st.warning(f"Span error: {row['error_message'] or 'Unknown error'}")
 
+            st.caption(
+                f"**Span ID:** `{row['span_id']}` · "
+                f"**Offset:** `{row['offset_ms']:.3f} ms` (`{row['offset_ns']:,} ns`) · "
+                f"**Approval Granted:** `{row['approval_granted']}` · "
+                f"**Timestamps (ns):** `{row['start_time_ns']} → {row['end_time_ns']}`"
+            )
+
             left, right = st.columns(2)
             with left:
-                st.markdown("**Span Metadata**")
-                st.json(
-                    {
-                        "span_id": row["span_id"],
-                        "step_index": row["step_index"],
-                        "span_type": row["span_type"],
-                        "permission_tier": row["permission_tier"],
-                        "approval_granted": row["approval_granted"],
-                        "start_time_ns": row["start_time_ns"],
-                        "end_time_ns": row["end_time_ns"],
-                        "duration_ns": row["duration_ns"],
-                    }
-                )
-            with right:
                 st.markdown("**Input Parameters (Redacted)**")
                 st.json(row["input_parameters"] or {})
+                if row["attributes"]:
+                    st.markdown("**Span Attributes**")
+                    st.json(row["attributes"])
+            with right:
                 st.markdown("**Output Result (Redacted)**")
                 if isinstance(row["output_result"], (dict, list)):
                     st.json(row["output_result"])
@@ -470,6 +495,8 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     args = parse_app_args(argv)
+    uploaded_report = None
+    uploaded_trace = None
     with st.sidebar:
         st.header("Audit Inputs")
         report_input = st.text_input("Report JSON path", value=str(args.report))
@@ -477,22 +504,9 @@ def main(argv: list[str] | None = None) -> None:
             "Trace JSON path (optional)",
             value=str(args.trace) if args.trace else "",
         )
-        uploaded_report = st.file_uploader("Upload report.json", type=["json"])
-        uploaded_trace = st.file_uploader("Upload trace.json (optional)", type=["json"])
-
-        st.divider()
-        st.header("Span Filters")
-        violations_only = st.checkbox("Violations only", value=False)
-        selected_types = st.multiselect(
-            "Span types",
-            options=["tool.call", "gate.hitl", "model.inference", "agent.run"],
-            default=["tool.call", "gate.hitl", "model.inference", "agent.run"],
-        )
-        selected_tiers = st.multiselect(
-            "Permission tiers",
-            options=["pure", "read", "write", "pay", "admin", "net", "gate", "none"],
-            default=["pure", "read", "write", "pay", "admin", "net", "gate", "none"],
-        )
+        if st.toggle("Upload JSON files", value=False):
+            uploaded_report = st.file_uploader("Upload report.json", type=["json"])
+            uploaded_trace = st.file_uploader("Upload trace.json (optional)", type=["json"])
 
     report_path = Path(report_input) if report_input.strip() else args.report
     try:
@@ -528,6 +542,52 @@ def main(argv: list[str] | None = None) -> None:
             return
 
     traces = extract_traces(report, explicit_trace=explicit_trace, base_dir=report_path.parent)
+
+    discovered_types: list[str] = []
+    discovered_tiers: list[str] = []
+    for trace_doc in traces:
+        spans_raw = trace_doc.get("spans")
+        if not isinstance(spans_raw, list):
+            continue
+        for span in spans_raw:
+            if not isinstance(span, dict):
+                continue
+            st_type = str(span.get("span_type") or "tool.call")
+            if st_type not in discovered_types:
+                discovered_types.append(st_type)
+            tier = str(span.get("permission_tier") or "none")
+            if tier not in discovered_tiers:
+                discovered_tiers.append(tier)
+
+    type_options = discovered_types or ["tool.call", "gate.hitl", "model.inference", "agent.run"]
+    tier_options = discovered_tiers or [
+        "pure",
+        "read",
+        "write",
+        "pay",
+        "admin",
+        "net",
+        "gate",
+        "none",
+    ]
+
+    with st.sidebar:
+        st.divider()
+        st.header("Span Filters")
+        violations_only = st.checkbox("Violations only", value=False)
+        selected_types = st.multiselect(
+            "Span types",
+            options=type_options,
+            default=[],
+            placeholder="All span types",
+        )
+        selected_tiers = st.multiselect(
+            "Permission tiers",
+            options=tier_options,
+            default=[],
+            placeholder="All permission tiers",
+        )
+
     render_dashboard(
         report,
         traces,

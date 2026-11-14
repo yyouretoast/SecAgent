@@ -453,6 +453,8 @@ def serve(
         typer.Option(
             "--port",
             "-p",
+            min=1,
+            max=65535,
             help="Port for the Streamlit dashboard server",
         ),
     ] = 8501,

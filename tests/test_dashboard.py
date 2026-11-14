@@ -12,6 +12,7 @@ from streamlit.testing.v1 import AppTest
 from typer.testing import CliRunner
 
 from secagent.app import (
+    _total_trace_duration_ms,
     build_timeline_rows,
     build_waterfall_chart_spec,
     extract_traces,
@@ -212,3 +213,136 @@ def test_cli_serve_launches_streamlit_on_configured_port(tmp_path: Path, monkeyp
     assert "--server.port" in cmd and "8501" in cmd
     assert "--report" in cmd and str(report) in cmd
     assert "--trace" in cmd and str(trace) in cmd
+
+
+def test_zero_duration_span_scales_visibly_and_deduplicates_labels():
+    spans = [
+        {
+            "span_id": "span-a",
+            "step_index": 0,
+            "span_type": "gate.hitl",
+            "name": "approval_gate",
+            "permission_tier": "gate",
+            "start_time_ns": 1_000_000_000,
+            "end_time_ns": 1_000_000_000,
+        },
+        {
+            "span_id": "span-b",
+            "step_index": 0,
+            "span_type": "gate.hitl",
+            "name": "approval_gate",
+            "permission_tier": "gate",
+            "start_time_ns": 1_000_000_000,
+            "end_time_ns": 1_500_000_000,
+        },
+    ]
+    rows = build_timeline_rows(spans, violations=[])
+    assert _total_trace_duration_ms(rows) == 500.0
+    assert rows[0]["duration_ms"] == 0.0
+    assert rows[0]["end_ms"] - rows[0]["offset_ms"] == 7.5
+    assert rows[0]["label"] != rows[1]["label"]
+
+
+def test_streamlit_apptest_supports_raw_trace_filters_and_nullable_metadata(
+    tmp_path: Path, monkeypatch
+):
+    raw_trace = {
+        "scenario_id": "RAW-001",
+        "metadata": None,
+        "spans": [
+            {
+                "span_id": "span-1",
+                "step_index": None,
+                "span_type": "tool.call",
+                "name": "read_kb",
+                "permission_tier": "read",
+                "start_time_ns": None,
+                "end_time_ns": 2_000_000,
+            },
+            {
+                "span_id": "span-2",
+                "step_index": 1,
+                "span_type": "gate.hitl",
+                "name": "approval_gate",
+                "permission_tier": "gate",
+                "start_time_ns": 2_000_000,
+                "end_time_ns": 2_000_000,
+            },
+        ],
+    }
+    trace_path = tmp_path / "raw_trace.json"
+    trace_path.write_text(json.dumps(raw_trace), encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["app.py", "--report", str(trace_path)])
+    at = AppTest.from_file(str(APP_PATH)).run()
+
+    assert not at.exception
+    assert any("RAW-001" in info.value for info in at.info)
+    assert len(at.expander) == 2
+
+    at.sidebar.multiselect[0].select("gate.hitl").run()
+    assert not at.exception
+    assert len(at.expander) == 1
+
+
+def test_streamlit_apptest_multi_trace_selector_handles_duplicate_scenario_ids(
+    tmp_path: Path, monkeypatch
+):
+    trace1 = {
+        "scenario_id": "FUZZ-001",
+        "task_context": "mutated",
+        "execution_id": "exec-1",
+        "spans": [
+            {
+                "span_id": "s1",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "tool_alpha",
+                "permission_tier": "read",
+                "start_time_ns": 100,
+                "end_time_ns": 200,
+            }
+        ],
+    }
+    trace2 = {
+        "scenario_id": "FUZZ-001",
+        "task_context": "mutated",
+        "execution_id": "exec-2",
+        "spans": [
+            {
+                "span_id": "s2",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "tool_beta",
+                "permission_tier": "write",
+                "start_time_ns": 100,
+                "end_time_ns": 300,
+            }
+        ],
+    }
+    report_path = tmp_path / "fuzz_report.json"
+    report_path.write_text(
+        json.dumps({"status": "PASS", "traces": [trace1, trace2]}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(sys, "argv", ["app.py", "--report", str(report_path)])
+    at = AppTest.from_file(str(APP_PATH)).run()
+    assert not at.exception
+    assert any("tool_alpha" in exp.label for exp in at.expander)
+
+    at.selectbox[0].select_index(1).run()
+    assert not at.exception
+    assert any("tool_beta" in exp.label for exp in at.expander)
+
+
+def test_cli_serve_rejects_out_of_range_port(tmp_path: Path):
+    report = tmp_path / "report.json"
+    report.write_text("{}", encoding="utf-8")
+    runner = CliRunner()
+
+    res_low = runner.invoke(cli_app, ["serve", "--report", str(report), "--port", "0"])
+    assert res_low.exit_code != 0
+
+    res_high = runner.invoke(cli_app, ["serve", "--report", str(report), "--port", "70000"])
+    assert res_high.exit_code != 0
