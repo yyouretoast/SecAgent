@@ -17,6 +17,7 @@ DEFAULT_POLICY_PATH = Path(__file__).resolve().parents[3] / "policies" / "securi
 
 PERMISSION_TIERS = frozenset(get_args(PermissionTier))
 SPAN_LOCATIONS = frozenset({"input_parameters", "output_result", "attributes"})
+TRACE_SPAN_TYPES = frozenset({"agent.run", "model.inference", "tool.call", "gate.hitl"})
 
 SUPPORTED_RULE_TYPES = {
     "goal_hijack",
@@ -159,7 +160,15 @@ def _validate_condition_field(policy_id: str, field: str, kind: str, value: Any)
                 f"Policy {policy_id} field {field} contains unknown fields: {', '.join(unknown)}"
             )
         if not _is_non_empty_string(value["span_type"]):
-            raise ValueError(f"Policy {policy_id} field {field}.span_type must be a string")
+            raise ValueError(
+                f"Policy {policy_id} field {field}.span_type must be a non-empty string"
+            )
+        if value["span_type"] not in TRACE_SPAN_TYPES:
+            allowed = ", ".join(sorted(TRACE_SPAN_TYPES))
+            raise ValueError(
+                f"Policy {policy_id} field {field}.span_type contains unsupported value "
+                f"{value['span_type']!r}; expected one of: {allowed}"
+            )
         if not _is_non_empty_string(value["name"]):
             raise ValueError(f"Policy {policy_id} field {field}.name must be a string")
         if not isinstance(value["approval_granted"], bool):
