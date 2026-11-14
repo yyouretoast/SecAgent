@@ -48,6 +48,9 @@ secagent = "secagent.cli:app"
 [tool.hatch.build.targets.wheel]
 packages = ["src/secagent"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"policies/security_rules.yaml" = "secagent/policies/security_rules.yaml"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
