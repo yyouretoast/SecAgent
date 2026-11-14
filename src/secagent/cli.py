@@ -1,5 +1,6 @@
 import importlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Annotated, Any
@@ -439,12 +440,54 @@ def serve(
             help="Path to JSON audit report",
         ),
     ] = Path("report.json"),
+    trace: Annotated[
+        Path | None,
+        typer.Option(
+            "--trace",
+            "-t",
+            help="Optional path to execution trace JSON file",
+        ),
+    ] = None,
+    port: Annotated[
+        int,
+        typer.Option(
+            "--port",
+            "-p",
+            min=1,
+            max=65535,
+            help="Port for the Streamlit dashboard server",
+        ),
+    ] = 8501,
 ) -> None:
     """Launch local Streamlit security dashboard."""
+    if not report.exists():
+        console.print(f"[red]Report file not found: {report}[/red]")
+        raise typer.Exit(code=1)
+    if trace is not None and not trace.exists():
+        console.print(f"[red]Trace file not found: {trace}[/red]")
+        raise typer.Exit(code=1)
+
+    app_path = Path(__file__).resolve().with_name("app.py")
     console.print(
-        f"[bold blue]Launching local security dashboard for report: {report}...[/bold blue]"
+        f"[bold blue]Launching local security dashboard on port {port} for report: {report}...[/bold blue]"
     )
-    raise typer.Exit(code=0)
+    cmd = [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.port",
+        str(port),
+        "--",
+        "--report",
+        str(report),
+    ]
+    if trace is not None:
+        cmd.extend(["--trace", str(trace)])
+
+    proc = subprocess.run(cmd, check=False)
+    raise typer.Exit(code=proc.returncode)
 
 
 if __name__ == "__main__":
