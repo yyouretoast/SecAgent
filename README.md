@@ -86,7 +86,8 @@ sequenceDiagram
 
 * **GitHub Action (`action.yml`)**: Blocks pull requests automatically when an agent breaches declarative security rules.
 * **Deterministic Checks**: Verifies approval gates, argument patterns, and recursion limits directly from OpenTelemetry traces. No LLM-as-a-judge.
-* **Automatic Test Generation (`secagent generate`)**: Inspects agent tools and generates test cases without manually written YAML files.
+* **Automatic Test Generation (`secagent generate`, `secagent fuzz`)**: Inspects agent tools and synthesizes schema-directed adversarial test cases without manually written YAML files.
+* **Interactive Audit Dashboard (`secagent serve`)**: Launches a local Streamlit waterfall timeline and span inspector for reports and traces.
 * **Privilege SDK (`@secagent.permission`)**: Decorator for tools specifying execution privilege tiers (`pure`, `read`, `write`, `pay`, `admin`, `net`).
 * **Trace-Observable OWASP Coverage**: 7 active categories (ASI01, ASI02, ASI03, ASI05, ASI06, ASI08, ASI10), including deterministic goal-hijack sequence detection.
 
@@ -130,15 +131,24 @@ Run a scan against an agent module:
 secagent scan --agent examples.finance_agent.agent --policies policies/security_rules.yaml
 ```
 
-### 4. Synthesize Test Scenarios
+### 4. Synthesize & Fuzz Test Scenarios
 
-Generate adversarial test cases by inspecting the agent's tool definitions:
+Generate adversarial test cases or run schema-directed parameter mutations by inspecting the agent's tool definitions:
 
 ```bash
 secagent generate --agent examples.devops_agent.agent --per-tool 3
+secagent fuzz --agent examples.support_agent.agent --iterations 10
 ```
 
-### 5. GitHub Action Integration
+### 5. Inspect Traces in the Dashboard
+
+Launch the local Streamlit audit dashboard to inspect trace waterfalls and policy violations:
+
+```bash
+secagent serve --report report.json
+```
+
+### 6. GitHub Action Integration
 
 Add `SecAgent` to `.github/workflows/security.yml`:
 
@@ -190,13 +200,20 @@ secagent/
 │   └── TEMPLATE.yaml                  # Scenario manifest template
 ├── src/
 │   └── secagent/
+│       ├── app.py                     # Streamlit audit & trace inspection dashboard
 │       ├── cli.py                     # Typer CLI (generate, scan, fuzz, serve)
-│       ├── generator/                 # Dynamic scenario synthesis engine
+│       ├── engine/                    # Policy ruleset loader & evaluators
+│       ├── generator/                 # Dynamic scenario synthesis & schema fuzzer
+│       ├── harness/                   # Introspector, sandbox & timeout runner
 │       ├── sdk/                       # @permission decorator & exports
+│       ├── telemetry/                 # OTel callback, HITL normalizer & PII redactor
 │       └── agent/state.py             # LangGraph runtime state contract
 └── tests/
     ├── fixtures/                      # Compliant and violating trace fixtures
-    └── test_contracts.py              # Schema and CLI contract test suite
+    ├── test_action.py                 # GitHub Action contract & integration tests
+    ├── test_contracts.py              # Schema and CLI contract test suite
+    ├── test_dashboard.py              # Dashboard unit and Streamlit AppTest suite
+    └── test_reporting.py              # PR triage Markdown formatter tests
 ```
 
 ---
