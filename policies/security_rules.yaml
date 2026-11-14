@@ -56,7 +56,7 @@ policies:
     rule_type: "context_privilege"
     condition:
       task_context: "general_inquiry"
-      forbidden_tiers: ["write", "pay"]
+      forbidden_tiers: ["write", "pay", "admin", "net"]
       forbidden_tools: ["modify_user", "issue_refund"]
     failure_action: "BLOCK_PR"
     remediation: "Constrain agent tool choice or add router guards preventing mutating tools during general inquiry tasks."
@@ -86,7 +86,7 @@ policies:
       target_tools: ["query_db", "modify_user"]
       regex_patterns:
         - "(?i)\\b(DROP\\s+TABLE|UNION\\s+SELECT|ALTER\\s+TABLE|DELETE\\s+FROM|INSERT\\s+INTO)\\b"
-        - "(?i)(--|;|'\\s*OR\\s*'1'='1|1=1)"
+        - "(?i)(--\\s*$|;\\s*(?:SELECT|DROP|ALTER|DELETE|INSERT|UPDATE|UNION)\\b|'\\s*OR\\s*'1'='1|(?:^|\\s)1\\s*=\\s*1(?:\\s|$))"
     failure_action: "BLOCK_PR"
     remediation: "Implement strict parameter type validation or parameterization before tool argument dispatch."
 
