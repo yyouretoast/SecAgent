@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,16 @@ _STATUS_COLORS = {
     "tool.call": "#1a73e8",
     "other": "#5f6368",
 }
+
+_SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+
+
+def _stretch_kwargs(fn: Any) -> dict[str, Any]:
+    """Use ``width='stretch'`` on modern Streamlit while keeping 1.35+ compatibility."""
+    params = inspect.signature(fn).parameters
+    if "width" in params:
+        return {"width": "stretch"}
+    return {"use_container_width": True}
 
 
 def parse_app_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -131,8 +142,7 @@ def build_timeline_rows(
         dict_spans,
         key=lambda s: (int(s.get("step_index", 0)), int(s.get("start_time_ns", 0))),
     )
-    start_times = [int(s.get("start_time_ns", 0)) for s in ordered]
-    trace_start_ns = min(start_times)
+    trace_start_ns = min(int(s.get("start_time_ns", 0)) for s in ordered)
 
     by_span_id, by_step_index = index_violations(violations)
     rows: list[dict[str, Any]] = []
@@ -142,6 +152,7 @@ def build_timeline_rows(
         span_id = str(span.get("span_id", f"span-{step_index}"))
         span_type = str(span.get("span_type", "tool.call"))
         name = str(span.get("name", "unknown"))
+        permission_tier = str(span.get("permission_tier", "none"))
         start_ns = int(span.get("start_time_ns", trace_start_ns))
         end_ns = int(span.get("end_time_ns", start_ns))
         duration_ns = max(0, end_ns - start_ns)
@@ -159,12 +170,12 @@ def build_timeline_rows(
 
         rows.append(
             {
-                "label": f"#{step_index} {name}",
+                "label": f"#{step_index} {name} [{permission_tier}]",
                 "step_index": step_index,
                 "span_id": span_id,
                 "span_type": span_type,
                 "name": name,
-                "permission_tier": str(span.get("permission_tier", "none")),
+                "permission_tier": permission_tier,
                 "approval_granted": span.get("approval_granted"),
                 "is_error": bool(span.get("is_error", False)),
                 "error_message": span.get("error_message"),
@@ -212,7 +223,7 @@ def build_waterfall_chart_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "data": {"values": chart_rows},
-        "mark": {"type": "bar", "cornerRadius": 3, "height": 22},
+        "mark": {"type": "bar", "cornerRadius": 4, "height": 22},
         "encoding": {
             "y": {
                 "field": "label",
@@ -247,20 +258,46 @@ def build_waterfall_chart_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 {"field": "rule_ids", "type": "nominal", "title": "Violated Rules"},
             ],
         },
-        "height": max(180, len(chart_rows) * 38),
+        "height": max(180, len(chart_rows) * 40),
     }
+
+
+def _total_trace_duration_ms(rows: list[dict[str, Any]]) -> float | None:
+    """Compute total trace wall-clock duration in milliseconds from normalized rows."""
+    if not rows:
+        return None
+    min_start = min(row["start_time_ns"] for row in rows)
+    max_end = max(row["end_time_ns"] for row in rows)
+    return max(0, max_end - min_start) / 1_000_000.0
 
 
 def render_dashboard(
     report: dict[str, Any],
     traces: list[dict[str, Any]],
+    *,
+    violations_only: bool = False,
+    selected_types: list[str] | None = None,
+    selected_tiers: list[str] | None = None,
 ) -> None:
     """Render the Streamlit SecAgent audit dashboard from parsed report and trace data."""
     import streamlit as st
 
-    status = str(report.get("status", "UNKNOWN"))
-    agent_name = str(report.get("agent", "unknown"))
-    violations = list(report.get("violations", []) or [])
+    raw_status = report.get("status")
+    is_raw_trace = raw_status is None and isinstance(report.get("spans"), list)
+    status = "TRACE_ONLY" if is_raw_trace else str(raw_status or "UNKNOWN")
+    agent_name = str(
+        report.get("agent")
+        or report.get("metadata", {}).get("framework")
+        or report.get("scenario_id")
+        or "unknown"
+    )
+    violations = sorted(
+        [v for v in (report.get("violations") or []) if isinstance(v, dict)],
+        key=lambda v: (
+            _SEVERITY_ORDER.get(str(v.get("severity", "")), 99),
+            int(v.get("offending_step_index", 0) or 0),
+        ),
+    )
     scenarios_count = int(report.get("scenarios_evaluated") or len(traces))
 
     st.title("SecAgent Security Audit Dashboard")
@@ -275,15 +312,49 @@ def render_dashboard(
         st.warning(
             f"Security Gate Verdict: **NOT_EVALUATED** — `{agent_name}` (policy evaluation pending)"
         )
+    elif status == "TRACE_ONLY":
+        st.info(f"Inspecting Raw Execution Trace — Scenario `{agent_name}` (no evaluation report)")
     else:
         st.info(f"Security Gate Verdict: **{status}** — Target `{agent_name}`")
 
-    col1, col2, col3, col4 = st.columns(4)
+    selected_trace = traces[0] if traces else None
+    all_rows: list[dict[str, Any]] = []
+    if selected_trace is not None and len(traces) > 1:
+        labels = [
+            f"{t.get('scenario_id', f'Trace {idx}')} ({t.get('task_context', 'unknown')})"
+            for idx, t in enumerate(traces)
+        ]
+        selected_label = st.selectbox("Select Scenario Trace", labels)
+        selected_trace = traces[labels.index(selected_label)]
+
+    if selected_trace is not None:
+        trace_scenario_id = selected_trace.get("scenario_id")
+        trace_violations = [
+            v
+            for v in violations
+            if not (
+                "scenario_id" in v
+                and trace_scenario_id
+                and v.get("scenario_id") != trace_scenario_id
+            )
+        ]
+        all_rows = build_timeline_rows(selected_trace.get("spans", []), trace_violations)
+
+    trace_ms = _total_trace_duration_ms(all_rows)
+    exec_ms = report.get("execution_time_ms")
+    critical_count = sum(1 for v in violations if v.get("severity") == "CRITICAL")
+
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Verdict", status)
     col2.metric("Scenarios", scenarios_count)
-    col3.metric("Violations", len(violations))
-    exec_ms = report.get("execution_time_ms")
-    col4.metric(
+    col3.metric(
+        "Violations",
+        len(violations),
+        delta=f"{critical_count} critical" if critical_count else None,
+        delta_color="inverse" if critical_count else "off",
+    )
+    col4.metric("Trace Duration", f"{trace_ms:.3f} ms" if trace_ms is not None else "N/A")
+    col5.metric(
         "Eval Time",
         f"{exec_ms:.2f} ms"
         if isinstance(exec_ms, (int, float)) and not isinstance(exec_ms, bool)
@@ -304,26 +375,16 @@ def render_dashboard(
                 "Remediation": v.get("remediation", ""),
             }
             for v in violations
-            if isinstance(v, dict)
         ]
-        st.dataframe(table_rows, use_container_width=True, hide_index=True)
+        st.dataframe(table_rows, hide_index=True, **_stretch_kwargs(st.dataframe))
 
     st.subheader("Execution Trace Waterfall")
-    if not traces:
+    if selected_trace is None:
         st.info(
             "No execution trace spans found in this report. "
             "Provide a trace JSON via `--trace` or the sidebar to inspect spans."
         )
         return
-
-    selected_trace = traces[0]
-    if len(traces) > 1:
-        labels = [
-            f"{t.get('scenario_id', f'Trace {idx}')} ({t.get('task_context', 'unknown')})"
-            for idx, t in enumerate(traces)
-        ]
-        selected_label = st.selectbox("Select Scenario Trace", labels)
-        selected_trace = traces[labels.index(selected_label)]
 
     meta_c1, meta_c2, meta_c3, meta_c4 = st.columns(4)
     meta_c1.caption(f"**Scenario:** `{selected_trace.get('scenario_id', 'unknown')}`")
@@ -331,26 +392,29 @@ def render_dashboard(
     meta_c3.caption(f"**Task Context:** `{selected_trace.get('task_context', 'unknown')}`")
     meta_c4.caption(f"**Execution ID:** `{selected_trace.get('execution_id', 'unknown')}`")
 
-    trace_scenario_id = selected_trace.get("scenario_id")
-    trace_violations = [
-        v
-        for v in violations
-        if not (
-            isinstance(v, dict)
-            and "scenario_id" in v
-            and trace_scenario_id
-            and v.get("scenario_id") != trace_scenario_id
-        )
-    ]
-    rows = build_timeline_rows(selected_trace.get("spans", []), trace_violations)
-    if not rows:
+    if not all_rows:
         st.info("Selected trace contains no spans.")
         return
 
-    st.vega_lite_chart(build_waterfall_chart_spec(rows), use_container_width=True)
+    filtered_rows = [
+        row
+        for row in all_rows
+        if (not violations_only or row["violated"])
+        and (selected_types is None or row["span_type"] in selected_types)
+        and (selected_tiers is None or row["permission_tier"] in selected_tiers)
+    ]
+
+    if not filtered_rows:
+        st.info("No spans match the current sidebar filters.")
+        return
+
+    st.vega_lite_chart(
+        build_waterfall_chart_spec(filtered_rows),
+        **_stretch_kwargs(st.vega_lite_chart),
+    )
 
     st.subheader("Span Inspector")
-    for row in rows:
+    for row in filtered_rows:
         prefix = "[VIOLATION] " if row["violated"] else ""
         header = (
             f"{prefix}Step {row['step_index']}: {row['name']} "
@@ -413,17 +477,48 @@ def main(argv: list[str] | None = None) -> None:
             "Trace JSON path (optional)",
             value=str(args.trace) if args.trace else "",
         )
+        uploaded_report = st.file_uploader("Upload report.json", type=["json"])
+        uploaded_trace = st.file_uploader("Upload trace.json (optional)", type=["json"])
+
+        st.divider()
+        st.header("Span Filters")
+        violations_only = st.checkbox("Violations only", value=False)
+        selected_types = st.multiselect(
+            "Span types",
+            options=["tool.call", "gate.hitl", "model.inference", "agent.run"],
+            default=["tool.call", "gate.hitl", "model.inference", "agent.run"],
+        )
+        selected_tiers = st.multiselect(
+            "Permission tiers",
+            options=["pure", "read", "write", "pay", "admin", "net", "gate", "none"],
+            default=["pure", "read", "write", "pay", "admin", "net", "gate", "none"],
+        )
 
     report_path = Path(report_input) if report_input.strip() else args.report
     try:
-        report = load_json_document(report_path)
+        if uploaded_report is not None:
+            report = json.loads(uploaded_report.getvalue().decode("utf-8"))
+            if not isinstance(report, dict):
+                raise ValueError(f"Expected JSON object, got {type(report).__name__}")
+        else:
+            report = load_json_document(report_path)
     except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
         st.title("SecAgent Security Audit Dashboard")
         st.error(f"Could not load report `{report_path}`: {exc}")
         return
 
     explicit_trace: dict[str, Any] | None = None
-    if trace_input.strip():
+    if uploaded_trace is not None:
+        try:
+            loaded = json.loads(uploaded_trace.getvalue().decode("utf-8"))
+            if not isinstance(loaded, dict):
+                raise ValueError(f"Expected JSON object, got {type(loaded).__name__}")
+            explicit_trace = loaded
+        except (ValueError, json.JSONDecodeError) as exc:
+            st.title("SecAgent Security Audit Dashboard")
+            st.error(f"Could not load uploaded trace: {exc}")
+            return
+    elif trace_input.strip():
         trace_path = Path(trace_input.strip())
         try:
             explicit_trace = load_json_document(trace_path)
@@ -433,7 +528,13 @@ def main(argv: list[str] | None = None) -> None:
             return
 
     traces = extract_traces(report, explicit_trace=explicit_trace, base_dir=report_path.parent)
-    render_dashboard(report, traces)
+    render_dashboard(
+        report,
+        traces,
+        violations_only=violations_only,
+        selected_types=selected_types,
+        selected_tiers=selected_tiers,
+    )
 
 
 if __name__ == "__main__":
