@@ -2,6 +2,7 @@ import importlib
 import json
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -464,6 +465,145 @@ def generate_scenarios_cmd(
     console.print(f"Saved to: [cyan]{summary_file}[/cyan]")
 
 
+def _load_scenarios_from_dir(scenarios_dir: Path) -> list[dict[str, Any]]:
+    """Load scenario manifests from ``.yaml`` and ``.json`` files in ``scenarios_dir``."""
+    import yaml
+
+    individual_files: list[Path] = []
+    bundle_files: list[Path] = []
+
+    for path in sorted(list(scenarios_dir.glob("*.yaml")) + list(scenarios_dir.glob("*.json"))):
+        if path.name in ("generated_scenarios.json", "fuzz_findings.json"):
+            bundle_files.append(path)
+        else:
+            individual_files.append(path)
+
+    source_files = individual_files if individual_files else bundle_files
+    loaded: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    for path in source_files:
+        try:
+            text = path.read_text(encoding="utf-8")
+            data = yaml.safe_load(text) if path.suffix == ".yaml" else json.loads(text)
+        except Exception:
+            continue
+
+        items = data if isinstance(data, list) else ([data] if isinstance(data, dict) else [])
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            scn_id = str(item.get("id") or item.get("scenario_id") or f"{path.stem}-{len(loaded)}")
+            if scn_id not in seen_ids:
+                seen_ids.add(scn_id)
+                loaded.append(item)
+
+    return loaded
+
+
+def _execute_scenarios_with_telemetry(
+    target: Any,
+    mod: Any,
+    target_tools: list[Any],
+    scenario_dicts: list[dict[str, Any]],
+    policy_overrides: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Run scenarios through Subsystem 1 ExecutionHarness and Subsystem 2 TraceExporter."""
+    if target is None or not callable(getattr(target, "invoke", None)):
+        return []
+
+    from secagent.harness.runner import ExecutionHarness
+    from secagent.telemetry.callbacks import SecAgentTelemetryCallback, TraceSession
+    from secagent.telemetry.exporter import TraceExporter
+
+    class _GateAwareTelemetryCallback(SecAgentTelemetryCallback):
+        def __init__(self, session: TraceSession, approval_granted: bool) -> None:
+            super().__init__(session=session)
+            self._approval_granted = approval_granted
+
+        def on_chain_start(
+            self,
+            serialized: dict[str, Any] | None,
+            inputs: dict[str, Any] | Any,
+            **kwargs: Any,
+        ) -> None:
+            if kwargs.get("name") == "approval_gate":
+                self.record_hitl(self._approval_granted)
+
+    tier_by_tool = {t.name: t.permission_tier for t in target_tools}
+    harness = ExecutionHarness(policy_overrides=policy_overrides, dry_run=True)
+    exporter = TraceExporter()
+    framework = "langgraph" if hasattr(target, "nodes") else "generic"
+    traces: list[dict[str, Any]] = []
+
+    for idx, scn in enumerate(scenario_dicts):
+        scn_id = str(scn.get("id") or scn.get("scenario_id") or f"SCN-{idx + 1:03d}")
+        caller_role = str(scn.get("caller_role") or "guest")
+        task_context = str(scn.get("task_context") or "default")
+        session = TraceSession(
+            scenario_id=scn_id,
+            caller_role=caller_role,
+            task_context=task_context,
+            metadata={"framework": framework},
+        )
+        callback = _GateAwareTelemetryCallback(
+            session,
+            approval_granted=bool(scn.get("approval_granted", False)),
+        )
+        result = harness.run_scenario(target, scn, mod, callbacks=[callback])
+
+        for span in session.spans:
+            if span.get("span_type") == "tool.call" and span.get("permission_tier") in (
+                None,
+                "none",
+            ):
+                span["permission_tier"] = tier_by_tool.get(str(span.get("name")), "read")
+
+        if not session.spans and result.tool_calls:
+            for call_rec in result.tool_calls:
+                now_ns = call_rec.timestamp_ns
+                session.append(
+                    {
+                        "span_id": f"span-{uuid.uuid4().hex[:8]}",
+                        "span_type": "tool.call",
+                        "name": call_rec.tool_name,
+                        "start_time_ns": now_ns,
+                        "end_time_ns": now_ns,
+                        "permission_tier": (
+                            call_rec.permission_tier
+                            if call_rec.permission_tier
+                            in (
+                                "pure",
+                                "read",
+                                "write",
+                                "pay",
+                                "admin",
+                                "net",
+                                "gate",
+                                "none",
+                            )
+                            else tier_by_tool.get(call_rec.tool_name, "read")
+                        ),
+                        "approval_granted": None,
+                        "input_parameters": call_rec.arguments,
+                        "output_result": call_rec.output,
+                        "is_error": False,
+                        "error_message": None,
+                    }
+                )
+
+        err_span = result.error_span(step_index=len(session.spans))
+        if err_span is not None:
+            session.append(err_span)
+
+        try:
+            traces.append(exporter.validate(session.as_dict()))
+        except Exception:
+            traces.append(exporter.redact(session.as_dict()))
+
+    return traces
+
+
 @app.command(name="scan")
 def scan(
     agent_entrypoint: Annotated[
@@ -508,52 +648,74 @@ def scan(
     ] = Path("comment.md"),
 ) -> None:
     """Run security invariant checks against generated or provided scenarios."""
-    from secagent.generator import ScenarioGenerator, ToolMetadata
+    from secagent.generator import ScenarioGenerator
 
     console.print("[bold green]SecAgent Security Scanner[/bold green] v0.1.0")
     console.print(f"Policies: [cyan]{policies}[/cyan]")
 
     generator = ScenarioGenerator()
+    overrides = _resolve_policy_overrides(policies)
+    target: Any = None
+    mod: Any = None
+    target_tools: list[Any] = []
+
     if agent_entrypoint:
         console.print(f"Target Agent: [yellow]{agent_entrypoint}[/yellow]")
+        try:
+            target, mod = _load_entrypoint(agent_entrypoint)
+            raw = _discover_raw_tools(generator, target, mod)
+            target_tools = generator.introspect_tools(raw, policy_overrides=overrides)
+        except Exception as exc:
+            console.print(
+                f"[yellow]Notice: Introspection fell back to reference fixtures ({exc})[/yellow]"
+            )
 
-    # Dynamic generation of attack vectors if no static directory is provided
+    if not target_tools:
+        target_tools = generator.introspect_tools(
+            _default_benchmark_tools(),
+            policy_overrides=overrides,
+        )
+
     if scenarios is None or not scenarios.exists():
         console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
-        target_tools: list[ToolMetadata] = []
-        if agent_entrypoint:
-            try:
-                target, mod = _load_entrypoint(agent_entrypoint)
-                raw = generator.discover_tools(target, mod)
-                target_tools = generator.introspect_tools(raw)
-            except Exception as exc:
-                console.print(
-                    f"[yellow]Notice: Introspection fell back to reference fixtures ({exc})[/yellow]"
-                )
-
-        if not target_tools:
-            target_tools = [
-                ToolMetadata(name="execute_trade", permission_tier="pay"),
-                ToolMetadata(name="restart_server", permission_tier="admin"),
-                ToolMetadata(name="query_db", permission_tier="read"),
-            ]
-        synth_scenarios = generator.generate(target_tools)
-        scenarios_count = len(synth_scenarios)
+        synth_scenarios = generator.generate(target_tools, policy_overrides=overrides)
+        scenario_dicts = [s.to_dict() for s in synth_scenarios]
+        scenarios_count = len(scenario_dicts)
     else:
-        scenarios_count = len(list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json")))
+        scenario_dicts = _load_scenarios_from_dir(scenarios)
+        scenarios_count = len(scenario_dicts) or len(
+            list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json"))
+        )
 
-    report = {
+    traces = _execute_scenarios_with_telemetry(
+        target,
+        mod,
+        target_tools,
+        scenario_dicts,
+        overrides,
+    )
+
+    message = (
+        f"Executed {len(traces)} trace(s) across {scenarios_count} scenarios; "
+        "policy evaluation pending subsystem 4."
+        if traces
+        else f"Smoke run prepared {scenarios_count} scenarios. "
+        "Policy evaluation is pending subsystem 4 (engine not implemented)."
+    )
+
+    report: dict[str, Any] = {
         "status": "NOT_EVALUATED",
         "agent": agent_entrypoint or "baseline_smoke",
         "scenarios_evaluated": scenarios_count,
         "violations_detected": 0,
         "violations": [],
+        "traces": traces,
         "generation_mode": (
             "dynamic_synthetic"
             if (scenarios is None or not scenarios.exists())
             else "custom_directory"
         ),
-        "message": f"Smoke run prepared {scenarios_count} scenarios. Policy evaluation is pending subsystem 4 (engine not implemented).",
+        "message": message,
     }
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
@@ -563,9 +725,7 @@ def scan(
         scenarios_evaluated=scenarios_count,
     )
     output_markdown.write_text(comment, encoding="utf-8")
-    console.print(
-        f"[bold yellow]Smoke run complete ({scenarios_count} scenarios prepared); policy evaluation pending subsystem 4.[/bold yellow]"
-    )
+    console.print(f"[bold yellow]{message}[/bold yellow]")
     raise typer.Exit(code=0)
 
 
