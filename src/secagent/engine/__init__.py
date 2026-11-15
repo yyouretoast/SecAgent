@@ -1,5 +1,14 @@
 """Public policy-loading API for SecAgent's invariant engine."""
 
 from secagent.engine.loader import PolicyDefinition, PolicyLoader, PolicyLoadError, PolicyRuleset
+from secagent.engine.models import PolicyViolation
+from secagent.engine.rules import GoalHijackRule
 
-__all__ = ["PolicyDefinition", "PolicyLoadError", "PolicyLoader", "PolicyRuleset"]
+__all__ = [
+    "GoalHijackRule",
+    "PolicyDefinition",
+    "PolicyLoadError",
+    "PolicyLoader",
+    "PolicyRuleset",
+    "PolicyViolation",
+]
