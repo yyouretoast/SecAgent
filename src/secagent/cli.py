@@ -677,6 +677,29 @@ def _execute_scenarios_with_telemetry(
     return traces
 
 
+def _load_external_traces(trace_path: Path) -> list[dict[str, Any]]:
+    """Load and schema-validate pre-recorded trace JSON file(s) from ``trace_path``."""
+    from secagent.telemetry.exporter import TraceExporter
+
+    if not trace_path.exists():
+        raise FileNotFoundError(f"Trace path not found: {trace_path}")
+
+    files = sorted(trace_path.glob("*.json")) if trace_path.is_dir() else [trace_path]
+    if not files:
+        raise ValueError(f"No JSON trace files found in {trace_path}")
+
+    exporter = TraceExporter()
+    traces: list[dict[str, Any]] = []
+    for file_path in files:
+        raw = json.loads(file_path.read_text(encoding="utf-8"))
+        items = raw if isinstance(raw, list) else [raw]
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValueError(f"Trace entry in {file_path} must be a JSON object")
+            traces.append(exporter.validate(item))
+    return traces
+
+
 @app.command(name="scan")
 def scan(
     agent_entrypoint: Annotated[
@@ -701,6 +724,14 @@ def scan(
             "--scenarios",
             "-s",
             help="Optional path to custom scenarios directory. If omitted, scenarios are dynamically generated.",
+        ),
+    ] = None,
+    trace: Annotated[
+        Path | None,
+        typer.Option(
+            "--trace",
+            "-t",
+            help="Optional path to pre-recorded trace JSON file or directory to evaluate directly.",
         ),
     ] = None,
     output_report: Annotated[
@@ -740,48 +771,65 @@ def scan(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
-    generator = ScenarioGenerator()
-    overrides = dict(engine.ruleset.tool_tier_overrides)
-    if agent_entrypoint:
-        console.print(f"Target Agent: [yellow]{agent_entrypoint}[/yellow]")
-    target, mod, target_tools = _resolve_agent_target(
-        generator,
-        agent_entrypoint,
-        overrides,
-    )
+    if trace is not None:
+        try:
+            traces = _load_external_traces(trace)
+        except JsonSchemaValidationError as exc:
+            console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
+            raise typer.Exit(code=1) from exc
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1) from exc
 
-    if scenarios is None or not scenarios.exists():
-        console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
-        synth_scenarios = generator.generate(target_tools, policy_overrides=overrides)
-        scenario_dicts = [s.to_dict() for s in synth_scenarios]
-        scenarios_count = len(scenario_dicts)
+        scenarios_count = len(traces)
+        generation_mode = "external_trace"
     else:
-        scenario_dicts = _load_scenarios_from_dir(scenarios)
-        scenarios_count = len(scenario_dicts) or len(
-            list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json"))
-        )
-
-    try:
-        traces = _execute_scenarios_with_telemetry(
-            target,
-            mod,
-            target_tools,
-            scenario_dicts,
+        generator = ScenarioGenerator()
+        overrides = dict(engine.ruleset.tool_tier_overrides)
+        if agent_entrypoint:
+            console.print(f"Target Agent: [yellow]{agent_entrypoint}[/yellow]")
+        target, mod, target_tools = _resolve_agent_target(
+            generator,
+            agent_entrypoint,
             overrides,
         )
-    except JsonSchemaValidationError as exc:
-        console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
-        raise typer.Exit(code=1) from exc
 
-    generation_mode = (
-        "dynamic_synthetic" if (scenarios is None or not scenarios.exists()) else "custom_directory"
-    )
+        if scenarios is None or not scenarios.exists():
+            console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
+            synth_scenarios = generator.generate(target_tools, policy_overrides=overrides)
+            scenario_dicts = [s.to_dict() for s in synth_scenarios]
+            scenarios_count = len(scenario_dicts)
+        else:
+            scenario_dicts = _load_scenarios_from_dir(scenarios)
+            scenarios_count = len(scenario_dicts) or len(
+                list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json"))
+            )
+
+        try:
+            traces = _execute_scenarios_with_telemetry(
+                target,
+                mod,
+                target_tools,
+                scenario_dicts,
+                overrides,
+            )
+        except JsonSchemaValidationError as exc:
+            console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
+            raise typer.Exit(code=1) from exc
+
+        generation_mode = (
+            "dynamic_synthetic"
+            if (scenarios is None or not scenarios.exists())
+            else "custom_directory"
+        )
+
+    agent_label = agent_entrypoint or (str(trace) if trace is not None else "")
 
     if traces:
         evaluation = engine.evaluate_traces(traces)
         report = PolicyReporter().generate_report(
             evaluation,
-            agent_name=agent_entrypoint or "baseline_smoke",
+            agent_name=agent_label or "baseline_smoke",
             scenarios_evaluated=scenarios_count,
             traces=traces,
             generation_mode=generation_mode,
@@ -790,7 +838,7 @@ def scan(
     else:
         report = {
             "status": "NOT_EVALUATED",
-            "agent": agent_entrypoint or "baseline_smoke",
+            "agent": agent_label or "baseline_smoke",
             "scenarios_evaluated": scenarios_count,
             "violations_detected": 0,
             "violations": [],
@@ -807,7 +855,7 @@ def scan(
 
     comment = _format_markdown_report(
         report,
-        agent_name=agent_entrypoint or "default_fixture",
+        agent_name=agent_label or "default_fixture",
         scenarios_evaluated=scenarios_count,
     )
     output_markdown.write_text(comment, encoding="utf-8")
