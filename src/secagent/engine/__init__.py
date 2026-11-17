@@ -1,7 +1,9 @@
 """Public policy-loading API for SecAgent's invariant engine."""
 
+from secagent.engine.evaluator import RULE_REGISTRY, PolicyEngine
 from secagent.engine.loader import PolicyDefinition, PolicyLoader, PolicyRuleset
-from secagent.engine.models import PolicyViolation
+from secagent.engine.models import EvaluationResult, PolicyViolation
+from secagent.engine.reporter import PolicyReporter
 from secagent.engine.rules import (
     CircuitBreakerRule,
     ContextPrivilegeRule,
@@ -15,13 +17,17 @@ from secagent.engine.rules import (
 __all__ = [
     "CircuitBreakerRule",
     "ContextPrivilegeRule",
+    "EvaluationResult",
     "FieldScopeRule",
     "GoalHijackRule",
     "NetworkEgressRule",
     "ParameterRegexRule",
     "PolicyDefinition",
+    "PolicyEngine",
     "PolicyLoader",
+    "PolicyReporter",
     "PolicyRuleset",
     "PolicyViolation",
     "PredecessorGateRule",
+    "RULE_REGISTRY",
 ]
