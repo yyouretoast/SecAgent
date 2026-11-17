@@ -71,7 +71,7 @@ def _format_markdown_report(
             "### SecAgent Security Gate: NOT_EVALUATED\n\n"
             f"- **Target Agent**: `{effective_agent}`\n"
             f"- **Scenarios Prepared**: {effective_scenarios}\n"
-            "- **Status**: Policy evaluation is not implemented yet (subsystem 4); "
+            "- **Status**: No executable agent traces were produced; "
             "no policies were evaluated in this run.\n"
         )
 
@@ -727,36 +727,63 @@ def scan(
             list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json"))
         )
 
-    traces = _execute_scenarios_with_telemetry(
-        target,
-        mod,
-        target_tools,
-        scenario_dicts,
-        overrides,
+    from jsonschema import ValidationError as JsonSchemaValidationError
+
+    try:
+        traces = _execute_scenarios_with_telemetry(
+            target,
+            mod,
+            target_tools,
+            scenario_dicts,
+            overrides,
+        )
+    except JsonSchemaValidationError as exc:
+        console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    generation_mode = (
+        "dynamic_synthetic" if (scenarios is None or not scenarios.exists()) else "custom_directory"
     )
 
-    message = (
-        f"Executed {len(traces)} trace(s) across {scenarios_count} scenarios; "
-        "policy evaluation pending subsystem 4."
-        if traces
-        else f"Smoke run prepared {scenarios_count} scenarios. "
-        "Policy evaluation is pending subsystem 4 (engine not implemented)."
-    )
+    if traces:
+        from secagent.engine import PolicyEngine, PolicyLoadError, PolicyReporter
 
-    report: dict[str, Any] = {
-        "status": "NOT_EVALUATED",
-        "agent": agent_entrypoint or "baseline_smoke",
-        "scenarios_evaluated": scenarios_count,
-        "violations_detected": 0,
-        "violations": [],
-        "traces": traces,
-        "generation_mode": (
-            "dynamic_synthetic"
-            if (scenarios is None or not scenarios.exists())
-            else "custom_directory"
-        ),
-        "message": message,
-    }
+        effective_policy_path = (
+            None
+            if policies == Path("policies/security_rules.yaml") and not policies.exists()
+            else policies
+        )
+        try:
+            engine = PolicyEngine(policy_path=effective_policy_path)
+        except PolicyLoadError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1) from exc
+
+        evaluation = engine.evaluate_traces(traces)
+        report = PolicyReporter().generate_report(
+            evaluation,
+            agent_name=agent_entrypoint or "baseline_smoke",
+            scenarios_evaluated=scenarios_count,
+            traces=traces,
+            generation_mode=generation_mode,
+        )
+        exit_code = 1 if evaluation.has_blocking_violations else 0
+    else:
+        report = {
+            "status": "NOT_EVALUATED",
+            "agent": agent_entrypoint or "baseline_smoke",
+            "scenarios_evaluated": scenarios_count,
+            "violations_detected": 0,
+            "violations": [],
+            "traces": traces,
+            "generation_mode": generation_mode,
+            "message": (
+                f"Smoke run prepared {scenarios_count} scenarios; "
+                "no runnable agent traces were executed (NOT_EVALUATED)."
+            ),
+        }
+        exit_code = 0
+
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     comment = _format_markdown_report(
@@ -765,8 +792,14 @@ def scan(
         scenarios_evaluated=scenarios_count,
     )
     output_markdown.write_text(comment, encoding="utf-8")
-    console.print(f"[bold yellow]{message}[/bold yellow]")
-    raise typer.Exit(code=0)
+    message = str(report["message"])
+    if report["status"] == "FAIL":
+        console.print(f"[bold red]{message}[/bold red]")
+    elif report["status"] == "PASS":
+        console.print(f"[bold green]{message}[/bold green]")
+    else:
+        console.print(f"[bold yellow]{message}[/bold yellow]")
+    raise typer.Exit(code=exit_code)
 
 
 @app.command(name="test")
