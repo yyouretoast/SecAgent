@@ -2,6 +2,7 @@ import importlib
 import json
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Annotated, Any
@@ -11,6 +12,7 @@ from rich.console import Console
 
 MAX_GITHUB_COMMENT_LENGTH = 65000
 _SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+_VALID_SPAN_TIERS = frozenset({"pure", "read", "write", "pay", "admin", "net", "gate", "none"})
 
 app = typer.Typer(
     name="secagent",
@@ -501,6 +503,40 @@ def _load_scenarios_from_dir(scenarios_dir: Path) -> list[dict[str, Any]]:
     return loaded
 
 
+def _extract_interrupt_events(output: Any) -> list[Any]:
+    """Extract LangGraph ``__interrupt__`` values from runnable output if present."""
+    if not isinstance(output, dict):
+        return []
+    raw = output.get("__interrupt__")
+    if raw is None:
+        return []
+    items = list(raw) if isinstance(raw, (list, tuple)) else [raw]
+    return [getattr(item, "value", item) for item in items]
+
+
+def _record_output_interrupts(callback: Any, output: Any, target_tool: str) -> None:
+    """Normalize LangGraph ``__interrupt__`` payloads into ``gate.hitl`` spans."""
+    for event in _extract_interrupt_events(output):
+        if isinstance(event, bool):
+            payload: Any = event
+        elif isinstance(event, dict) and isinstance(
+            event.get("approval_granted", event.get("approved", event.get("value"))),
+            bool,
+        ):
+            payload = event
+        else:
+            payload = {
+                "approval_granted": False,
+                "operation": (
+                    event.get("operation") or event.get("target_operation")
+                    if isinstance(event, dict)
+                    else target_tool or "interrupt"
+                ),
+                "input_parameters": event if isinstance(event, dict) else {"value": event},
+            }
+        callback.record_interrupt(payload)
+
+
 def _execute_scenarios_with_telemetry(
     target: Any,
     mod: Any,
@@ -551,6 +587,11 @@ def _execute_scenarios_with_telemetry(
             approval_granted=bool(scn.get("approval_granted", False)),
         )
         result = harness.run_scenario(target, scn, mod, callbacks=[callback])
+        _record_output_interrupts(
+            callback,
+            result.output,
+            target_tool=str(scn.get("target_tool") or ""),
+        )
 
         for span in session.spans:
             if span.get("span_type") == "tool.call" and span.get("permission_tier") in (
@@ -561,7 +602,20 @@ def _execute_scenarios_with_telemetry(
 
         if not session.spans and result.tool_calls:
             for call_rec in result.tool_calls:
-                now_ns = call_rec.timestamp_ns
+                now_ns = getattr(call_rec, "timestamp_ns", None) or time.time_ns()
+                raw_tier = getattr(
+                    call_rec,
+                    "permission_tier",
+                    getattr(call_rec, "tier", None),
+                )
+                resolved_tier = (
+                    raw_tier
+                    if raw_tier in _VALID_SPAN_TIERS
+                    else tier_by_tool.get(call_rec.tool_name, "read")
+                )
+                output = getattr(call_rec, "output", None)
+                if isinstance(output, list):
+                    output = json.dumps(output, default=str)
                 session.append(
                     {
                         "span_id": f"span-{uuid.uuid4().hex[:8]}",
@@ -569,24 +623,10 @@ def _execute_scenarios_with_telemetry(
                         "name": call_rec.tool_name,
                         "start_time_ns": now_ns,
                         "end_time_ns": now_ns,
-                        "permission_tier": (
-                            call_rec.permission_tier
-                            if call_rec.permission_tier
-                            in (
-                                "pure",
-                                "read",
-                                "write",
-                                "pay",
-                                "admin",
-                                "net",
-                                "gate",
-                                "none",
-                            )
-                            else tier_by_tool.get(call_rec.tool_name, "read")
-                        ),
+                        "permission_tier": resolved_tier,
                         "approval_granted": None,
                         "input_parameters": call_rec.arguments,
-                        "output_result": call_rec.output,
+                        "output_result": output,
                         "is_error": False,
                         "error_message": None,
                     }
@@ -596,10 +636,7 @@ def _execute_scenarios_with_telemetry(
         if err_span is not None:
             session.append(err_span)
 
-        try:
-            traces.append(exporter.validate(session.as_dict()))
-        except Exception:
-            traces.append(exporter.redact(session.as_dict()))
+        traces.append(exporter.validate(session.as_dict()))
 
     return traces
 
@@ -666,11 +703,14 @@ def scan(
             raw = _discover_raw_tools(generator, target, mod)
             target_tools = generator.introspect_tools(raw, policy_overrides=overrides)
         except Exception as exc:
+            console.print(f"[red]Error loading agent entrypoint '{agent_entrypoint}': {exc}[/red]")
+            raise typer.Exit(code=1) from exc
+        if not target_tools:
             console.print(
-                f"[yellow]Notice: Introspection fell back to reference fixtures ({exc})[/yellow]"
+                f"[red]No tools discovered for agent entrypoint '{agent_entrypoint}'.[/red]"
             )
-
-    if not target_tools:
+            raise typer.Exit(code=1)
+    else:
         target_tools = generator.introspect_tools(
             _default_benchmark_tools(),
             policy_overrides=overrides,
