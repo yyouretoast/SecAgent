@@ -128,7 +128,7 @@ def execute_trade(symbol: str, quantity: int) -> dict:
 Run a scan against an agent module:
 
 ```bash
-secagent scan --agent examples.finance_agent.agent --policies policies/security_rules.yaml
+secagent scan --agent examples.finance_agent.agent:app --policies policies/security_rules.yaml
 ```
 
 ### 4. Synthesize & Fuzz Test Scenarios

@@ -128,3 +128,15 @@ def test_us5_4_cli_rejects_invalid_counts(tmp_path: Path):
         app, ["fuzz", "--iterations", "0", "--output-dir", str(tmp_path / "f")]
     )
     assert res_fuzz.exit_code != 0
+
+
+def test_resolve_policy_overrides_falls_back_to_packaged_defaults(tmp_path: Path, monkeypatch):
+    """Verify `_resolve_policy_overrides` loads packaged overrides when default path is absent in cwd."""
+    from secagent.cli import _resolve_policy_overrides
+
+    monkeypatch.chdir(tmp_path)
+    overrides = _resolve_policy_overrides(Path("policies/security_rules.yaml"))
+    assert overrides.get("execute_trade") == "pay"
+    assert overrides.get("restart_server") == "admin"
+
+    assert _resolve_policy_overrides(tmp_path / "missing_custom.yaml") == {}
