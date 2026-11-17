@@ -2,10 +2,17 @@
 
 from secagent.engine.loader import PolicyDefinition, PolicyLoader, PolicyRuleset
 from secagent.engine.models import PolicyViolation
-from secagent.engine.rules import GoalHijackRule, PredecessorGateRule
+from secagent.engine.rules import (
+    ContextPrivilegeRule,
+    GoalHijackRule,
+    ParameterRegexRule,
+    PredecessorGateRule,
+)
 
 __all__ = [
+    "ContextPrivilegeRule",
     "GoalHijackRule",
+    "ParameterRegexRule",
     "PolicyDefinition",
     "PolicyLoader",
     "PolicyRuleset",
