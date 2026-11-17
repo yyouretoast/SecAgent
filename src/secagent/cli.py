@@ -240,6 +240,13 @@ def _resolve_agent_target(
 
     try:
         target, mod = _load_entrypoint(agent_entrypoint)
+        if callable(target) and not callable(getattr(target, "invoke", None)):
+            try:
+                built = target()
+                if callable(getattr(built, "invoke", None)):
+                    target = built
+            except TypeError:
+                pass
         raw_tools = _discover_raw_tools(generator, target, mod)
         discovered = generator.introspect_tools(raw_tools, policy_overrides=overrides)
     except Exception as exc:
@@ -579,6 +586,8 @@ def _execute_scenarios_with_telemetry(
     target_tools: list[Any],
     scenario_dicts: list[dict[str, Any]],
     policy_overrides: dict[str, str],
+    *,
+    timeout_s: float = 5.0,
 ) -> list[dict[str, Any]]:
     """Run scenarios through Subsystem 1 ExecutionHarness and Subsystem 2 TraceExporter."""
     if target is None or not callable(getattr(target, "invoke", None)):
@@ -603,7 +612,7 @@ def _execute_scenarios_with_telemetry(
                 self.record_hitl(self._approval_granted)
 
     tier_by_tool = {t.name: t.permission_tier for t in target_tools}
-    harness = ExecutionHarness(policy_overrides=policy_overrides, dry_run=True)
+    harness = ExecutionHarness(timeout_s=timeout_s, policy_overrides=policy_overrides, dry_run=True)
     exporter = TraceExporter()
     framework = "langgraph" if hasattr(target, "nodes") else "generic"
     traces: list[dict[str, Any]] = []
@@ -734,6 +743,14 @@ def scan(
             help="Optional path to pre-recorded trace JSON file or directory to evaluate directly.",
         ),
     ] = None,
+    timeout: Annotated[
+        float,
+        typer.Option(
+            "--timeout",
+            min=0.1,
+            help="Per-scenario execution timeout in seconds.",
+        ),
+    ] = 5.0,
     output_report: Annotated[
         Path,
         typer.Option(
@@ -812,6 +829,7 @@ def scan(
                 target_tools,
                 scenario_dicts,
                 overrides,
+                timeout_s=timeout,
             )
         except JsonSchemaValidationError as exc:
             console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")

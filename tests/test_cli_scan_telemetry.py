@@ -251,3 +251,22 @@ def test_scan_rejects_missing_trace_file(tmp_path: Path):
         ],
     )
     assert res.exit_code == 1
+
+
+def test_resolve_agent_target_invokes_zero_arg_factory(monkeypatch):
+    """Verify `_resolve_agent_target` calls zero-arg graph factories like `build_graph`."""
+    import types
+
+    import examples.finance_agent.agent as finance
+    from secagent.cli import _resolve_agent_target
+    from secagent.generator import ScenarioGenerator
+
+    mod = types.ModuleType("fake_factory_mod")
+    mod.build_graph = lambda: finance.app  # type: ignore[attr-defined]
+    monkeypatch.setattr("secagent.cli._load_entrypoint", lambda _: (mod.build_graph, mod))
+
+    target, _, discovered = _resolve_agent_target(
+        ScenarioGenerator(), "fake_factory_mod:build_graph", {}
+    )
+    assert callable(getattr(target, "invoke", None))
+    assert len(discovered) == 4
