@@ -56,6 +56,8 @@ def test_action_yml_contract_and_injection_safety():
     scan_step = action["runs"]["steps"][scan_idx]
     assert "INPUT_OUTPUT_REPORT" in scan_step["run"]
     assert "status=$REPORT_STATUS" in scan_step["run"]
+    assert 'REPORT_STATUS="WARN"' in scan_step["run"]
+    assert '"$SCAN_STATUS" = "WARN"' in gate_step["run"]
 
 
 def test_ci_workflow_uses_composite_action():
