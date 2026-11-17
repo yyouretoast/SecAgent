@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 
 from secagent.cli import _format_markdown_report
-from secagent.engine import EvaluationResult, PolicyEngine, PolicyReporter
+from secagent.engine import RULE_REGISTRY, EvaluationResult, PolicyEngine, PolicyReporter
+from secagent.engine.loader import SUPPORTED_RULE_TYPES
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT_DIR / "policies" / "security_rules.yaml"
@@ -118,3 +119,27 @@ def test_engine_and_reporter_cover_all_eight_policies_with_scenario_attribution(
     markdown = _format_markdown_report(report)
     assert "### SecAgent Security Gate: FAIL" in markdown
     assert "POL-ASI06-001" in markdown
+
+
+def test_rule_registry_covers_all_supported_rule_types():
+    assert set(RULE_REGISTRY) == SUPPORTED_RULE_TYPES
+
+
+def test_reporter_generates_pass_report_for_compliant_trace():
+    engine = PolicyEngine(policy_path=POLICY_PATH)
+    sample = json.loads((FIXTURES_DIR / "sample_trace.json").read_text(encoding="utf-8"))
+
+    result = engine.evaluate_trace(sample)
+    report = PolicyReporter().generate_report(
+        result,
+        agent_name="examples.finance_agent.agent:app",
+        scenarios_evaluated=1,
+        traces=[sample],
+    )
+
+    assert report["status"] == "PASS"
+    assert report["violations_detected"] == 0
+    assert report["violations"] == []
+    assert "all security policies satisfied" in report["message"]
+    markdown = _format_markdown_report(report)
+    assert "### SecAgent Security Gate: PASS" in markdown
