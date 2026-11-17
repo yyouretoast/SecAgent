@@ -6,6 +6,7 @@ import copy
 import json
 import time
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -53,7 +54,14 @@ def _tool_name(serialized: Any, kwargs: dict[str, Any]) -> str:
     return str(kwargs.get("name") or kwargs.get("tool_name") or "unknown_tool")
 
 
-def _permission_tier(serialized: Any, kwargs: dict[str, Any]) -> str:
+def _permission_tier(
+    serialized: Any,
+    kwargs: dict[str, Any],
+    *,
+    tool_name: str,
+    tier_by_tool: Mapping[str, str] | None = None,
+) -> str:
+    """Resolve metadata first, then configured and semantic tool tiers."""
     candidates = [serialized, kwargs.get("metadata"), kwargs]
     if isinstance(serialized, dict):
         candidates.append(serialized.get("kwargs"))
@@ -62,7 +70,9 @@ def _permission_tier(serialized: Any, kwargs: dict[str, Any]) -> str:
             tier = candidate.get("permission_tier") or candidate.get("_secagent_permission_tier")
             if tier:
                 return str(tier)
-    return "none"
+    from secagent.harness.introspector import resolve_permission_tier
+
+    return resolve_permission_tier(tool_name, overrides=dict(tier_by_tool or {}))
 
 
 @dataclass
@@ -108,8 +118,14 @@ class TraceSession:
 class SecAgentTelemetryCallback(BaseCallbackHandler):
     """Capture LangChain tool lifecycle callbacks as trace spans."""
 
-    def __init__(self, session: TraceSession | None = None) -> None:
+    def __init__(
+        self,
+        session: TraceSession | None = None,
+        *,
+        tier_by_tool: Mapping[str, str] | None = None,
+    ) -> None:
         self.session = session or TraceSession()
+        self.tier_by_tool = dict(tier_by_tool or {})
         self._active: dict[str, dict[str, Any]] = {}
         self._last_active: dict[str, Any] | None = None
 
@@ -127,14 +143,20 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         start_time = time.time_ns()
+        name = _tool_name(serialized, kwargs)
         span = self.session.append(
             {
                 "span_id": str(run_id or uuid.uuid4()),
                 "span_type": "tool.call",
-                "name": _tool_name(serialized, kwargs),
+                "name": name,
                 "start_time_ns": start_time,
                 "end_time_ns": start_time,
-                "permission_tier": _permission_tier(serialized, kwargs),
+                "permission_tier": _permission_tier(
+                    serialized,
+                    kwargs,
+                    tool_name=name,
+                    tier_by_tool=self.tier_by_tool,
+                ),
                 "approval_granted": None,
                 "input_parameters": _input_parameters(kwargs.get("inputs", input_str)),
                 "output_result": None,
