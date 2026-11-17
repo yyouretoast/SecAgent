@@ -101,7 +101,7 @@ A user story is accepted as complete if:
 > **I want** destructive tools to execute in a virtual dry-run sandbox during security testing,  
 > **So that** automated tests never modify real production systems, drop tables, or place financial trades.
 
-* **Priority**: Critical (P0) | **Points**: 8 | **Sprint**: 2 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 8 | **Sprint**: 2 | **Status**: Complete
 * **Target Interface**: `src/secagent/harness/sandbox.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -125,7 +125,7 @@ A user story is accepted as complete if:
 > **I want** the execution harness to enforce strict execution timeouts and exception trapping,  
 > **So that** runaway agent loops or unhandled exceptions do not stall the CI runner.
 
-* **Priority**: High (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Planned
+* **Priority**: High (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Complete
 * **Target Interface**: `src/secagent/harness/runner.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -150,7 +150,7 @@ A user story is accepted as complete if:
 > **I want** working reference agents in `examples/`,  
 > **So that** compliant and vulnerable agent behaviors can be demonstrated reproducibly.
 
-* **Priority**: High (P1) | **Points**: 5 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: High (P1) | **Points**: 5 | **Sprint**: 3 | **Status**: In Progress
 * **Target Interface**: `examples/finance_agent/`, `examples/devops_agent/`, `examples/support_agent/`
 * **Acceptance Criteria**:
   ```gherkin
@@ -183,7 +183,7 @@ A user story is accepted as complete if:
 > **I want** agent invocations instrumented via standard OpenTelemetry GenAI callback events,  
 > **So that** all tool invocations and model steps are captured with nanosecond precision.
 
-* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 1 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 1 | **Status**: Complete
 * **Target Interface**: `src/secagent/telemetry/callbacks.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -202,7 +202,7 @@ A user story is accepted as complete if:
 > **I want** framework-native Human-in-the-Loop interrupts mapped to standard `gate.hitl` spans,  
 > **So that** approval gates are deterministically observable in the execution trace.
 
-* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Complete
 * **Target Interface**: `src/secagent/telemetry/hitl.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -221,7 +221,7 @@ A user story is accepted as complete if:
 > **I want** PII and sensitive tokens scrubbed from parameters and outputs before trace serialization,  
 > **So that** CI logs and trace artifacts never leak sensitive customer credentials.
 
-* **Priority**: High (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Planned
+* **Priority**: High (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Complete
 * **Target Interface**: `src/secagent/telemetry/redactor.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -248,7 +248,7 @@ A user story is accepted as complete if:
 > **I want** trace JSON logs strictly validated against `schemas/trace_event.schema.json`,  
 > **So that** downstream verification engines receive reliably structured trace objects.
 
-* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `src/secagent/telemetry/exporter.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -338,7 +338,7 @@ A user story is accepted as complete if:
 > **I want** security rules parsed from `policies/security_rules.yaml` into typed models,  
 > **So that** security invariants can be configured without modifying engine source code.
 
-* **Priority**: Critical (P0) | **Points**: 3 | **Sprint**: 1 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 3 | **Sprint**: 1 | **Status**: Complete
 * **Target Interface**: `src/secagent/engine/loader.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -356,7 +356,7 @@ A user story is accepted as complete if:
 > **I want** the engine to fail any trace where high-privilege operations lack approved predecessor gates,  
 > **So that** unauthorized financial or administrative actions block the PR build.
 
-* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Complete
 * **Target Interface**: `src/secagent/engine/rules/predecessor_gate.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -380,7 +380,7 @@ A user story is accepted as complete if:
 > **I want** read-only sessions forbidden from executing state-mutating tools,  
 > **So that** goal-hijacked inquiry agents cannot mutate state.
 
-* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `src/secagent/engine/rules/context_privilege.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -398,7 +398,7 @@ A user story is accepted as complete if:
 > **I want** input parameters verified against SQLi and shell injection regex blocklists,  
 > **So that** injected payloads are caught before reaching execution environments.
 
-* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 2 | **Status**: Complete
 * **Target Interface**: `src/secagent/engine/rules/parameter_regex.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -420,7 +420,7 @@ A user story is accepted as complete if:
 > **I want** database queries checked for over-fetched sensitive profile fields,  
 > **So that** agents do not pull restricted PII into working context.
 
-* **Priority**: High (P1) | **Points**: 5 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: High (P1) | **Points**: 5 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `src/secagent/engine/rules/field_scope.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -438,7 +438,7 @@ A user story is accepted as complete if:
 > **I want** traces evaluated for infinite retry loops and runaway recursion,  
 > **So that** looping agents are terminated and failed in CI.
 
-* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `src/secagent/engine/rules/circuit_breaker.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -460,7 +460,7 @@ A user story is accepted as complete if:
 > **I want** network tool destinations checked against approved domain allowlists,  
 > **So that** unauthorized data exfiltration to external sinks is blocked.
 
-* **Priority**: Critical (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `src/secagent/engine/rules/network_egress.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -477,7 +477,7 @@ A user story is accepted as complete if:
 > **I want** structured diagnostic JSON reports and clear remediation guidance,  
 > **So that** I know exactly how to fix the security boundary breach.
 
-* **Priority**: High (P0) | **Points**: 5 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: High (P0) | **Points**: 5 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `src/secagent/engine/reporter.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -501,7 +501,7 @@ A user story is accepted as complete if:
 > **I want** `secagent scan --agent <module:app>` to orchestrate the entire audit pipeline,  
 > **So that** I get an accurate security verdict with appropriate exit codes (0 or 1).
 
-* **Priority**: Critical (P0) | **Points**: 8 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 8 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `src/secagent/cli.py` (`scan` command)
 * **Acceptance Criteria**:
   ```gherkin
@@ -523,7 +523,7 @@ A user story is accepted as complete if:
 > **I want** a plug-and-play GitHub Action running SecAgent on pull requests,  
 > **So that** insecure agent merges are automatically halted in CI.
 
-* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 4 | **Status**: Planned
+* **Priority**: Critical (P0) | **Points**: 5 | **Sprint**: 4 | **Status**: Complete
 * **Target Interface**: `action.yml`, `.github/workflows/secagent-ci.yml`
 * **Acceptance Criteria**:
   ```gherkin
@@ -541,7 +541,7 @@ A user story is accepted as complete if:
 > **I want** a clear Markdown summary table posted to the PR upon failure,  
 > **So that** reviewers can see the violated invariant, offending span, and remediation steps directly in GitHub.
 
-* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 4 | **Status**: Planned
+* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 4 | **Status**: Complete
 * **Target Interface**: `src/secagent/cli.py` (`_format_markdown_report`)
 * **Acceptance Criteria**:
   ```gherkin
@@ -559,7 +559,7 @@ A user story is accepted as complete if:
 > **I want** dedicated CLI subcommands (`secagent generate`, `secagent fuzz`),  
 > **So that** I can pre-generate test manifests or run extended mutation sweeps.
 
-* **Priority**: Medium (P1) | **Points**: 3 | **Sprint**: 4 | **Status**: Planned
+* **Priority**: Medium (P1) | **Points**: 3 | **Sprint**: 4 | **Status**: Complete
 * **Target Interface**: `src/secagent/cli.py` (`generate` and `fuzz` commands)
 * **Acceptance Criteria**:
   ```gherkin
@@ -576,7 +576,7 @@ A user story is accepted as complete if:
 > **I want** an interactive 1-page Streamlit dashboard launched via `secagent serve`,  
 > **So that** trace timelines, span attributes, and security violations can be inspected visually.
 
-* **Priority**: Medium (P1) | **Points**: 5 | **Sprint**: 4 | **Status**: Planned
+* **Priority**: Medium (P1) | **Points**: 5 | **Sprint**: 4 | **Status**: Complete
 * **Target Interface**: `src/secagent/app.py`
 * **Acceptance Criteria**:
   ```gherkin

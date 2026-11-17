@@ -143,8 +143,20 @@ def _discover_raw_tools(generator: Any, target: Any, mod: Any) -> list[Any]:
 
 
 def _resolve_policy_overrides(policies: Path | None) -> dict[str, str]:
-    """Load tool_tier_overrides from the policy YAML file via Subsystem 1 introspector."""
-    if policies is None or not policies.exists():
+    """Load tool_tier_overrides from the policy YAML file or packaged defaults."""
+    if policies is None or (
+        policies == Path("policies/security_rules.yaml") and not policies.exists()
+    ):
+        from secagent.engine import PolicyLoader, PolicyLoadError
+
+        try:
+            return dict(PolicyLoader(None).load().tool_tier_overrides)
+        except PolicyLoadError as exc:
+            console.print(
+                f"[yellow]Warning: Could not load packaged policy overrides ({exc})[/yellow]"
+            )
+            return {}
+    if not policies.exists():
         return {}
     import yaml
 
