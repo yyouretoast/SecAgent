@@ -19,6 +19,10 @@ inputs:
     description: "Optional path to scenarios directory. If omitted, scenarios are generated dynamically."
     required: false
     default: ""
+  trace:
+    description: "Optional path to pre-recorded trace JSON file or directory"
+    required: false
+    default: ""
   output_report:
     description: "Path to output JSON audit report"
     required: false
@@ -68,6 +72,7 @@ runs:
         INPUT_AGENT_ENTRYPOINT: ${{ inputs.agent_entrypoint }}
         INPUT_POLICIES: ${{ inputs.policies }}
         INPUT_SCENARIOS: ${{ inputs.scenarios }}
+        INPUT_TRACE: ${{ inputs.trace }}
         INPUT_OUTPUT_REPORT: ${{ inputs.output_report }}
         INPUT_OUTPUT_MARKDOWN: ${{ inputs.output_markdown }}
         PYTHONPATH: ${{ github.workspace }}
@@ -80,6 +85,9 @@ runs:
         )
         if [ -n "$INPUT_SCENARIOS" ]; then
           ARGS+=(--scenarios "$INPUT_SCENARIOS")
+        fi
+        if [ -n "$INPUT_TRACE" ]; then
+          ARGS+=(--trace "$INPUT_TRACE")
         fi
         set +e
         secagent scan "${ARGS[@]}"

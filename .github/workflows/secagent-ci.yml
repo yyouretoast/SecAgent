@@ -32,6 +32,7 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+          mypy src/secagent/cli.py src/secagent/app.py src/secagent/engine
 
       - name: Run Contract & Regression Tests
         run: |

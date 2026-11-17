@@ -206,3 +206,48 @@ policies:
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["status"] == "FAIL"
     assert report["violations_detected"] == 1
+
+
+def test_scan_evaluates_external_trace_file_directly(tmp_path: Path):
+    """Verify `secagent scan --trace` evaluates pre-recorded trace JSON without an agent."""
+    runner = CliRunner()
+    fixture = Path("tests/fixtures/trace_privilege_violation.json")
+    report_path = tmp_path / "trace_report.json"
+    comment_path = tmp_path / "trace_comment.md"
+
+    res = runner.invoke(
+        app,
+        [
+            "scan",
+            "--trace",
+            str(fixture),
+            "--output-report",
+            str(report_path),
+            "--output-markdown",
+            str(comment_path),
+        ],
+    )
+
+    assert res.exit_code == 1
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["status"] == "FAIL"
+    assert report["generation_mode"] == "external_trace"
+    assert report["violations_detected"] >= 1
+    assert any(v["rule_id"] == "POL-ASI03-001" for v in report["violations"])
+
+
+def test_scan_rejects_missing_trace_file(tmp_path: Path):
+    runner = CliRunner()
+    res = runner.invoke(
+        app,
+        [
+            "scan",
+            "--trace",
+            str(tmp_path / "missing_trace.json"),
+            "--output-report",
+            str(tmp_path / "r.json"),
+            "--output-markdown",
+            str(tmp_path / "c.md"),
+        ],
+    )
+    assert res.exit_code == 1

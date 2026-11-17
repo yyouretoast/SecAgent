@@ -22,6 +22,7 @@ def test_action_yml_contract_and_injection_safety():
         "agent_entrypoint",
         "policies",
         "scenarios",
+        "trace",
         "output_report",
         "output_markdown",
         "post_comment",
