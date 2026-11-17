@@ -3,6 +3,7 @@
 from secagent.engine.loader import PolicyDefinition, PolicyLoader, PolicyRuleset
 from secagent.engine.models import PolicyViolation
 from secagent.engine.rules import (
+    CircuitBreakerRule,
     ContextPrivilegeRule,
     FieldScopeRule,
     GoalHijackRule,
@@ -11,6 +12,7 @@ from secagent.engine.rules import (
 )
 
 __all__ = [
+    "CircuitBreakerRule",
     "ContextPrivilegeRule",
     "FieldScopeRule",
     "GoalHijackRule",
