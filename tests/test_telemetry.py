@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 import jsonschema
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from secagent.telemetry import (
     HITLNormalizer,
@@ -112,6 +114,46 @@ def test_callback_redacts_payloads_before_storing_them():
     assert session.metadata["token"] == "[REDACTED_TOKEN]"
 
 
+def test_callback_emits_redacted_otel_span_with_trace_id_and_nanosecond_timestamps():
+    callback = SecAgentTelemetryCallback()
+    callback.on_tool_start(
+        {"name": "lookup"},
+        '{"ssn": "123-45-6789"}',
+        run_id="run-otel",
+    )
+    callback.on_tool_end({"card": "4111 1111 1111 1111"}, run_id="run-otel")
+
+    assert isinstance(callback.span_exporter, InMemorySpanExporter)
+    readable_spans = callback.span_exporter.get_finished_spans()
+    assert len(readable_spans) == 1
+
+    trace_span = callback.spans[0]
+    readable_span = readable_spans[0]
+    assert readable_span.name == "lookup"
+    assert readable_span.start_time == trace_span["start_time_ns"]
+    assert readable_span.end_time == trace_span["end_time_ns"]
+    assert trace_span["trace_id"] == f"{readable_span.context.trace_id:032x}"
+    assert "123-45-6789" not in str(readable_span.attributes)
+    assert "4111 1111 1111 1111" not in str(readable_span.attributes)
+    assert "[REDACTED_SSN]" in readable_span.attributes["secagent.input_parameters"]
+    assert "[REDACTED_CARD]" in readable_span.attributes["secagent.output_result"]
+    assert TraceExporter().validate(callback.session.as_dict()) == callback.session.as_dict()
+
+
+def test_callback_supports_injected_otel_provider_and_exporter():
+    exporter = InMemorySpanExporter()
+    callback = SecAgentTelemetryCallback(
+        tracer_provider=TracerProvider(),
+        span_exporter=exporter,
+    )
+
+    callback.on_tool_start({"name": "lookup"}, "{}", run_id="run-injected")
+    callback.on_tool_end("ok", run_id="run-injected")
+
+    assert callback.span_exporter is exporter
+    assert [span.name for span in exporter.get_finished_spans()] == ["lookup"]
+
+
 def test_callback_correlates_concurrent_tool_runs_and_errors():
     callback = SecAgentTelemetryCallback()
     callback.on_tool_start({"name": "first"}, "{}", run_id="run-1")
@@ -162,6 +204,30 @@ def test_hitl_normalizer_preserves_rejected_decision():
 
     assert span["approval_granted"] is False
     assert span["permission_tier"] == "gate"
+
+
+def test_hitl_normalizer_emits_redacted_otel_span():
+    exporter = InMemorySpanExporter()
+    normalizer = HITLNormalizer(TraceSession(), span_exporter=exporter)
+
+    trace_span = normalizer.record(
+        True,
+        operation="issue_refund",
+        approver="Bearer sk-proj-1234567890abcdef12345678",
+        input_parameters={"ssn": "123-45-6789"},
+    )
+
+    readable_spans = exporter.get_finished_spans()
+    assert len(readable_spans) == 1
+    readable_span = readable_spans[0]
+    assert readable_span.name == "approval_gate"
+    assert readable_span.start_time == trace_span["start_time_ns"]
+    assert readable_span.end_time == trace_span["end_time_ns"]
+    assert trace_span["trace_id"] == f"{readable_span.context.trace_id:032x}"
+    assert "123-45-6789" not in str(readable_span.attributes)
+    assert "sk-proj-1234567890abcdef12345678" not in str(readable_span.attributes)
+    assert "[REDACTED_SSN]" in readable_span.attributes["secagent.input_parameters"]
+    assert "[REDACTED_TOKEN]" in readable_span.attributes["secagent.output_result"]
 
 
 def test_callback_exposes_hitl_normalization_on_same_session():
