@@ -53,6 +53,9 @@ def test_action_yml_contract_and_injection_safety():
     assert (
         gate_step.get("env", {}).get("SCAN_STATUS") == "${{ steps.secagent_scan.outputs.status }}"
     )
+    scan_step = action["runs"]["steps"][scan_idx]
+    assert "INPUT_OUTPUT_REPORT" in scan_step["run"]
+    assert "status=$REPORT_STATUS" in scan_step["run"]
 
 
 def test_ci_workflow_uses_composite_action():
@@ -66,6 +69,7 @@ def test_ci_workflow_uses_composite_action():
 
     uses_steps = [s for s in job["steps"] if s.get("uses") == "./"]
     assert len(uses_steps) == 1
+    assert ":" in uses_steps[0]["with"]["agent_entrypoint"]
 
 
 def test_cli_subprocess_discovers_workspace_agent(tmp_path: Path):

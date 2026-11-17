@@ -41,7 +41,7 @@ jobs:
         id: secagent_scan
         uses: ./
         with:
-          agent_entrypoint: "examples.devops_agent.agent"
+          agent_entrypoint: "examples.finance_agent.agent:app"
           policies: "policies/security_rules.yaml"
           output_report: "report.json"
           output_markdown: "comment.md"

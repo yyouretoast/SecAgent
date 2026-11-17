@@ -34,7 +34,7 @@ inputs:
 
 outputs:
   status:
-    description: "Scan verdict (PASS or FAIL)"
+    description: "Scan verdict (PASS, FAIL, or NOT_EVALUATED)"
     value: ${{ steps.secagent_scan.outputs.status }}
   report_path:
     description: "Path to generated JSON audit report"
@@ -85,14 +85,17 @@ runs:
         secagent scan "${ARGS[@]}"
         SCAN_EXIT_CODE=$?
         set -e
+        REPORT_STATUS="FAIL"
+        if [ -f "$INPUT_OUTPUT_REPORT" ]; then
+          REPORT_STATUS=$(python -c 'import json, pathlib, sys; print(json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")).get("status") or "FAIL")' "$INPUT_OUTPUT_REPORT" 2>/dev/null || echo "FAIL")
+        fi
+        if [ "$SCAN_EXIT_CODE" -ne 0 ] && [ "$REPORT_STATUS" = "PASS" ]; then
+          REPORT_STATUS="FAIL"
+        fi
         {
           echo "report_path=$INPUT_OUTPUT_REPORT"
           echo "markdown_path=$INPUT_OUTPUT_MARKDOWN"
-          if [ "$SCAN_EXIT_CODE" -eq 0 ]; then
-            echo "status=PASS"
-          else
-            echo "status=FAIL"
-          fi
+          echo "status=$REPORT_STATUS"
         } >> "$GITHUB_OUTPUT"
 
     - name: Post PR Security Triage Comment
@@ -121,6 +124,6 @@ runs:
         SCAN_STATUS: ${{ steps.secagent_scan.outputs.status }}
       run: |
         if [ "$SCAN_STATUS" != "PASS" ]; then
-          echo "::error::SecAgent security gate failed: policy violations detected."
+          echo "::error::SecAgent security gate did not pass (status: ${SCAN_STATUS:-UNKNOWN})."
           exit 1
         fi
