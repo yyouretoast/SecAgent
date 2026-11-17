@@ -7,6 +7,7 @@ from secagent.engine.rules import (
     ContextPrivilegeRule,
     FieldScopeRule,
     GoalHijackRule,
+    NetworkEgressRule,
     ParameterRegexRule,
     PredecessorGateRule,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "ContextPrivilegeRule",
     "FieldScopeRule",
     "GoalHijackRule",
+    "NetworkEgressRule",
     "ParameterRegexRule",
     "PolicyDefinition",
     "PolicyLoader",
