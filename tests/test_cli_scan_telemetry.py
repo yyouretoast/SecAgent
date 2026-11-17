@@ -124,12 +124,13 @@ def test_scan_rejects_malformed_policy_file_with_exit_1(tmp_path: Path):
     bad_policy = tmp_path / "bad_rules.yaml"
     bad_policy.write_text("version: [unterminated", encoding="utf-8")
 
+    # Fails fast even for a module-only target that produces zero execution traces.
     res = runner.invoke(
         app,
         [
             "scan",
             "--agent",
-            "examples.finance_agent.agent:app",
+            "examples.devops_agent.agent",
             "--policies",
             str(bad_policy),
             "--output-report",

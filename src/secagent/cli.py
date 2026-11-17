@@ -709,13 +709,27 @@ def scan(
     ] = Path("comment.md"),
 ) -> None:
     """Run security invariant checks against generated or provided scenarios."""
+    from jsonschema import ValidationError as JsonSchemaValidationError
+
+    from secagent.engine import PolicyEngine, PolicyLoadError, PolicyReporter
     from secagent.generator import ScenarioGenerator
 
     console.print("[bold green]SecAgent Security Scanner[/bold green] v0.1.0")
     console.print(f"Policies: [cyan]{policies}[/cyan]")
 
+    effective_policy_path = (
+        None
+        if policies == Path("policies/security_rules.yaml") and not policies.exists()
+        else policies
+    )
+    try:
+        engine = PolicyEngine(policy_path=effective_policy_path)
+    except PolicyLoadError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
     generator = ScenarioGenerator()
-    overrides = _resolve_policy_overrides(policies)
+    overrides = dict(engine.ruleset.tool_tier_overrides)
     if agent_entrypoint:
         console.print(f"Target Agent: [yellow]{agent_entrypoint}[/yellow]")
     target, mod, target_tools = _resolve_agent_target(
@@ -735,8 +749,6 @@ def scan(
             list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json"))
         )
 
-    from jsonschema import ValidationError as JsonSchemaValidationError
-
     try:
         traces = _execute_scenarios_with_telemetry(
             target,
@@ -754,19 +766,6 @@ def scan(
     )
 
     if traces:
-        from secagent.engine import PolicyEngine, PolicyLoadError, PolicyReporter
-
-        effective_policy_path = (
-            None
-            if policies == Path("policies/security_rules.yaml") and not policies.exists()
-            else policies
-        )
-        try:
-            engine = PolicyEngine(policy_path=effective_policy_path)
-        except PolicyLoadError as exc:
-            console.print(f"[red]{exc}[/red]")
-            raise typer.Exit(code=1) from exc
-
         evaluation = engine.evaluate_traces(traces)
         report = PolicyReporter().generate_report(
             evaluation,
