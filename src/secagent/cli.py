@@ -208,6 +208,39 @@ def _default_benchmark_tools(*, include_schema: bool = False) -> list[Any]:
     ]
 
 
+def _resolve_agent_target(
+    generator: Any,
+    agent_entrypoint: str,
+    overrides: dict[str, str],
+    *,
+    include_schema: bool = False,
+) -> tuple[Any, Any, list[Any]]:
+    """Resolve an explicit agent entrypoint fail-closed, or fall back when omitted."""
+    if not agent_entrypoint:
+        return (
+            None,
+            None,
+            generator.introspect_tools(
+                _default_benchmark_tools(include_schema=include_schema),
+                policy_overrides=overrides,
+            ),
+        )
+
+    try:
+        target, mod = _load_entrypoint(agent_entrypoint)
+        raw_tools = _discover_raw_tools(generator, target, mod)
+        discovered = generator.introspect_tools(raw_tools, policy_overrides=overrides)
+    except Exception as exc:
+        console.print(f"[red]Error loading agent entrypoint '{agent_entrypoint}': {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not discovered:
+        console.print(f"[red]No tools discovered for agent entrypoint '{agent_entrypoint}'.[/red]")
+        raise typer.Exit(code=1)
+
+    return target, mod, discovered
+
+
 def _resolve_target_tools(
     generator: Any,
     agent_entrypoint: str,
@@ -216,23 +249,14 @@ def _resolve_target_tools(
     include_schema: bool = False,
     fallback_label: str = "Introspection",
 ) -> list[Any]:
-    """Introspect tools from ``agent_entrypoint`` with benchmark fallback and tier overrides."""
-    discovered: list[Any] = []
-    if agent_entrypoint:
-        try:
-            target, mod = _load_entrypoint(agent_entrypoint)
-            raw_tools = _discover_raw_tools(generator, target, mod)
-            discovered = generator.introspect_tools(raw_tools, policy_overrides=overrides)
-        except Exception as exc:
-            console.print(
-                f"[yellow]Notice: {fallback_label} fell back to reference fixtures ({exc})[/yellow]"
-            )
-
-    if not discovered:
-        discovered = generator.introspect_tools(
-            _default_benchmark_tools(include_schema=include_schema),
-            policy_overrides=overrides,
-        )
+    """Introspect tools from ``agent_entrypoint`` with benchmark fallback when omitted."""
+    _ = fallback_label
+    _, _, discovered = _resolve_agent_target(
+        generator,
+        agent_entrypoint,
+        overrides,
+        include_schema=include_schema,
+    )
     return discovered
 
 
@@ -692,29 +716,13 @@ def scan(
 
     generator = ScenarioGenerator()
     overrides = _resolve_policy_overrides(policies)
-    target: Any = None
-    mod: Any = None
-    target_tools: list[Any] = []
-
     if agent_entrypoint:
         console.print(f"Target Agent: [yellow]{agent_entrypoint}[/yellow]")
-        try:
-            target, mod = _load_entrypoint(agent_entrypoint)
-            raw = _discover_raw_tools(generator, target, mod)
-            target_tools = generator.introspect_tools(raw, policy_overrides=overrides)
-        except Exception as exc:
-            console.print(f"[red]Error loading agent entrypoint '{agent_entrypoint}': {exc}[/red]")
-            raise typer.Exit(code=1) from exc
-        if not target_tools:
-            console.print(
-                f"[red]No tools discovered for agent entrypoint '{agent_entrypoint}'.[/red]"
-            )
-            raise typer.Exit(code=1)
-    else:
-        target_tools = generator.introspect_tools(
-            _default_benchmark_tools(),
-            policy_overrides=overrides,
-        )
+    target, mod, target_tools = _resolve_agent_target(
+        generator,
+        agent_entrypoint,
+        overrides,
+    )
 
     if scenarios is None or not scenarios.exists():
         console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")

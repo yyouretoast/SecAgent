@@ -206,3 +206,33 @@ def test_interrupt_payloads_are_normalized_to_gate_hitl_spans():
     assert gate_spans[0]["input_parameters"]["operation"] == "execute_trade"
     assert gate_spans[1]["approval_granted"] is False
     assert json.loads(json.dumps(traces[0]))  # JSON-serializable
+
+
+def test_generate_and_fuzz_reject_broken_explicit_agent_entrypoint(tmp_path: Path):
+    runner = CliRunner()
+
+    gen_res = runner.invoke(
+        app,
+        [
+            "generate",
+            "--agent",
+            "nonexistent.module.path:app",
+            "--output-dir",
+            str(tmp_path / "gen"),
+        ],
+    )
+    assert gen_res.exit_code == 1
+    assert "Error loading agent entrypoint" in gen_res.stdout
+
+    fuzz_res = runner.invoke(
+        app,
+        [
+            "fuzz",
+            "--agent",
+            "nonexistent.module.path:app",
+            "--output-dir",
+            str(tmp_path / "fuzz"),
+        ],
+    )
+    assert fuzz_res.exit_code == 1
+    assert "Error loading agent entrypoint" in fuzz_res.stdout
