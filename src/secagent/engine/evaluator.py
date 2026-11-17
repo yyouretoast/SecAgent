@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from secagent.engine.loader import PolicyLoader, PolicyRuleset
 from secagent.engine.models import EvaluationResult, PolicyViolation
@@ -71,7 +71,7 @@ class PolicyEngine:
                 scenario_ids.extend(scenario_id for _ in found)
 
         elapsed_ms = (time.perf_counter() - started) * 1000.0
-        status = "FAIL" if violations else "PASS"
+        status: Literal["PASS", "FAIL"] = "FAIL" if violations else "PASS"
         return EvaluationResult(
             status=status,
             total_spans_evaluated=total_spans,
