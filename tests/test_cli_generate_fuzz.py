@@ -57,7 +57,7 @@ def test_us5_4_fuzz_synthesizes_schema_directed_mutations(tmp_path: Path):
             "--agent",
             "examples.support_agent.agent",
             "--iterations",
-            "12",
+            "16",
             "--output-dir",
             str(out_dir),
         ],
@@ -65,10 +65,10 @@ def test_us5_4_fuzz_synthesizes_schema_directed_mutations(tmp_path: Path):
     assert result.exit_code == 0
 
     manifests = sorted(out_dir.glob("FUZZ-*.json"))
-    assert len(manifests) == 12
+    assert len(manifests) == 16
 
     findings = json.loads((out_dir / "fuzz_findings.json").read_text(encoding="utf-8"))
-    assert len(findings) == 12
+    assert len(findings) == 16
     assert all(
         isinstance(f["injected_parameters"], dict) and f["injected_parameters"] for f in findings
     )
