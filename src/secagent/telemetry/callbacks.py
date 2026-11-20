@@ -68,7 +68,7 @@ def _permission_tier(
     for candidate in candidates:
         if isinstance(candidate, dict):
             tier = candidate.get("permission_tier") or candidate.get("_secagent_permission_tier")
-            if tier:
+            if tier and str(tier) != "none":
                 return str(tier)
     from secagent.harness.introspector import resolve_permission_tier
 
