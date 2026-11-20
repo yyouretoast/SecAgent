@@ -54,6 +54,23 @@ def _tool_name(serialized: Any, kwargs: dict[str, Any]) -> str:
     return str(kwargs.get("name") or kwargs.get("tool_name") or "unknown_tool")
 
 
+def _model_name(serialized: Any, kwargs: dict[str, Any]) -> str:
+    if isinstance(serialized, dict):
+        name = serialized.get("name")
+        if name:
+            return str(name)
+        identifier = serialized.get("id")
+        if isinstance(identifier, list) and identifier:
+            return str(identifier[-1])
+    return str(kwargs.get("name") or kwargs.get("model_name") or kwargs.get("model") or "model")
+
+
+def _model_input(value: Any, field_name: str) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    return {field_name: _json_value(value)}
+
+
 def _permission_tier(
     serialized: Any,
     kwargs: dict[str, Any],
@@ -133,6 +150,21 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
     def spans(self) -> list[dict[str, Any]]:
         return self.session.spans
 
+    def _start_span(
+        self,
+        span: dict[str, Any],
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+    ) -> dict[str, Any]:
+        recorded = self.session.append(span)
+        if parent_run_id:
+            recorded["parent_span_id"] = str(parent_run_id)
+        if run_id is not None:
+            self._active[str(run_id)] = recorded
+        self._last_active = recorded
+        return recorded
+
     def on_tool_start(
         self,
         serialized: dict[str, Any],
@@ -144,7 +176,7 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
     ) -> None:
         start_time = time.time_ns()
         name = _tool_name(serialized, kwargs)
-        span = self.session.append(
+        self._start_span(
             {
                 "span_id": str(run_id or uuid.uuid4()),
                 "span_type": "tool.call",
@@ -162,13 +194,74 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
                 "output_result": None,
                 "is_error": False,
                 "error_message": None,
-            }
+            },
+            run_id=run_id,
+            parent_run_id=parent_run_id,
         )
-        if parent_run_id:
-            span["parent_span_id"] = str(parent_run_id)
-        if run_id is not None:
-            self._active[str(run_id)] = span
-        self._last_active = span
+
+    def on_chat_model_start(
+        self,
+        serialized: dict[str, Any],
+        messages: Any,
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        """Capture the start of a chat-model invocation."""
+        self._start_model_span(
+            serialized,
+            _model_input(messages, "messages"),
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+            kwargs=kwargs,
+        )
+
+    def on_llm_start(
+        self,
+        serialized: dict[str, Any],
+        prompts: list[str],
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        """Capture the start of a completion-model invocation."""
+        self._start_model_span(
+            serialized,
+            _model_input(prompts, "prompts"),
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+            kwargs=kwargs,
+        )
+
+    def _start_model_span(
+        self,
+        serialized: Any,
+        input_parameters: dict[str, Any],
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        kwargs: dict[str, Any],
+    ) -> None:
+        start_time = time.time_ns()
+        self._start_span(
+            {
+                "span_id": str(run_id or uuid.uuid4()),
+                "span_type": "model.inference",
+                "name": _model_name(serialized, kwargs),
+                "start_time_ns": start_time,
+                "end_time_ns": start_time,
+                "permission_tier": "none",
+                "approval_granted": None,
+                "input_parameters": input_parameters,
+                "output_result": None,
+                "is_error": False,
+                "error_message": None,
+            },
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+        )
 
     def _find_active(self, run_id: Any) -> dict[str, Any] | None:
         if run_id is not None:
@@ -193,6 +286,72 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
     def on_tool_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
         span = self._close(run_id)
         if span is None:
+            return
+        span["end_time_ns"] = time.time_ns()
+        span["is_error"] = True
+        span["error_message"] = PIIRedactor.scrub_text(str(error))
+
+    def on_llm_end(self, response: Any, *, run_id: Any = None, **kwargs: Any) -> None:
+        """Complete a model span with a redacted model response."""
+        span = self._close(run_id)
+        if span is None:
+            return
+        span["end_time_ns"] = time.time_ns()
+        span["output_result"] = PIIRedactor.scrub_container(_json_value(response))
+
+    def on_llm_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
+        """Complete a model span with redacted error metadata."""
+        span = self._close(run_id)
+        if span is None:
+            return
+        span["end_time_ns"] = time.time_ns()
+        span["is_error"] = True
+        span["error_message"] = PIIRedactor.scrub_text(str(error))
+
+    def on_chain_start(
+        self,
+        serialized: dict[str, Any] | None,
+        inputs: Any,
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        """Capture a root chain as an optional enclosing agent span."""
+        if parent_run_id is not None:
+            return
+        start_time = time.time_ns()
+        self._start_span(
+            {
+                "span_id": str(run_id or uuid.uuid4()),
+                "span_type": "agent.run",
+                "name": _model_name(serialized, kwargs)
+                if serialized or kwargs
+                else "agent",
+                "start_time_ns": start_time,
+                "end_time_ns": start_time,
+                "permission_tier": "none",
+                "approval_granted": None,
+                "input_parameters": _input_parameters(inputs),
+                "output_result": None,
+                "is_error": False,
+                "error_message": None,
+            },
+            run_id=run_id,
+        )
+
+    def on_chain_end(self, outputs: Any, *, run_id: Any = None, **kwargs: Any) -> None:
+        """Complete a root agent span with a redacted result."""
+        span = self._close(run_id)
+        if span is None or span["span_type"] != "agent.run":
+            return
+        span["end_time_ns"] = time.time_ns()
+        span["output_result"] = PIIRedactor.scrub_container(_json_value(outputs))
+
+    def on_chain_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
+        """Complete a root agent span with redacted error metadata."""
+        span = self._close(run_id)
+        if span is None or span["span_type"] != "agent.run":
             return
         span["end_time_ns"] = time.time_ns()
         span["is_error"] = True

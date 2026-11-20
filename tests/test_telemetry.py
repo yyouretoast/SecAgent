@@ -127,6 +127,59 @@ def test_callback_prefers_serialized_permission_tier_over_mapping():
     assert callback.spans[0]["permission_tier"] == "pay"
 
 
+def test_callback_captures_chat_model_span_with_agent_parent_and_redaction():
+    callback = SecAgentTelemetryCallback()
+
+    callback.on_chain_start(
+        {"name": "support_agent"},
+        {"prompt": "Find the account for ssn=123-45-6789"},
+        run_id="agent-1",
+    )
+    callback.on_chat_model_start(
+        {"name": "chat-model"},
+        [[{"role": "user", "content": "ssn=123-45-6789"}]],
+        run_id="model-1",
+        parent_run_id="agent-1",
+    )
+    callback.on_llm_end(
+        {"content": "Bearer sk-proj-1234567890abcdef12345678"},
+        run_id="model-1",
+    )
+    callback.on_chain_end({"answer": "safe"}, run_id="agent-1")
+
+    agent_span, model_span = callback.spans
+    assert agent_span["span_type"] == "agent.run"
+    assert model_span["span_type"] == "model.inference"
+    assert model_span["parent_span_id"] == "agent-1"
+    assert model_span["step_index"] == 1
+    assert "123-45-6789" not in model_span["input_parameters"]["messages"]
+    assert "[REDACTED_SSN]" in model_span["input_parameters"]["messages"]
+    assert model_span["output_result"]["content"] == "[REDACTED_TOKEN]"
+    TraceExporter().validate(callback.session.as_dict())
+
+
+def test_callback_captures_llm_error_as_model_inference_span():
+    callback = SecAgentTelemetryCallback()
+
+    callback.on_llm_start(
+        {"name": "completion-model"},
+        ["Look up card=4111 1111 1111 1111"],
+        run_id="model-error",
+    )
+    callback.on_llm_error(
+        RuntimeError("provider rejected ssn=123-45-6789"),
+        run_id="model-error",
+    )
+
+    span = callback.spans[0]
+    assert span["span_type"] == "model.inference"
+    assert span["name"] == "completion-model"
+    assert span["is_error"] is True
+    assert span["error_message"] == "provider rejected ssn=[REDACTED_SSN]"
+    assert span["start_time_ns"] <= span["end_time_ns"]
+    TraceExporter().validate(callback.session.as_dict())
+
+
 def test_callback_redacts_payloads_before_storing_them():
     session = TraceSession(metadata={"token": "Bearer sk-proj-1234567890abcdef12345678"})
     callback = SecAgentTelemetryCallback(session)
