@@ -41,8 +41,62 @@ def parse_app_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--report", type=Path, default=Path("report.json"))
     parser.add_argument("--trace", type=Path, default=None)
+    parser.add_argument("--baseline", type=Path, default=None)
     args, _ = parser.parse_known_args(argv)
     return args
+
+
+def _violation_key(violation: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(violation.get("rule_id") or ""),
+        str(violation.get("offending_tool_name") or ""),
+        str(violation.get("scenario_id") or ""),
+    )
+
+
+def diff_violations(
+    baseline_report: dict[str, Any],
+    current_report: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    """Compare baseline and current report violations into new, resolved, and unchanged."""
+    base_list = [v for v in (baseline_report.get("violations") or []) if isinstance(v, dict)]
+    curr_list = [v for v in (current_report.get("violations") or []) if isinstance(v, dict)]
+
+    base_counts: dict[tuple[str, str, str], int] = {}
+    for item in base_list:
+        key = _violation_key(item)
+        base_counts[key] = base_counts.get(key, 0) + 1
+
+    curr_counts: dict[tuple[str, str, str], int] = {}
+    for item in curr_list:
+        key = _violation_key(item)
+        curr_counts[key] = curr_counts.get(key, 0) + 1
+
+    new_items: list[dict[str, Any]] = []
+    unchanged_items: list[dict[str, Any]] = []
+    remaining_base = dict(base_counts)
+    for item in curr_list:
+        key = _violation_key(item)
+        if remaining_base.get(key, 0) > 0:
+            remaining_base[key] -= 1
+            unchanged_items.append(item)
+        else:
+            new_items.append(item)
+
+    resolved_items: list[dict[str, Any]] = []
+    remaining_curr = dict(curr_counts)
+    for item in base_list:
+        key = _violation_key(item)
+        if remaining_curr.get(key, 0) > 0:
+            remaining_curr[key] -= 1
+        else:
+            resolved_items.append(item)
+
+    return {
+        "new": new_items,
+        "resolved": resolved_items,
+        "unchanged": unchanged_items,
+    }
 
 
 def load_json_document(path: Path) -> dict[str, Any]:
@@ -302,6 +356,7 @@ def render_dashboard(
     report: dict[str, Any],
     traces: list[dict[str, Any]],
     *,
+    baseline_report: dict[str, Any] | None = None,
     violations_only: bool = False,
     selected_types: list[str] | None = None,
     selected_tiers: list[str] | None = None,
@@ -386,6 +441,45 @@ def render_dashboard(
         if isinstance(exec_ms, (int, float)) and not isinstance(exec_ms, bool)
         else "N/A",
     )
+
+    if baseline_report is not None:
+        diff = diff_violations(baseline_report, report)
+        st.subheader("Regression Diff vs. Baseline")
+        d1, d2, d3 = st.columns(3)
+        d1.metric("New Regressions", len(diff["new"]))
+        d2.metric("Resolved", len(diff["resolved"]))
+        d3.metric("Unchanged", len(diff["unchanged"]))
+        if diff["new"]:
+            with st.expander(f"New Regressions ({len(diff['new'])})", expanded=True):
+                st.dataframe(
+                    [
+                        {
+                            "Rule ID": v.get("rule_id", ""),
+                            "Severity": v.get("severity", ""),
+                            "Tool": v.get("offending_tool_name", ""),
+                            "Scenario": v.get("scenario_id", ""),
+                            "Remediation": v.get("remediation", ""),
+                        }
+                        for v in diff["new"]
+                    ],
+                    hide_index=True,
+                    **_stretch_kwargs(st.dataframe),
+                )
+        if diff["resolved"]:
+            with st.expander(f"Resolved Violations ({len(diff['resolved'])})", expanded=False):
+                st.dataframe(
+                    [
+                        {
+                            "Rule ID": v.get("rule_id", ""),
+                            "Severity": v.get("severity", ""),
+                            "Tool": v.get("offending_tool_name", ""),
+                            "Scenario": v.get("scenario_id", ""),
+                        }
+                        for v in diff["resolved"]
+                    ],
+                    hide_index=True,
+                    **_stretch_kwargs(st.dataframe),
+                )
 
     if violations:
         st.subheader("Policy Violations")
@@ -497,6 +591,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parse_app_args(argv)
     uploaded_report = None
     uploaded_trace = None
+    uploaded_baseline = None
     with st.sidebar:
         st.header("Audit Inputs")
         report_input = st.text_input("Report JSON path", value=str(args.report))
@@ -504,9 +599,16 @@ def main(argv: list[str] | None = None) -> None:
             "Trace JSON path (optional)",
             value=str(args.trace) if args.trace else "",
         )
+        baseline_input = st.text_input(
+            "Baseline Report JSON path (optional)",
+            value=str(args.baseline) if args.baseline else "",
+        )
         if st.toggle("Upload JSON files", value=False):
             uploaded_report = st.file_uploader("Upload report.json", type=["json"])
             uploaded_trace = st.file_uploader("Upload trace.json (optional)", type=["json"])
+            uploaded_baseline = st.file_uploader(
+                "Upload baseline report.json (optional)", type=["json"]
+            )
 
     report_path = Path(report_input) if report_input.strip() else args.report
     try:
@@ -539,6 +641,26 @@ def main(argv: list[str] | None = None) -> None:
         except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
             st.title("SecAgent Security Audit Dashboard")
             st.error(f"Could not load trace `{trace_path}`: {exc}")
+            return
+
+    baseline_report: dict[str, Any] | None = None
+    if uploaded_baseline is not None:
+        try:
+            loaded_base = json.loads(uploaded_baseline.getvalue().decode("utf-8"))
+            if not isinstance(loaded_base, dict):
+                raise ValueError(f"Expected JSON object, got {type(loaded_base).__name__}")
+            baseline_report = loaded_base
+        except (ValueError, json.JSONDecodeError) as exc:
+            st.title("SecAgent Security Audit Dashboard")
+            st.error(f"Could not load uploaded baseline report: {exc}")
+            return
+    elif baseline_input.strip():
+        baseline_path = Path(baseline_input.strip())
+        try:
+            baseline_report = load_json_document(baseline_path)
+        except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
+            st.title("SecAgent Security Audit Dashboard")
+            st.error(f"Could not load baseline report `{baseline_path}`: {exc}")
             return
 
     traces = extract_traces(report, explicit_trace=explicit_trace, base_dir=report_path.parent)
@@ -591,6 +713,7 @@ def main(argv: list[str] | None = None) -> None:
     render_dashboard(
         report,
         traces,
+        baseline_report=baseline_report,
         violations_only=violations_only,
         selected_types=selected_types,
         selected_tiers=selected_tiers,
