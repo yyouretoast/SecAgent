@@ -9,6 +9,7 @@ from typing import Any
 
 from rich import box
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -114,12 +115,12 @@ def render_scan_header(
     grid = Table.grid(padding=(0, 2))
     grid.add_column(style="dim", width=10)
     grid.add_column()
-    grid.add_row("Target", f"[bold]{target or 'baseline_smoke'}[/]")
-    policy_text = f"[cyan]{policies_path}[/]"
+    grid.add_row("Target", f"[bold]{escape(target or 'baseline_smoke')}[/]")
+    policy_text = f"[cyan]{escape(policies_path)}[/]"
     if rule_count is not None:
         policy_text += f" [dim]({rule_count} rules)[/]"
     grid.add_row("Policies", policy_text)
-    grid.add_row("Mode", f"[dim]{mode}[/]")
+    grid.add_row("Mode", f"[dim]{escape(mode)}[/]")
     console.print(
         Panel(
             grid,
@@ -148,7 +149,7 @@ def render_discovered_tools(
         line = Text()
         line.append(f"{name:<22} ")
         line.append(f"{tier:<6} ", style=tier_style)
-        tree.add(f"{line.markup}{sandbox_tag}")
+        tree.add(f"{escape(name):<22} [{tier_style}]{escape(tier):<6}[/] {sandbox_tag}")
     console.print(tree)
 
 
@@ -164,14 +165,14 @@ def render_violations(
     console.print()
     for v in violations[:max_display]:
         severity = str(v.get("severity") or "HIGH")
-        badge = _SEVERITY_BADGE.get(severity, f"[bold]{severity}[/]")
-        rule_id = str(v.get("rule_id") or "UNKNOWN")
-        rule_name = str(v.get("rule_name") or "")
-        owasp = str(v.get("owasp_category") or "UNKNOWN")
-        tool = str(v.get("offending_tool_name") or "unknown")
-        span_id = str(v.get("offending_span_id") or "unknown")
-        step = v.get("offending_step_index", "?")
-        remediation = str(v.get("remediation") or "")
+        badge = _SEVERITY_BADGE.get(severity, f"[bold]{escape(severity)}[/]")
+        rule_id = escape(str(v.get("rule_id") or "UNKNOWN"))
+        rule_name = escape(str(v.get("rule_name") or ""))
+        owasp = escape(str(v.get("owasp_category") or "UNKNOWN"))
+        tool = escape(str(v.get("offending_tool_name") or "unknown"))
+        span_id = escape(str(v.get("offending_span_id") or "unknown"))
+        step = escape(str(v.get("offending_step_index", "?")))
+        remediation = escape(str(v.get("remediation") or ""))
 
         tree = Tree(f"{badge} [bold]{rule_id}[/] [dim]· {rule_name}[/]")
         tree.add(f"[dim]OWASP   [/] {owasp}")
@@ -212,10 +213,10 @@ def render_summary_card(
     grid.add_column()
     grid.add_row(
         "Verdict",
-        f"[{verdict_style}]{status}[/]  [dim]Scenarios: {scenarios} · Spans: {spans} · Violations: {violations}{timing}[/]",
+        f"[{verdict_style}]{escape(status)}[/]  [dim]Scenarios: {scenarios} · Spans: {spans} · Violations: {violations}{timing}[/]",
     )
-    grid.add_row("Artifacts", f"[cyan]{artifacts}[/]")
-    grid.add_row("Next", f"[cyan]secagent serve --report {report_path}[/]")
+    grid.add_row("Artifacts", f"[cyan]{escape(artifacts)}[/]")
+    grid.add_row("Next", f"[cyan]secagent serve --report {escape(str(report_path))}[/]")
 
     console.print()
     console.print(

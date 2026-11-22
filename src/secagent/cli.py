@@ -748,7 +748,8 @@ def _execute_scenarios_with_telemetry(
                 session,
                 approval_granted=bool(scn.get("approval_granted", False)),
             )
-            result = harness.run_scenario(target, scn, mod, callbacks=[callback])
+            effective_scn = {**scn, "task_context": task_context}
+            result = harness.run_scenario(target, effective_scn, mod, callbacks=[callback])
             _record_output_interrupts(
                 callback,
                 result.output,
