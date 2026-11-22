@@ -98,6 +98,50 @@ def test_callback_records_tool_start_and_end_with_metadata():
     assert span["output_result"] == {"rows": 1}
 
 
+def test_callback_resolves_tier_mapping_before_semantic_fallback():
+    callback = SecAgentTelemetryCallback(tier_by_tool={"custom_transfer": "admin"})
+
+    callback.on_tool_start({"name": "custom_transfer"}, "{}", run_id="run-mapped")
+    callback.on_tool_end("ok", run_id="run-mapped")
+
+    assert callback.spans[0]["permission_tier"] == "admin"
+
+
+def test_callback_resolves_semantic_tier_when_langchain_metadata_is_missing():
+    callback = SecAgentTelemetryCallback()
+
+    callback.on_tool_start({"name": "issue_refund"}, "{}", run_id="run-semantic")
+    callback.on_tool_end("ok", run_id="run-semantic")
+
+    assert callback.spans[0]["permission_tier"] == "pay"
+
+
+def test_callback_prefers_serialized_permission_tier_over_mapping():
+    callback = SecAgentTelemetryCallback(tier_by_tool={"issue_refund": "read"})
+
+    callback.on_tool_start(
+        {"name": "issue_refund", "permission_tier": "pay"},
+        "{}",
+        run_id="run-explicit",
+    )
+    callback.on_tool_end("ok", run_id="run-explicit")
+
+    assert callback.spans[0]["permission_tier"] == "pay"
+
+
+def test_callback_falls_back_when_explicit_permission_tier_is_none():
+    callback = SecAgentTelemetryCallback(tier_by_tool={"issue_refund": "pay"})
+
+    callback.on_tool_start(
+        {"name": "issue_refund", "permission_tier": "none"},
+        "{}",
+        run_id="run-none-tier",
+    )
+    callback.on_tool_end("ok", run_id="run-none-tier")
+
+    assert callback.spans[0]["permission_tier"] == "pay"
+
+
 def test_callback_redacts_payloads_before_storing_them():
     session = TraceSession(metadata={"token": "Bearer sk-proj-1234567890abcdef12345678"})
     callback = SecAgentTelemetryCallback(session)

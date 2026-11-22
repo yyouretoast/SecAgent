@@ -676,7 +676,7 @@ def _execute_scenarios_with_telemetry(
 
     class _GateAwareTelemetryCallback(SecAgentTelemetryCallback):
         def __init__(self, session: TraceSession, approval_granted: bool) -> None:
-            super().__init__(session=session)
+            super().__init__(session=session, tier_by_tool=tier_by_tool)
             self._approval_granted = approval_granted
 
         def on_chain_start(
@@ -714,13 +714,6 @@ def _execute_scenarios_with_telemetry(
             result.output,
             target_tool=str(scn.get("target_tool") or ""),
         )
-
-        for span in session.spans:
-            if span.get("span_type") == "tool.call" and span.get("permission_tier") in (
-                None,
-                "none",
-            ):
-                span["permission_tier"] = tier_by_tool.get(str(span.get("name")), "read")
 
         if not session.spans and result.tool_calls:
             for call_rec in result.tool_calls:
