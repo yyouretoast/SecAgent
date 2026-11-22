@@ -608,6 +608,7 @@ def _execute_scenarios_with_telemetry(
             inputs: dict[str, Any] | Any,
             **kwargs: Any,
         ) -> None:
+            super().on_chain_start(serialized, inputs, **kwargs)
             if kwargs.get("name") == "approval_gate":
                 self.record_hitl(self._approval_granted)
 
@@ -638,7 +639,7 @@ def _execute_scenarios_with_telemetry(
             target_tool=str(scn.get("target_tool") or ""),
         )
 
-        if not session.spans and result.tool_calls:
+        if not any(s.get("span_type") == "tool.call" for s in session.spans) and result.tool_calls:
             for call_rec in result.tool_calls:
                 now_ns = getattr(call_rec, "timestamp_ns", None) or time.time_ns()
                 raw_tier = getattr(
