@@ -307,9 +307,9 @@ def build_waterfall_chart_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "y": {
                 "field": "label",
                 "type": "nominal",
-                "sort": None,
+                "sort": {"field": "step_index", "order": "ascending"},
                 "title": "Execution Span",
-                "axis": {"labelLimit": 320, "labelFont": "monospace"},
+                "axis": {"labelLimit": 240, "labelFont": "monospace"},
             },
             "x": {
                 "field": "offset_ms",
@@ -448,10 +448,10 @@ def render_dashboard(
         delta=f"{critical_count} critical" if critical_count else None,
         delta_color="inverse" if critical_count else "off",
     )
-    col4.metric("Trace Duration", f"{trace_ms:.3f} ms" if trace_ms is not None else "N/A")
+    col4.metric("Trace Duration", f"{trace_ms:.2f} ms" if trace_ms is not None else "N/A")
     col5.metric(
         "Eval Time",
-        f"{exec_ms:.2f} ms"
+        f"{exec_ms:.1f} ms"
         if isinstance(exec_ms, (int, float)) and not isinstance(exec_ms, bool)
         else "N/A",
     )
@@ -529,11 +529,12 @@ def render_dashboard(
                                 "field": "owasp_category",
                                 "type": "nominal",
                                 "sort": "-x",
-                                "title": "OWASP Category",
+                                "title": None,
+                                "axis": {"labelLimit": 280},
                             },
                             "x": {"field": "count", "type": "quantitative", "title": "Violations"},
                         },
-                        "height": max(140, len(breakdown) * 34),
+                        "height": max(200, len(breakdown) * 44),
                     },
                     **_stretch_kwargs(st.vega_lite_chart),
                 )
@@ -603,7 +604,7 @@ def render_dashboard(
         ]
 
         if not filtered_rows:
-            st.info("No spans match the current sidebar filters.")
+            st.info("No spans match the current search or sidebar filters.")
             return
 
         st.vega_lite_chart(
@@ -652,7 +653,12 @@ def render_dashboard(
                     if isinstance(row["output_result"], (dict, list)):
                         st.json(row["output_result"])
                     else:
-                        st.code(str(row["output_result"]))
+                        code_kwargs: dict[str, Any] = (
+                            {"wrap_lines": True}
+                            if "wrap_lines" in inspect.signature(st.code).parameters
+                            else {}
+                        )
+                        st.code(str(row["output_result"]), **code_kwargs)
 
 
 def main(argv: list[str] | None = None) -> None:
