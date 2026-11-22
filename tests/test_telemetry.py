@@ -142,6 +142,111 @@ def test_callback_falls_back_when_explicit_permission_tier_is_none():
     assert callback.spans[0]["permission_tier"] == "pay"
 
 
+def test_callback_captures_chat_model_span_with_agent_parent_and_redaction():
+    callback = SecAgentTelemetryCallback()
+
+    callback.on_chain_start(
+        {"name": "support_agent"},
+        {"prompt": "Find the account for ssn=123-45-6789"},
+        run_id="agent-1",
+    )
+    callback.on_chat_model_start(
+        {"name": "chat-model"},
+        [[{"role": "user", "content": "ssn=123-45-6789"}]],
+        run_id="model-1",
+        parent_run_id="agent-1",
+    )
+    callback.on_llm_end(
+        {"content": "Bearer sk-proj-1234567890abcdef12345678"},
+        run_id="model-1",
+    )
+    callback.on_chain_end({"answer": "safe"}, run_id="agent-1")
+
+    agent_span, model_span = callback.spans
+    assert agent_span["span_type"] == "agent.run"
+    assert model_span["span_type"] == "model.inference"
+    assert model_span["parent_span_id"] == "agent-1"
+    assert model_span["step_index"] == 1
+    assert "123-45-6789" not in model_span["input_parameters"]["messages"]
+    assert "[REDACTED_SSN]" in model_span["input_parameters"]["messages"]
+    assert model_span["output_result"]["content"] == "[REDACTED_TOKEN]"
+
+    assert isinstance(callback.span_exporter, InMemorySpanExporter)
+    finished = callback.span_exporter.get_finished_spans()
+    assert [s.name for s in finished] == ["chat-model", "support_agent"]
+    otel_model, otel_agent = finished
+    assert model_span["trace_id"] == f"{otel_model.context.trace_id:032x}"
+    assert agent_span["trace_id"] == f"{otel_agent.context.trace_id:032x}"
+    assert otel_model.parent is not None
+    assert otel_model.parent.span_id == otel_agent.context.span_id
+    assert "123-45-6789" not in str(otel_model.attributes)
+    assert "sk-proj-1234567890abcdef12345678" not in str(otel_model.attributes)
+    assert "[REDACTED_SSN]" in otel_model.attributes["secagent.input_parameters"]
+    assert "[REDACTED_TOKEN]" in otel_model.attributes["secagent.output_result"]
+    TraceExporter().validate(callback.session.as_dict())
+
+
+def test_callback_captures_llm_error_as_model_inference_span():
+    callback = SecAgentTelemetryCallback()
+
+    callback.on_llm_start(
+        {"name": "completion-model"},
+        ["Look up card=4111 1111 1111 1111"],
+        run_id="model-error",
+    )
+    callback.on_llm_error(
+        RuntimeError("provider rejected ssn=123-45-6789"),
+        run_id="model-error",
+    )
+
+    span = callback.spans[0]
+    assert span["span_type"] == "model.inference"
+    assert span["name"] == "completion-model"
+    assert span["is_error"] is True
+    assert span["error_message"] == "provider rejected ssn=[REDACTED_SSN]"
+    assert span["start_time_ns"] <= span["end_time_ns"]
+
+    assert isinstance(callback.span_exporter, InMemorySpanExporter)
+    finished = callback.span_exporter.get_finished_spans()
+    assert len(finished) == 1
+    otel_span = finished[0]
+    assert otel_span.name == "completion-model"
+    assert span["trace_id"] == f"{otel_span.context.trace_id:032x}"
+    assert "4111 1111 1111 1111" not in str(otel_span.attributes)
+    assert "123-45-6789" not in str(otel_span.attributes)
+    assert "[REDACTED_CARD]" in otel_span.attributes["secagent.input_parameters"]
+    assert "[REDACTED_SSN]" in otel_span.attributes["secagent.error_message"]
+    TraceExporter().validate(callback.session.as_dict())
+
+
+def test_callback_coerces_nested_non_json_objects_in_chain_spans():
+    class _DummyMessage:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+        def __str__(self) -> str:
+            return f"Message({self.text})"
+
+    callback = SecAgentTelemetryCallback()
+    callback.on_chain_start(
+        {"name": "support_agent"},
+        {"messages": [_DummyMessage("ssn=123-45-6789")]},
+        run_id="agent-nested",
+    )
+    callback.on_chain_end(
+        {"messages": [_DummyMessage("token=Bearer sk-proj-1234567890abcdef12345678")]},
+        run_id="agent-nested",
+    )
+
+    doc = callback.session.as_dict()
+    serialized = json.dumps(doc)
+    assert "123-45-6789" not in serialized
+    assert "sk-proj-1234567890abcdef12345678" not in serialized
+    assert "[REDACTED_SSN]" in doc["spans"][0]["input_parameters"]["messages"][0]
+    assert "[REDACTED_TOKEN]" in doc["spans"][0]["output_result"]["messages"][0]
+    TraceExporter().validate(doc)
+
+
 def test_callback_redacts_payloads_before_storing_them():
     session = TraceSession(metadata={"token": "Bearer sk-proj-1234567890abcdef12345678"})
     callback = SecAgentTelemetryCallback(session)

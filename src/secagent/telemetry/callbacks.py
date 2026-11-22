@@ -25,18 +25,31 @@ except ImportError:  # pragma: no cover - supports contract use without LangChai
         """Compatibility base for environments that install LangChain later."""
 
 
+def _json_safe(value: Any) -> Any:
+    """Recursively coerce nested callback payloads to JSON-safe primitives."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return str(value)
+
+
 def _json_value(value: Any) -> Any:
     """Convert common callback payloads to values accepted by the trace schema."""
     if isinstance(value, list):
         return json.dumps(value, default=str)
-    if value is None or isinstance(value, (dict, str, int, float, bool)):
+    if isinstance(value, dict):
+        return _json_safe(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
         return value
     return str(value)
 
 
 def _input_parameters(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
-        return value
+        return _json_safe(value)
     if isinstance(value, str):
         try:
             import json
@@ -57,6 +70,23 @@ def _tool_name(serialized: Any, kwargs: dict[str, Any]) -> str:
         if isinstance(identifier, list) and identifier:
             return str(identifier[-1])
     return str(kwargs.get("name") or kwargs.get("tool_name") or "unknown_tool")
+
+
+def _model_name(serialized: Any, kwargs: dict[str, Any]) -> str:
+    if isinstance(serialized, dict):
+        name = serialized.get("name")
+        if name:
+            return str(name)
+        identifier = serialized.get("id")
+        if isinstance(identifier, list) and identifier:
+            return str(identifier[-1])
+    return str(kwargs.get("name") or kwargs.get("model_name") or kwargs.get("model") or "model")
+
+
+def _model_input(value: Any, field_name: str) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return _json_safe(value)
+    return {field_name: _json_value(value)}
 
 
 def _permission_tier(
@@ -180,7 +210,7 @@ class OTelRuntime:
 
 
 @dataclass
-class _ActiveToolSpan:
+class _ActiveSpan:
     trace_span: dict[str, Any]
     otel_span: trace.Span
 
@@ -245,12 +275,36 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
             span_exporter=span_exporter,
         )
         self.span_exporter = self.otel.span_exporter
-        self._active: dict[str, _ActiveToolSpan] = {}
-        self._last_active: _ActiveToolSpan | None = None
+        self._active: dict[str, _ActiveSpan] = {}
+        self._last_active: _ActiveSpan | None = None
 
     @property
     def spans(self) -> list[dict[str, Any]]:
         return self.session.spans
+
+    def _start_span(
+        self,
+        span: dict[str, Any],
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+    ) -> dict[str, Any]:
+        recorded = self.session.append(span)
+        if parent_run_id:
+            recorded["parent_span_id"] = str(parent_run_id)
+        parent = self._active.get(str(parent_run_id)) if parent_run_id is not None else None
+        otel_span = self.otel.start_span(
+            recorded["name"],
+            start_time_ns=recorded["start_time_ns"],
+            trace_span=recorded,
+            parent=parent.otel_span if parent is not None else None,
+        )
+        recorded["trace_id"] = self.otel.trace_id(otel_span)
+        active_span = _ActiveSpan(trace_span=recorded, otel_span=otel_span)
+        if run_id is not None:
+            self._active[str(run_id)] = active_span
+        self._last_active = active_span
+        return recorded
 
     def on_tool_start(
         self,
@@ -263,7 +317,7 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
     ) -> None:
         start_time = time.time_ns()
         name = _tool_name(serialized, kwargs)
-        span = self.session.append(
+        self._start_span(
             {
                 "span_id": str(run_id or uuid.uuid4()),
                 "span_type": "tool.call",
@@ -281,35 +335,93 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
                 "output_result": None,
                 "is_error": False,
                 "error_message": None,
-            }
+            },
+            run_id=run_id,
+            parent_run_id=parent_run_id,
         )
-        if parent_run_id:
-            span["parent_span_id"] = str(parent_run_id)
-        parent = self._active.get(str(parent_run_id)) if parent_run_id is not None else None
-        otel_span = self.otel.start_span(
-            span["name"],
-            start_time_ns=start_time,
-            trace_span=span,
-            parent=parent.otel_span if parent is not None else None,
-        )
-        span["trace_id"] = self.otel.trace_id(otel_span)
-        active_span = _ActiveToolSpan(trace_span=span, otel_span=otel_span)
-        if run_id is not None:
-            self._active[str(run_id)] = active_span
-        self._last_active = active_span
 
-    def _find_active(self, run_id: Any) -> _ActiveToolSpan | None:
+    def on_chat_model_start(
+        self,
+        serialized: dict[str, Any],
+        messages: Any,
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        """Capture the start of a chat-model invocation."""
+        self._start_model_span(
+            serialized,
+            _model_input(messages, "messages"),
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+            kwargs=kwargs,
+        )
+
+    def on_llm_start(
+        self,
+        serialized: dict[str, Any],
+        prompts: list[str],
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        """Capture the start of a completion-model invocation."""
+        self._start_model_span(
+            serialized,
+            _model_input(prompts, "prompts"),
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+            kwargs=kwargs,
+        )
+
+    def _start_model_span(
+        self,
+        serialized: Any,
+        input_parameters: dict[str, Any],
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        kwargs: dict[str, Any],
+    ) -> None:
+        start_time = time.time_ns()
+        self._start_span(
+            {
+                "span_id": str(run_id or uuid.uuid4()),
+                "span_type": "model.inference",
+                "name": _model_name(serialized, kwargs),
+                "start_time_ns": start_time,
+                "end_time_ns": start_time,
+                "permission_tier": "none",
+                "approval_granted": None,
+                "input_parameters": input_parameters,
+                "output_result": None,
+                "is_error": False,
+                "error_message": None,
+            },
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+        )
+
+    def _find_active(self, run_id: Any) -> _ActiveSpan | None:
         if run_id is not None:
             return self._active.get(str(run_id))
         return self._last_active
 
-    def _close(self, run_id: Any) -> _ActiveToolSpan | None:
+    def _close(self, run_id: Any) -> _ActiveSpan | None:
         span = self._find_active(run_id)
         if run_id is not None:
             self._active.pop(str(run_id), None)
         if span is self._last_active:
             self._last_active = None
         return span
+
+    def _close_if_type(self, run_id: Any, span_type: str) -> _ActiveSpan | None:
+        active_span = self._find_active(run_id)
+        if active_span is None or active_span.trace_span["span_type"] != span_type:
+            return None
+        return self._close(run_id)
 
     def on_tool_end(self, output: Any, *, run_id: Any = None, **kwargs: Any) -> None:
         active_span = self._close(run_id)
@@ -326,6 +438,94 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
 
     def on_tool_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
         active_span = self._close(run_id)
+        if active_span is None:
+            return
+        span = active_span.trace_span
+        span["end_time_ns"] = time.time_ns()
+        span["is_error"] = True
+        span["error_message"] = PIIRedactor.scrub_text(str(error))
+        self.otel.finish_span(
+            active_span.otel_span,
+            span,
+            end_time_ns=span["end_time_ns"],
+        )
+
+    def on_llm_end(self, response: Any, *, run_id: Any = None, **kwargs: Any) -> None:
+        """Complete a model span with a redacted model response."""
+        active_span = self._close_if_type(run_id, "model.inference")
+        if active_span is None:
+            return
+        span = active_span.trace_span
+        span["end_time_ns"] = time.time_ns()
+        span["output_result"] = PIIRedactor.scrub_container(_json_value(response))
+        self.otel.finish_span(
+            active_span.otel_span,
+            span,
+            end_time_ns=span["end_time_ns"],
+        )
+
+    def on_llm_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
+        """Complete a model span with redacted error metadata."""
+        active_span = self._close_if_type(run_id, "model.inference")
+        if active_span is None:
+            return
+        span = active_span.trace_span
+        span["end_time_ns"] = time.time_ns()
+        span["is_error"] = True
+        span["error_message"] = PIIRedactor.scrub_text(str(error))
+        self.otel.finish_span(
+            active_span.otel_span,
+            span,
+            end_time_ns=span["end_time_ns"],
+        )
+
+    def on_chain_start(
+        self,
+        serialized: dict[str, Any] | None,
+        inputs: Any,
+        *,
+        run_id: Any = None,
+        parent_run_id: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        """Capture a root chain as an optional enclosing agent span."""
+        if parent_run_id is not None:
+            return
+        start_time = time.time_ns()
+        self._start_span(
+            {
+                "span_id": str(run_id or uuid.uuid4()),
+                "span_type": "agent.run",
+                "name": _model_name(serialized, kwargs) if serialized or kwargs else "agent",
+                "start_time_ns": start_time,
+                "end_time_ns": start_time,
+                "permission_tier": "none",
+                "approval_granted": None,
+                "input_parameters": _input_parameters(inputs),
+                "output_result": None,
+                "is_error": False,
+                "error_message": None,
+            },
+            run_id=run_id,
+        )
+
+    def on_chain_end(self, outputs: Any, *, run_id: Any = None, **kwargs: Any) -> None:
+        """Complete a root agent span with a redacted result."""
+        active_span = self._close_if_type(run_id, "agent.run")
+        if active_span is None:
+            return
+        span = active_span.trace_span
+        span["end_time_ns"] = time.time_ns()
+        span["output_result"] = PIIRedactor.scrub_container(_json_value(outputs))
+        self.otel.finish_span(
+            active_span.otel_span,
+            span,
+            end_time_ns=span["end_time_ns"],
+        )
+
+    def on_chain_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
+        """Complete a root agent span with redacted error metadata."""
+        active_span = self._close_if_type(run_id, "agent.run")
         if active_span is None:
             return
         span = active_span.trace_span
