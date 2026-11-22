@@ -143,3 +143,44 @@ def test_reporter_generates_pass_report_for_compliant_trace():
     assert "all security policies satisfied" in report["message"]
     markdown = _format_markdown_report(report)
     assert "### SecAgent Security Gate: PASS" in markdown
+
+
+def test_reporter_generates_valid_sarif_2_1_0():
+    engine = PolicyEngine(policy_path=POLICY_PATH)
+    priv = json.loads((FIXTURES_DIR / "trace_privilege_violation.json").read_text(encoding="utf-8"))
+    result = engine.evaluate_trace(priv)
+
+    sarif = PolicyReporter().generate_sarif(
+        result,
+        agent_name="examples.support_agent.agent:vulnerable_app",
+        rules=engine.ruleset.policies,
+    )
+
+    assert sarif["version"] == "2.1.0"
+    assert len(sarif["runs"]) == 1
+    run = sarif["runs"][0]
+    assert run["tool"]["driver"]["name"] == "SecAgent"
+    assert len(run["tool"]["driver"]["rules"]) == len(engine.ruleset.policies)
+    assert len(run["results"]) == 1
+    assert run["results"][0]["ruleId"] == "POL-ASI03-001"
+    assert run["results"][0]["level"] == "error"
+    assert "issue_refund" in run["results"][0]["message"]["text"]
+
+
+def test_generate_sarif_preserves_violations_when_scenario_ids_shorter():
+    engine = PolicyEngine(policy_path=POLICY_PATH)
+    priv = json.loads((FIXTURES_DIR / "trace_privilege_violation.json").read_text(encoding="utf-8"))
+    base_result = engine.evaluate_trace(priv)
+    partial_result = EvaluationResult(
+        status="FAIL",
+        total_spans_evaluated=base_result.total_spans_evaluated,
+        violations=[base_result.violations[0], base_result.violations[0]],
+        execution_time_ms=base_result.execution_time_ms,
+        violation_scenario_ids=("SCN-ONLY-FIRST",),
+    )
+
+    sarif = PolicyReporter().generate_sarif(partial_result)
+    results = sarif["runs"][0]["results"]
+    assert len(results) == 2
+    assert results[0]["properties"]["scenario_id"] == "SCN-ONLY-FIRST"
+    assert "scenario_id" not in results[1]["properties"]
