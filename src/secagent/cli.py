@@ -1116,6 +1116,14 @@ def serve(
             help="Optional path to execution trace JSON file",
         ),
     ] = None,
+    baseline: Annotated[
+        Path | None,
+        typer.Option(
+            "--baseline",
+            "-b",
+            help="Optional path to baseline report JSON for regression diffing",
+        ),
+    ] = None,
     port: Annotated[
         int,
         typer.Option(
@@ -1133,6 +1141,9 @@ def serve(
         raise typer.Exit(code=1)
     if trace is not None and not trace.exists():
         console.print(f"[red]Trace file not found: {trace}[/red]")
+        raise typer.Exit(code=1)
+    if baseline is not None and not baseline.exists():
+        console.print(f"[red]Baseline report file not found: {baseline}[/red]")
         raise typer.Exit(code=1)
 
     app_path = Path(__file__).resolve().with_name("app.py")
@@ -1153,6 +1164,8 @@ def serve(
     ]
     if trace is not None:
         cmd.extend(["--trace", str(trace)])
+    if baseline is not None:
+        cmd.extend(["--baseline", str(baseline)])
 
     proc = subprocess.run(cmd, check=False)
     raise typer.Exit(code=proc.returncode)

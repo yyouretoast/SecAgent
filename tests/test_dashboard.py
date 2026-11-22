@@ -15,6 +15,7 @@ from secagent.app import (
     _total_trace_duration_ms,
     build_timeline_rows,
     build_waterfall_chart_spec,
+    diff_violations,
     extract_traces,
     parse_app_args,
 )
@@ -346,3 +347,105 @@ def test_cli_serve_rejects_out_of_range_port(tmp_path: Path):
 
     res_high = runner.invoke(cli_app, ["serve", "--report", str(report), "--port", "70000"])
     assert res_high.exit_code != 0
+
+
+def test_diff_violations_and_parse_baseline():
+    args = parse_app_args(["--report", "curr.json", "--baseline", "base.json"])
+    assert args.baseline == Path("base.json")
+
+    v_shared = {
+        "rule_id": "POL-ASI03-001",
+        "offending_tool_name": "execute_trade",
+        "scenario_id": "SCN-1",
+    }
+    v_resolved = {
+        "rule_id": "POL-ASI02-001",
+        "offending_tool_name": "query_db",
+        "scenario_id": "SCN-2",
+    }
+    v_new = {
+        "rule_id": "POL-ASI05-001",
+        "offending_tool_name": "restart_server",
+        "scenario_id": "SCN-3",
+    }
+
+    diff = diff_violations(
+        {"violations": [v_shared, v_resolved]},
+        {"violations": [v_shared, v_new]},
+    )
+    assert diff["new"] == [v_new]
+    assert diff["resolved"] == [v_resolved]
+    assert diff["unchanged"] == [v_shared]
+
+
+def test_streamlit_apptest_renders_regression_diff_with_baseline(tmp_path: Path, monkeypatch):
+    sample = json.loads((FIXTURES_DIR / "sample_trace.json").read_text(encoding="utf-8"))
+    base_path = tmp_path / "base.json"
+    curr_path = tmp_path / "curr.json"
+    base_path.write_text(
+        json.dumps(
+            {
+                "status": "FAIL",
+                "violations": [
+                    {
+                        "rule_id": "POL-ASI02-001",
+                        "severity": "CRITICAL",
+                        "offending_tool_name": "query_db",
+                        "scenario_id": "SCN-OLD",
+                    }
+                ],
+                "traces": [sample],
+            }
+        ),
+        encoding="utf-8",
+    )
+    curr_path.write_text(
+        json.dumps(
+            {
+                "status": "FAIL",
+                "violations": [
+                    {
+                        "rule_id": "POL-ASI03-001",
+                        "severity": "CRITICAL",
+                        "offending_tool_name": "execute_trade",
+                        "scenario_id": "SCN-NEW",
+                        "remediation": "Add approval_gate",
+                    }
+                ],
+                "traces": [sample],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["app.py", "--report", str(curr_path), "--baseline", str(base_path)],
+    )
+    at = AppTest.from_file(str(APP_PATH)).run()
+    assert not at.exception
+    assert any("Regression Diff vs. Baseline" in sub.value for sub in at.subheader)
+
+
+def test_cli_serve_forwards_baseline_flag(tmp_path: Path, monkeypatch):
+    report = tmp_path / "report.json"
+    baseline = tmp_path / "baseline.json"
+    report.write_text("{}", encoding="utf-8")
+    baseline.write_text("{}", encoding="utf-8")
+
+    captured: list[list[str]] = []
+
+    def fake_run(cmd: list[str], check: bool = False):
+        captured.append(cmd)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    res = CliRunner().invoke(
+        cli_app,
+        ["serve", "--report", str(report), "--baseline", str(baseline)],
+    )
+    assert res.exit_code == 0
+    assert captured
+    assert "--baseline" in captured[0]
+    assert str(baseline) in captured[0]
