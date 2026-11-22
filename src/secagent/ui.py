@@ -194,12 +194,27 @@ def render_violations(
     violations: Sequence[dict[str, Any]],
     *,
     max_display: int = 5,
+    report_path: Path | None = None,
 ) -> None:
-    """Render Semgrep/Ruff-style diagnostic cards for policy violations."""
+    """Render Semgrep/Ruff-style diagnostic cards grouped by (rule_id, tool_name)."""
     if not violations:
         return
+
+    grouped: dict[tuple[str, str], tuple[dict[str, Any], int]] = {}
+    for v in violations:
+        key = (
+            str(v.get("rule_id") or "UNKNOWN"),
+            str(v.get("offending_tool_name") or "unknown"),
+        )
+        if key in grouped:
+            first_v, count = grouped[key]
+            grouped[key] = (first_v, count + 1)
+        else:
+            grouped[key] = (v, 1)
+
+    groups = list(grouped.values())
     console.print()
-    for v in violations[:max_display]:
+    for v, count in groups[:max_display]:
         severity = str(v.get("severity") or "HIGH")
         badge = _SEVERITY_BADGE.get(severity, f"[bold]{escape(severity)}[/]")
         rule_id = escape(str(v.get("rule_id") or "UNKNOWN"))
@@ -210,8 +225,9 @@ def render_violations(
         step = escape(str(v.get("offending_step_index", "?")))
         evidence_text = _format_evidence_summary(v.get("evidence"))
         remediation = escape(str(v.get("remediation") or ""))
+        count_suffix = f" [bold yellow](×{count})[/]" if count > 1 else ""
 
-        tree = Tree(f"{badge} [bold]{rule_id}[/] [dim]· {rule_name}[/]")
+        tree = Tree(f"{badge} [bold]{rule_id}[/] [dim]· {rule_name}[/]{count_suffix}")
         tree.add(f"[dim]OWASP   [/] {owasp}")
         tree.add(f"[dim]Span    [/] [cyan]{tool}[/] ([dim]{span_id}[/]) · step #{step}")
         if evidence_text:
@@ -220,10 +236,11 @@ def render_violations(
             tree.add(f"[dim]Fix     [/] [green]{remediation}[/]")
         console.print(tree)
 
-    if len(violations) > max_display:
+    if len(groups) > max_display:
+        target_report = escape(str(report_path or "report.json"))
         console.print(
-            f"\n  [dim]... showing {max_display} of {len(violations)} violations "
-            "(see report.json for full details).[/]"
+            f"\n  [dim]... showing {max_display} of {len(groups)} violation groups "
+            f"({len(violations)} total — see {target_report} for full details).[/]"
         )
 
 
