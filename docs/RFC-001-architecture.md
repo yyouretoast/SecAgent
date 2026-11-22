@@ -142,23 +142,26 @@ SecAgent provides a GitHub Action and CLI scanner that:
 
 ### Subsystem 4: Invariant Verification Engine
 Evaluates YAML policies against execution traces deterministically:
-1. **Predecessor Gate Invariant (ASI03)**: High-privilege actions (`pay`, `admin`) must be preceded by an authorized `gate.hitl` span.
-2. **Context Privilege Invariant (ASI03)**: Read-only contexts cannot execute mutating tools.
-3. **Parameter Injection Invariant (ASI02, ASI05)**: Regex blocklists for SQL and command injection payloads.
-4. **Field Scope Invariant (ASI06)**: Blocks queries requesting restricted fields (`ssn`, `password_hash`).
-5. **Circuit Breaker Invariant (ASI08)**: Step count limits ($N \le 10$) and duplicate call thresholds.
-6. **Egress Allowlist Invariant (ASI10)**: Network tools can only access approved domains.
+1. **Goal Hijack & Toxic Flow Invariants (ASI01)**: Detects instruction overrides (`POL-ASI01-001`) and tainted read/net outputs steering unapproved privileged sinks (`POL-ASI01-002` / `ToxicFlowRule`).
+2. **Predecessor Gate Invariant (ASI03)**: High-privilege actions (`pay`, `admin`) must be preceded by an authorized, operation-matching `gate.hitl` span.
+3. **Context Privilege Invariant (ASI03)**: Read-only contexts cannot execute mutating tools.
+4. **Parameter Injection Invariant (ASI02, ASI05)**: Regex blocklists for SQL and command injection payloads.
+5. **Field Scope Invariant (ASI06)**: Blocks queries requesting or returning restricted fields (`ssn`, `password_hash`).
+6. **Circuit Breaker Invariant (ASI08)**: Step count limits ($N \le 10$) and duplicate call thresholds.
+7. **Egress Allowlist Invariant (ASI10)**: Network tools can only access approved domains.
+8. **Tool-Description Poisoning Check (ASI04)**: Scans introspected tool descriptions and schemas for embedded prompt-injection instructions (`POL-ASI04-001`).
 
 ### Subsystem 5: GitHub Action & Developer CLI
 * **Dual-Lifecycle Execution Model**:
   - `secagent scan` (Every PR): Evaluates target agents against cached/generated scenarios. Runs deterministically in under 2 seconds with zero external LLM API costs.
   - `secagent generate` (On Tool Change): Invoked locally or in CI when tool signatures mutate to refresh `scenarios/generated/`.
-  - `secagent fuzz` (Periodic / Nightly): Runs multi-turn prompt mutations for deep offline security audits.
-* **GitHub Action (`action.yml`)**: Composite action running on pull requests.
+  - `secagent fuzz --execute` (Periodic / Nightly): Runs schema-directed parameter mutations and evaluates traces against the policy engine.
+  - `secagent serve --baseline` (Audit UI): Launches the Streamlit trace waterfall dashboard with optional baseline regression diffing.
+* **GitHub Action (`action.yml`)**: Composite action running on pull requests with sticky PR comment updates and `$GITHUB_STEP_SUMMARY`.
 * **Exit Codes**:
   - `0`: All security invariants satisfied.
   - `1`: Security policy violation detected. Pull request blocked.
-* **Reporting**: Formats Markdown triage tables for pull request review.
+* **Reporting**: Formats sticky Markdown triage tables (`comment.md`) and SARIF 2.1.0 (`--output-sarif`) for GitHub Code Scanning.
 
 ---
 
