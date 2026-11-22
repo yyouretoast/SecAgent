@@ -184,3 +184,45 @@ def test_generate_sarif_preserves_violations_when_scenario_ids_shorter():
     assert len(results) == 2
     assert results[0]["properties"]["scenario_id"] == "SCN-ONLY-FIRST"
     assert "scenario_id" not in results[1]["properties"]
+
+
+def test_generate_sarif_maps_all_severity_levels_and_registers_rules():
+    from secagent.engine import PolicyViolation
+
+    pass_sarif = PolicyReporter().generate_sarif(
+        EvaluationResult(
+            status="PASS",
+            total_spans_evaluated=3,
+            violations=[],
+            execution_time_ms=1.0,
+        )
+    )
+    assert pass_sarif["runs"][0]["results"] == []
+
+    violations = [
+        PolicyViolation(
+            rule_id=f"POL-TEST-{sev}",
+            rule_name=f"Rule {sev}",
+            owasp_category="ASI03: Identity & Privilege Abuse",
+            severity=sev,  # type: ignore[arg-type]
+            offending_span_id=f"span-{sev}",
+            offending_step_index=idx,
+            offending_tool_name="tool_x",
+            failure_action="WARN" if sev in ("MEDIUM", "LOW") else "BLOCK_PR",
+            evidence={"k": "v"},
+            remediation="Fix it",
+        )
+        for idx, sev in enumerate(["CRITICAL", "HIGH", "MEDIUM", "LOW"])
+    ]
+    sarif = PolicyReporter().generate_sarif(
+        EvaluationResult(
+            status="FAIL",
+            total_spans_evaluated=4,
+            violations=violations,
+            execution_time_ms=2.0,
+        )
+    )
+    run = sarif["runs"][0]
+    registered_ids = {r["id"] for r in run["tool"]["driver"]["rules"]}
+    assert [r["level"] for r in run["results"]] == ["error", "error", "warning", "note"]
+    assert all(r["ruleId"] in registered_ids for r in run["results"])

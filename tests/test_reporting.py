@@ -150,9 +150,13 @@ def test_format_markdown_report_enforces_character_limit():
     assert "Truncated: showing" in md
 
 
-def test_cli_scan_generates_markdown_comment(tmp_path: Path):
+def test_cli_scan_generates_markdown_comment(tmp_path: Path, monkeypatch):
     """Verify secagent scan writes comment.md via _format_markdown_report."""
     from typer.testing import CliRunner
+
+    repo_root = Path(__file__).resolve().parent.parent
+    monkeypatch.syspath_prepend(str(repo_root))
+    monkeypatch.chdir(tmp_path)
 
     runner = CliRunner()
     comment_path = tmp_path / "comment.md"
