@@ -236,6 +236,106 @@ def test_scan_evaluates_external_trace_file_directly(tmp_path: Path):
     assert any(v["rule_id"] == "POL-ASI03-001" for v in report["violations"])
 
 
+def test_external_trace_scan_bypasses_generated_cache(tmp_path: Path, monkeypatch):
+    import secagent.generator.cache as cache_module
+
+    class ForbiddenCache:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("external traces must not construct the generated cache")
+
+    monkeypatch.setattr(cache_module, "ScenarioCache", ForbiddenCache)
+    res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--trace",
+            "tests/fixtures/trace_privilege_violation.json",
+            "--output-report",
+            str(tmp_path / "r.json"),
+            "--output-markdown",
+            str(tmp_path / "c.md"),
+        ],
+    )
+    assert res.exit_code == 1
+    report = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+    assert report["generation_mode"] == "external_trace"
+
+
+def test_existing_custom_scenarios_bypass_generated_cache(tmp_path: Path, monkeypatch):
+    import secagent.cli as cli
+    import secagent.generator.cache as cache_module
+
+    scenario_dir = tmp_path / "custom"
+    scenario_dir.mkdir()
+    (scenario_dir / "scenario.json").write_text(
+        json.dumps({"id": "CUSTOM-001", "target_tool": "lookup", "user_prompt": "hello"}),
+        encoding="utf-8",
+    )
+
+    class ForbiddenCache:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("custom scenarios must not construct the generated cache")
+
+    monkeypatch.setattr(cache_module, "ScenarioCache", ForbiddenCache)
+    monkeypatch.setattr(cli, "_resolve_agent_target", lambda *args, **kwargs: (None, None, []))
+    monkeypatch.setattr(cli, "_execute_scenarios_with_telemetry", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        cli,
+        "_synthesize_whole_suite_scenarios",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("must not generate")),
+    )
+
+    res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--scenarios",
+            str(scenario_dir),
+            "--output-report",
+            str(tmp_path / "r.json"),
+            "--output-markdown",
+            str(tmp_path / "c.md"),
+        ],
+    )
+    assert res.exit_code == 0, res.stdout
+    report = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+    assert report["scenarios_evaluated"] == 1
+    assert report["generation_mode"] == "custom_directory"
+
+
+def test_missing_explicit_custom_scenarios_fails_without_cache_or_generation(
+    tmp_path: Path, monkeypatch
+):
+    import secagent.cli as cli
+    import secagent.generator.cache as cache_module
+
+    class ForbiddenCache:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("missing custom scenarios must not access the cache")
+
+    monkeypatch.setattr(cache_module, "ScenarioCache", ForbiddenCache)
+    monkeypatch.setattr(
+        cli,
+        "_resolve_agent_target",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("must not resolve agent")),
+    )
+    res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--scenarios",
+            str(tmp_path / "missing-custom"),
+            "--output-report",
+            str(tmp_path / "r.json"),
+            "--output-markdown",
+            str(tmp_path / "c.md"),
+        ],
+    )
+    assert res.exit_code == 1
+    assert "Custom scenarios directory not found" in res.stdout
+    assert "existing directory" in res.stdout
+
+
 def test_scan_rejects_missing_trace_file(tmp_path: Path):
     runner = CliRunner()
     res = runner.invoke(
