@@ -260,6 +260,17 @@ def _resolve_agent_target(
     return target, mod, discovered
 
 
+def _fingerprint_agent_source(module: Any) -> str:
+    """Fingerprint agent source and turn unsafe cache identity into a CLI error."""
+    from secagent.generator.cache import AgentFingerprintError, agent_source_fingerprint
+
+    try:
+        return agent_source_fingerprint(module)
+    except AgentFingerprintError as exc:
+        console.print(f"[red]Error fingerprinting agent source: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+
 def _resolve_target_tools(
     generator: Any,
     agent_entrypoint: str,
@@ -348,6 +359,52 @@ def _synthesize_per_tool_scenarios(
             counter += 1
 
     return selected
+
+
+def _synthesize_whole_suite_scenarios(
+    generator: Any,
+    tools: list[Any],
+    scenarios_per_tool: int = 2,
+    policy_overrides: dict[str, str] | None = None,
+) -> list[Any]:
+    """Synthesize the complete suite in one generator call."""
+    return generator.generate(
+        tools,
+        scenarios_per_tool=scenarios_per_tool,
+        policy_overrides=policy_overrides,
+    )
+
+
+def _write_generated_scenarios(output_dir: Path, scenario_dicts: list[dict[str, Any]]) -> None:
+    """Write generated manifests and remove only stale manifests tracked by the old summary."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_file = output_dir / "generated_scenarios.json"
+    previous_ids: set[str] = set()
+    if summary_file.is_file():
+        try:
+            previous = json.loads(summary_file.read_text(encoding="utf-8"))
+            if isinstance(previous, list):
+                previous_ids = {
+                    str(item["id"])
+                    for item in previous
+                    if isinstance(item, dict) and item.get("id")
+                }
+        except (OSError, ValueError):
+            pass
+
+    current_ids = {str(item["id"]) for item in scenario_dicts if item.get("id")}
+    for stale_id in previous_ids - current_ids:
+        if not stale_id.startswith("GEN-") or Path(stale_id).name != stale_id:
+            continue
+        stale_path = output_dir / f"{stale_id}.json"
+        if stale_path.is_file():
+            stale_path.unlink()
+
+    for item in scenario_dicts:
+        (output_dir / f"{item['id']}.json").write_text(
+            json.dumps(item, sort_keys=True, indent=2), encoding="utf-8"
+        )
+    summary_file.write_text(json.dumps(scenario_dicts, sort_keys=True, indent=2), encoding="utf-8")
 
 
 def _synthesize_fuzz_scenarios(
@@ -453,14 +510,14 @@ def generate_scenarios_cmd(
         ),
     ] = Path("scenarios/generated/"),
     scenarios_per_tool: Annotated[
-        int,
+        int | None,
         typer.Option(
             "--per-tool",
             "-n",
             min=1,
-            help="Number of adversarial scenarios to synthesize per tool",
+            help="Select the existing capped per-tool behavior (default: whole-suite generation)",
         ),
-    ] = 2,
+    ] = None,
     policies: Annotated[
         Path,
         typer.Option(
@@ -469,6 +526,10 @@ def generate_scenarios_cmd(
             help="Path to security rules YAML for tool tier overrides",
         ),
     ] = Path("policies/security_rules.yaml"),
+    seed: Annotated[
+        int,
+        typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
+    ] = 42,
 ) -> None:
     """Generate test scenarios from agent tool definitions."""
     from secagent.generator import ScenarioGenerator
@@ -479,33 +540,47 @@ def generate_scenarios_cmd(
     if agent_entrypoint:
         console.print(f"Introspecting agent entrypoint: [yellow]{agent_entrypoint}[/yellow]")
 
-    discovered_tools = _resolve_target_tools(
+    _, agent_module, discovered_tools = _resolve_agent_target(
         generator,
         agent_entrypoint,
         overrides,
-        fallback_label="Could not dynamically inspect entrypoint; generate",
     )
+    from secagent.generator.cache import ScenarioCache
 
-    scenarios = _synthesize_per_tool_scenarios(
-        generator,
-        discovered_tools,
-        scenarios_per_tool=scenarios_per_tool,
+    generation_mode = "per_tool" if scenarios_per_tool is not None else "whole_suite"
+    effective_scenarios_per_tool = scenarios_per_tool if scenarios_per_tool is not None else 2
+    cache = ScenarioCache(Path("scenarios/.cache"))
+    key = cache.key(
+        tools=discovered_tools,
         policy_overrides=overrides,
+        seed=seed,
+        settings={"mode": generation_mode, "scenarios_per_tool": effective_scenarios_per_tool},
+        source_fingerprint=_fingerprint_agent_source(agent_module),
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    for scenario in scenarios:
-        manifest_path = output_dir / f"{scenario.id}.json"
-        manifest_path.write_text(json.dumps(scenario.to_dict(), indent=2), encoding="utf-8")
-
+    scenario_dicts = cache.load(key)
+    if scenario_dicts is None:
+        if generation_mode == "per_tool":
+            scenarios = _synthesize_per_tool_scenarios(
+                generator,
+                discovered_tools,
+                scenarios_per_tool=effective_scenarios_per_tool,
+                policy_overrides=overrides,
+            )
+        else:
+            scenarios = _synthesize_whole_suite_scenarios(
+                generator,
+                discovered_tools,
+                scenarios_per_tool=effective_scenarios_per_tool,
+                policy_overrides=overrides,
+            )
+        scenario_dicts = [scenario.to_dict() for scenario in scenarios]
+        cache.save(key, scenario_dicts)
+    _write_generated_scenarios(output_dir, scenario_dicts)
     summary_file = output_dir / "generated_scenarios.json"
-    summary_file.write_text(
-        json.dumps([s.to_dict() for s in scenarios], indent=2),
-        encoding="utf-8",
-    )
+    scenarios = scenario_dicts
 
     console.print(
-        f"[bold green]Generated {len(scenarios)} scenarios across {len(discovered_tools)} tools.[/bold green]"
+        f"[bold green]Prepared {len(scenarios)} scenarios across {len(discovered_tools)} tools.[/bold green]"
     )
     console.print(f"Saved to: [cyan]{summary_file}[/cyan]")
 
@@ -761,6 +836,10 @@ def scan(
             help="Output path for markdown summary",
         ),
     ] = Path("comment.md"),
+    seed: Annotated[
+        int,
+        typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
+    ] = 42,
 ) -> None:
     """Run security invariant checks against generated or provided scenarios."""
     from jsonschema import ValidationError as JsonSchemaValidationError
@@ -795,6 +874,13 @@ def scan(
         scenarios_count = len(traces)
         generation_mode = "external_trace"
     else:
+        if scenarios is not None and not scenarios.exists():
+            console.print(
+                f"[red]Custom scenarios directory not found: {scenarios}. "
+                "Provide an existing directory with scenario files.[/red]"
+            )
+            raise typer.Exit(code=1)
+
         generator = ScenarioGenerator()
         overrides = dict(engine.ruleset.tool_tier_overrides)
         if agent_entrypoint:
@@ -805,10 +891,26 @@ def scan(
             overrides,
         )
 
-        if scenarios is None or not scenarios.exists():
-            console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
-            synth_scenarios = generator.generate(target_tools, policy_overrides=overrides)
-            scenario_dicts = [s.to_dict() for s in synth_scenarios]
+        if scenarios is None:
+            from secagent.generator.cache import ScenarioCache
+
+            cache = ScenarioCache(Path("scenarios/.cache"))
+            key = cache.key(
+                tools=target_tools,
+                policy_overrides=overrides,
+                seed=seed,
+                settings={"mode": "whole_suite", "scenarios_per_tool": 2},
+                source_fingerprint=_fingerprint_agent_source(mod),
+            )
+            scenario_dicts = cache.load(key)
+            if scenario_dicts is None:
+                console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
+                synth_scenarios = _synthesize_whole_suite_scenarios(
+                    generator, target_tools, scenarios_per_tool=2, policy_overrides=overrides
+                )
+                scenario_dicts = [s.to_dict() for s in synth_scenarios]
+                cache.save(key, scenario_dicts)
+            _write_generated_scenarios(Path("scenarios/generated"), scenario_dicts)
             scenarios_count = len(scenario_dicts)
         else:
             scenario_dicts = _load_scenarios_from_dir(scenarios)
@@ -829,11 +931,7 @@ def scan(
             console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
             raise typer.Exit(code=1) from exc
 
-        generation_mode = (
-            "dynamic_synthetic"
-            if (scenarios is None or not scenarios.exists())
-            else "custom_directory"
-        )
+        generation_mode = "dynamic_synthetic" if scenarios is None else "custom_directory"
 
     agent_label = agent_entrypoint or (str(trace) if trace is not None else "")
 
