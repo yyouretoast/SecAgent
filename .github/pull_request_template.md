@@ -13,6 +13,7 @@
 - [ ] ASI01: Agent Goal Hijack
 - [ ] ASI02: Tool Misuse & Parameter Exploitation
 - [ ] ASI03: Identity & Privilege Abuse
+- [ ] ASI04: Agentic Supply Chain Vulnerabilities
 - [ ] ASI05: Unexpected Code Execution (RCE)
 - [ ] ASI06: Context Poisoning / Scope Abuse
 - [ ] ASI08: Cascading Failures / Infinite Loops
@@ -21,8 +22,12 @@
 ## Related Issues
 <!-- Link the issue or user story this PR closes, e.g. "Closes #11". A PR without a linked story needs a one-line justification of its scope. -->
 
+## Verification
+<!-- Paste key test/CLI output or trace screenshot if applicable -->
+
 ## Quality Checklist
 - [ ] Local tests pass (`pytest tests/ -v`)
 - [ ] Linter checks pass (`ruff check .`)
 - [ ] Code formatting verified (`ruff format --check .`)
+- [ ] Type checks pass (`mypy src/secagent/cli.py src/secagent/app.py src/secagent/engine src/secagent/ui.py`)
 - [ ] Does not break schema contracts (`schemas/trace_event.schema.json`)

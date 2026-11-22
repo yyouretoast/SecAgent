@@ -149,6 +149,46 @@ def render_discovered_tools(
     console.print(tree)
 
 
+_OWASP_TRACKS = ("ASI01", "ASI02", "ASI03", "ASI04", "ASI05", "ASI06", "ASI08", "ASI10")
+
+
+def _format_evidence_summary(evidence: Any, max_len: int = 120) -> str:
+    """Format a compact single-line evidence preview for terminal diagnostic cards."""
+    if not isinstance(evidence, dict) or not evidence:
+        return ""
+    parts: list[str] = []
+    for key in list(evidence.keys())[:3]:
+        val = evidence[key]
+        val_str = json.dumps(val, default=str) if isinstance(val, (dict, list)) else str(val)
+        parts.append(f"{key}={val_str}")
+    text = ", ".join(parts)
+    if len(text) > max_len:
+        text = text[: max_len - 3] + "..."
+    return text
+
+
+def render_owasp_strip(
+    console: Console,
+    violations: Sequence[dict[str, Any]],
+) -> None:
+    """Render a compact 1-line OWASP ASI pass/fail scorecard."""
+    counts: dict[str, int] = {}
+    for v in violations:
+        cat = str(v.get("owasp_category") or "")
+        code = cat.split(":", 1)[0].split("-", 1)[0].strip().upper()
+        if code:
+            counts[code] = counts.get(code, 0) + 1
+
+    chips: list[str] = []
+    for code in _OWASP_TRACKS:
+        n = counts.get(code, 0)
+        if n:
+            chips.append(f"[bold red]{code} ✗({n})[/]")
+        else:
+            chips.append(f"[green]{code} ✓[/]")
+    console.print("  [dim]OWASP[/]   " + "  ".join(chips))
+
+
 def render_violations(
     console: Console,
     violations: Sequence[dict[str, Any]],
@@ -168,11 +208,14 @@ def render_violations(
         tool = escape(str(v.get("offending_tool_name") or "unknown"))
         span_id = escape(str(v.get("offending_span_id") or "unknown"))
         step = escape(str(v.get("offending_step_index", "?")))
+        evidence_text = _format_evidence_summary(v.get("evidence"))
         remediation = escape(str(v.get("remediation") or ""))
 
         tree = Tree(f"{badge} [bold]{rule_id}[/] [dim]· {rule_name}[/]")
         tree.add(f"[dim]OWASP   [/] {owasp}")
         tree.add(f"[dim]Span    [/] [cyan]{tool}[/] ([dim]{span_id}[/]) · step #{step}")
+        if evidence_text:
+            tree.add(f"[dim]Evidence[/] [dim]{escape(evidence_text)}[/]")
         if remediation:
             tree.add(f"[dim]Fix     [/] [green]{remediation}[/]")
         console.print(tree)
@@ -195,6 +238,7 @@ def render_summary_card(
     markdown_path: Path,
     sarif_path: Path | None = None,
     elapsed_ms: float | None = None,
+    violation_list: Sequence[dict[str, Any]] | None = None,
 ) -> None:
     """Render the final verdict summary card with next-step instructions."""
     border = "green" if status == "PASS" else ("red" if status == "FAIL" else "yellow")
@@ -215,6 +259,9 @@ def render_summary_card(
     grid.add_row("Next", f"[cyan]secagent serve --report {escape(str(report_path))}[/]")
 
     console.print()
+    if status != "NOT_EVALUATED" and violation_list is not None:
+        render_owasp_strip(console, violation_list)
+        console.print()
     console.print(
         Panel(
             grid,

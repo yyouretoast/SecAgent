@@ -114,12 +114,23 @@ def _format_markdown_report(
         ),
     )
 
+    counts: dict[str, int] = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    for v in sorted_violations:
+        sev = str(_field(v, "severity", "HIGH")).upper()
+        if sev in counts:
+            counts[sev] += 1
+    severity_summary = (
+        f"CRITICAL: {counts['CRITICAL']} · HIGH: {counts['HIGH']} · "
+        f"MEDIUM: {counts['MEDIUM']} · LOW: {counts['LOW']}"
+    )
+
     header = (
         f"{COMMENT_MARKER}\n"
         f"### SecAgent Security Gate: {status}\n\n"
         f"- **Target Agent**: `{effective_agent}`\n"
         f"- **Scenarios Evaluated**: {effective_scenarios}\n"
-        f"- **Violations Detected**: {len(sorted_violations)}\n\n"
+        f"- **Violations Detected**: {len(sorted_violations)}\n"
+        f"- **Severity Breakdown**: {severity_summary}\n\n"
     )
 
     if not sorted_violations:
@@ -155,6 +166,33 @@ def _format_markdown_report(
             f"\n*Truncated: showing {len(rows)} of {len(sorted_violations)} violations "
             "(see report.json for full details).*\n"
         )
+
+    evidence_lines: list[str] = []
+    for v in sorted_violations[:5]:
+        ev = _field(v, "evidence", None)
+        if isinstance(ev, dict) and ev:
+            rule_id = _escape_cell(_field(v, "rule_id", "UNKNOWN"))
+            tool_name = _escape_cell(_field(v, "offending_tool_name", "unknown"))
+            span_id = _escape_cell(_field(v, "offending_span_id", "unknown"))
+            ev_json = json.dumps(ev, default=str).replace("`", "'")
+            if len(ev_json) > 220:
+                ev_json = ev_json[:217] + "..."
+            evidence_lines.append(f"- **`{rule_id}`** (`{tool_name}` · `{span_id}`): `{ev_json}`")
+
+    if evidence_lines:
+        details_block = (
+            "\n<details>\n"
+            "<summary><b>Detailed Evidence (Top Findings)</b></summary>\n\n"
+            + "\n".join(evidence_lines)
+            + "\n\n</details>\n"
+        )
+        if len(body) + len(details_block) <= MAX_GITHUB_COMMENT_LENGTH:
+            body += details_block
+
+    footer = "\n*Inspect trace waterfall locally: `secagent serve --report report.json`*\n"
+    if len(body) + len(footer) <= MAX_GITHUB_COMMENT_LENGTH:
+        body += footer
+
     return body
 
 
@@ -901,6 +939,10 @@ def scan(
         bool,
         typer.Option("--quiet", "-q", help="Reduce terminal output to concise verdict summary"),
     ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Emit raw JSON report to stdout and suppress Rich UI"),
+    ] = False,
 ) -> None:
     """Run security invariant checks against generated or provided scenarios."""
     from jsonschema import ValidationError as JsonSchemaValidationError
@@ -914,6 +956,8 @@ def scan(
     )
     from secagent.generator import ScenarioGenerator
 
+    effective_quiet = quiet or json_output
+
     effective_policy_path = (
         None
         if policies == Path("policies/security_rules.yaml") and not policies.exists()
@@ -925,7 +969,7 @@ def scan(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
-    if not quiet:
+    if not effective_quiet:
         render_scan_header(
             console,
             version=__version__,
@@ -967,7 +1011,7 @@ def scan(
         )
         tool_def_violations = scan_tool_definitions(target_tools)
 
-        if not quiet:
+        if not effective_quiet:
             render_discovered_tools(console, target_tools)
 
         if scenarios is None:
@@ -983,7 +1027,8 @@ def scan(
             )
             scenario_dicts = cache.load(key)
             if scenario_dicts is None:
-                console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
+                if not effective_quiet:
+                    console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
                 synth_scenarios = _synthesize_whole_suite_scenarios(
                     generator, target_tools, scenarios_per_tool=2, policy_overrides=overrides
                 )
@@ -1005,7 +1050,7 @@ def scan(
                 scenario_dicts,
                 overrides,
                 timeout_s=timeout,
-                quiet=quiet,
+                quiet=effective_quiet,
             )
         except JsonSchemaValidationError as exc:
             console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
@@ -1092,25 +1137,29 @@ def scan(
     )
     output_markdown.write_text(comment, encoding="utf-8")
     message = str(report["message"])
-    if not quiet:
-        render_violations(console, report.get("violations") or [])
-        render_summary_card(
-            console,
-            status=str(report["status"]),
-            scenarios=scenarios_count,
-            spans=int(report.get("total_spans_evaluated") or 0),
-            violations=int(report.get("violations_detected") or 0),
-            report_path=output_report,
-            markdown_path=output_markdown,
-            sarif_path=output_sarif,
-            elapsed_ms=report.get("execution_time_ms"),
-        )
-    if report["status"] == "FAIL":
-        console.print(f"[bold red]{message}[/bold red]")
-    elif report["status"] == "PASS":
-        console.print(f"[bold green]{message}[/bold green]")
+    if json_output:
+        sys.stdout.write(json.dumps(report, indent=2) + "\n")
     else:
-        console.print(f"[bold yellow]{message}[/bold yellow]")
+        if not effective_quiet:
+            render_violations(console, report.get("violations") or [])
+            render_summary_card(
+                console,
+                status=str(report["status"]),
+                scenarios=scenarios_count,
+                spans=int(report.get("total_spans_evaluated") or 0),
+                violations=int(report.get("violations_detected") or 0),
+                report_path=output_report,
+                markdown_path=output_markdown,
+                sarif_path=output_sarif,
+                elapsed_ms=report.get("execution_time_ms"),
+                violation_list=report.get("violations") or [],
+            )
+        if report["status"] == "FAIL":
+            console.print(f"[bold red]{message}[/bold red]")
+        elif report["status"] == "PASS":
+            console.print(f"[bold green]{message}[/bold green]")
+        else:
+            console.print(f"[bold yellow]{message}[/bold yellow]")
     raise typer.Exit(code=exit_code)
 
 
@@ -1187,6 +1236,10 @@ def test_alias(
         bool,
         typer.Option("--quiet", "-q", help="Reduce terminal output to concise verdict summary"),
     ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Emit raw JSON report to stdout and suppress Rich UI"),
+    ] = False,
 ) -> None:
     """Alias for 'scan' command with dynamic scenario synthesis."""
     scan(
@@ -1200,6 +1253,7 @@ def test_alias(
         output_sarif=output_sarif,
         seed=seed,
         quiet=quiet,
+        json_output=json_output,
     )
 
 
