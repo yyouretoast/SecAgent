@@ -9,6 +9,7 @@ from secagent.engine.models import PolicyViolation
 from secagent.engine.rules.base import BaseRule
 
 _OPERATIONAL_SPAN_TYPES = frozenset({"tool.call", "gate.hitl"})
+_GENERIC_OPERATIONS = frozenset({"unknown_operation", "interrupt"})
 
 
 def _matches_required_gate(span: Mapping[str, Any], required_gate: Mapping[str, Any]) -> bool:
@@ -19,23 +20,51 @@ def _matches_required_gate(span: Mapping[str, Any], required_gate: Mapping[str, 
     )
 
 
+def _approved_operation(candidate: Mapping[str, Any]) -> str | None:
+    params = candidate.get("input_parameters")
+    if not isinstance(params, Mapping):
+        return None
+    op = params.get("operation")
+    if not isinstance(op, str):
+        return None
+    cleaned = op.strip()
+    if not cleaned or cleaned in _GENERIC_OPERATIONS:
+        return None
+    return cleaned
+
+
+def _operation_matches(candidate: Mapping[str, Any], target_tool_name: Any) -> bool:
+    approved_op = _approved_operation(candidate)
+    if approved_op is None:
+        return True
+    return approved_op == str(target_tool_name or "")
+
+
 def _failure_reason(
     window: list[tuple[int, Mapping[str, Any]]],
     required_gate: Mapping[str, Any],
     consumed: set[int],
-) -> str:
+    target_tool_name: Any,
+) -> tuple[str, str | None]:
     if not window:
-        return "no_predecessor"
+        return "no_predecessor", None
     expected_type = required_gate.get("span_type", "gate.hitl")
     expected_name = required_gate.get("name", "approval_gate")
     saw_consumed = False
+    mismatched_op: str | None = None
     for op_idx, candidate in window:
-        if _matches_required_gate(candidate, required_gate) and op_idx in consumed:
-            saw_consumed = True
-            continue
+        if _matches_required_gate(candidate, required_gate):
+            if op_idx in consumed:
+                saw_consumed = True
+                continue
+            if not _operation_matches(candidate, target_tool_name):
+                mismatched_op = _approved_operation(candidate)
+                continue
         if candidate.get("span_type") == expected_type and candidate.get("name") == expected_name:
-            return "gate_not_approved"
-    return "gate_already_consumed" if saw_consumed else "missing_required_gate"
+            return "gate_not_approved", None
+    if mismatched_op is not None:
+        return "gate_operation_mismatch", mismatched_op
+    return ("gate_already_consumed" if saw_consumed else "missing_required_gate"), None
 
 
 class PredecessorGateRule(BaseRule):
@@ -72,7 +101,9 @@ class PredecessorGateRule(BaseRule):
                 (
                     pos
                     for pos, candidate in window
-                    if pos not in consumed and _matches_required_gate(candidate, required_gate)
+                    if pos not in consumed
+                    and _matches_required_gate(candidate, required_gate)
+                    and _operation_matches(candidate, span.get("name"))
                 ),
                 None,
             )
@@ -81,14 +112,20 @@ class PredecessorGateRule(BaseRule):
                 continue
 
             prev = window[0][1] if window else None
+            reason, mismatched_op = _failure_reason(
+                window, required_gate, consumed, span.get("name")
+            )
             evidence: dict[str, Any] = {
-                "reason": _failure_reason(window, required_gate, consumed),
+                "reason": reason,
                 "observed_permission_tier": span.get("permission_tier"),
                 "target_tiers": sorted(target_tiers),
                 "target_tools": sorted(target_tools),
                 "max_lookback_operational_steps": lookback,
                 "required_gate": dict(required_gate),
             }
+            if mismatched_op is not None:
+                evidence["expected_operation"] = span.get("name")
+                evidence["approved_operation"] = mismatched_op
             if prev is not None:
                 evidence["preceding_span"] = {
                     "span_id": prev.get("span_id"),

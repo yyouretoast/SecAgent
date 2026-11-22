@@ -18,10 +18,12 @@ from secagent.engine.rules import (
     NetworkEgressRule,
     ParameterRegexRule,
     PredecessorGateRule,
+    ToxicFlowRule,
 )
 
 RULE_REGISTRY: dict[str, type[BaseRule]] = {
     "goal_hijack": GoalHijackRule,
+    "toxic_flow": ToxicFlowRule,
     "predecessor_gate": PredecessorGateRule,
     "context_privilege": ContextPrivilegeRule,
     "parameter_regex_blocklist": ParameterRegexRule,
