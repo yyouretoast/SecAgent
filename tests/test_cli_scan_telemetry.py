@@ -370,3 +370,111 @@ def test_resolve_agent_target_invokes_zero_arg_factory(monkeypatch):
     )
     assert callable(getattr(target, "invoke", None))
     assert len(discovered) == 4
+
+
+def test_infer_task_context_maps_asi_policies():
+    from secagent.cli import _infer_task_context
+
+    assert _infer_task_context({"expected_failure_policy": "POL-ASI01-001"}) == "general_inquiry"
+    assert _infer_task_context({"expected_failure_policy": "POL-ASI03-002"}) == "general_inquiry"
+    assert _infer_task_context({"expected_failure_policy": "POL-ASI06-001"}) == "address_update"
+    assert _infer_task_context({"task_context": "custom_ctx"}) == "custom_ctx"
+    assert _infer_task_context({}) == "default"
+
+
+def test_bare_cli_renders_welcome_banner():
+    res = CliRunner().invoke(app, [])
+    assert res.exit_code == 0
+    assert "SecAgent" in res.stdout
+    assert "scan" in res.stdout
+
+
+def test_scan_quiet_mode_writes_reports(tmp_path: Path):
+    report_path = tmp_path / "q_report.json"
+    comment_path = tmp_path / "q_comment.md"
+    trace_path = Path(__file__).resolve().parent / "fixtures" / "sample_trace.json"
+    res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--trace",
+            str(trace_path),
+            "--output-report",
+            str(report_path),
+            "--output-markdown",
+            str(comment_path),
+            "--quiet",
+        ],
+    )
+    assert res.exit_code == 0
+    assert report_path.exists()
+    assert comment_path.exists()
+
+
+def test_inferred_task_context_is_forwarded_to_harness(monkeypatch):
+    import examples.finance_agent.agent as finance
+    from secagent.cli import _execute_scenarios_with_telemetry
+    from secagent.generator import ToolMetadata
+    from secagent.harness.runner import ExecutionHarness, HarnessResult
+
+    seen_contexts: list[str] = []
+
+    def fake_run(self, target, scenario, mod=None, callbacks=None):
+        seen_contexts.append(str(scenario.get("task_context")))
+        return HarnessResult(scenario_id=str(scenario.get("id", "s")), status="completed")
+
+    monkeypatch.setattr(ExecutionHarness, "run_scenario", fake_run)
+    _execute_scenarios_with_telemetry(
+        finance.app,
+        finance,
+        [ToolMetadata(name="get_stock_quote", permission_tier="read")],
+        [{"id": "SCN-1", "expected_failure_policy": "POL-ASI03-002"}],
+        {},
+        quiet=True,
+    )
+    assert seen_contexts == ["general_inquiry"]
+
+
+def test_ui_escapes_bracketed_strings_without_markup_error():
+    from io import StringIO
+
+    from rich.console import Console
+
+    from secagent.ui import render_scan_header, render_summary_card, render_violations
+
+    buf = StringIO()
+    con = Console(file=buf, force_terminal=False, no_color=True)
+    render_scan_header(
+        con,
+        version="0.1.0",
+        target="agent:[unbalanced",
+        policies_path="policies/[custom].yaml",
+        rule_count=1,
+    )
+    render_violations(
+        con,
+        [
+            {
+                "rule_id": "POL-ASI06-001",
+                "severity": "HIGH",
+                "rule_name": "Scope [Test]",
+                "owasp_category": "ASI06: [Scope]",
+                "offending_tool_name": "query_db[0]",
+                "offending_span_id": "span-[1",
+                "offending_step_index": 0,
+                "remediation": "Scrub [REDACTED_SSN] and [unbalanced",
+            }
+        ],
+    )
+    render_summary_card(
+        con,
+        status="FAIL",
+        scenarios=1,
+        spans=1,
+        violations=1,
+        report_path=Path("out/[report].json"),
+        markdown_path=Path("out/comment.md"),
+    )
+    output = buf.getvalue()
+    assert "[REDACTED_SSN]" in output
+    assert "query_db[0]" in output

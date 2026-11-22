@@ -1,4 +1,5 @@
 import importlib
+import importlib.util
 import json
 import subprocess
 import sys
@@ -10,6 +11,16 @@ from typing import Annotated, Any
 import typer
 from rich.console import Console
 
+from secagent import __version__
+from secagent.ui import (
+    make_progress,
+    render_discovered_tools,
+    render_scan_header,
+    render_summary_card,
+    render_violations,
+    render_welcome_banner,
+)
+
 MAX_GITHUB_COMMENT_LENGTH = 65000
 COMMENT_MARKER = "<!-- secagent-security-gate -->"
 _SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
@@ -18,9 +29,17 @@ _VALID_SPAN_TIERS = frozenset({"pure", "read", "write", "pay", "admin", "net", "
 app = typer.Typer(
     name="secagent",
     help="SecAgent: Security scanner for autonomous AI agents",
-    no_args_is_help=True,
+    rich_markup_mode="rich",
 )
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def main_callback(ctx: typer.Context) -> None:
+    """Display the SecAgent welcome banner when invoked with no subcommand."""
+    if ctx.invoked_subcommand is None:
+        render_welcome_banner(console, __version__)
+        raise typer.Exit(code=0)
 
 
 def _load_entrypoint(agent_entrypoint: str) -> tuple[Any, Any]:
@@ -659,6 +678,25 @@ def _record_output_interrupts(callback: Any, output: Any, target_tool: str) -> N
         callback.record_interrupt(payload)
 
 
+def _infer_task_context(scenario: dict[str, Any]) -> str:
+    """Infer an operational task_context when a scenario omits one."""
+    explicit = scenario.get("task_context")
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip()
+
+    expected_policy = str(scenario.get("expected_failure_policy") or "").upper()
+    owasp = str(scenario.get("owasp_category") or "").upper()
+    if (
+        expected_policy.startswith("POL-ASI01")
+        or expected_policy == "POL-ASI03-002"
+        or owasp.startswith("ASI01")
+    ):
+        return "general_inquiry"
+    if expected_policy.startswith("POL-ASI06") or owasp.startswith("ASI06"):
+        return "address_update"
+    return "default"
+
+
 def _execute_scenarios_with_telemetry(
     target: Any,
     mod: Any,
@@ -667,6 +705,7 @@ def _execute_scenarios_with_telemetry(
     policy_overrides: dict[str, str],
     *,
     timeout_s: float = 5.0,
+    quiet: bool = False,
 ) -> list[dict[str, Any]]:
     """Run scenarios through Subsystem 1 ExecutionHarness and Subsystem 2 TraceExporter."""
     if target is None or not callable(getattr(target, "invoke", None)):
@@ -697,64 +736,71 @@ def _execute_scenarios_with_telemetry(
     framework = "langgraph" if hasattr(target, "nodes") else "generic"
     traces: list[dict[str, Any]] = []
 
-    for idx, scn in enumerate(scenario_dicts):
-        scn_id = str(scn.get("id") or scn.get("scenario_id") or f"SCN-{idx + 1:03d}")
-        caller_role = str(scn.get("caller_role") or "guest")
-        task_context = str(scn.get("task_context") or "default")
-        session = TraceSession(
-            scenario_id=scn_id,
-            caller_role=caller_role,
-            task_context=task_context,
-            metadata={"framework": framework},
-        )
-        callback = _GateAwareTelemetryCallback(
-            session,
-            approval_granted=bool(scn.get("approval_granted", False)),
-        )
-        result = harness.run_scenario(target, scn, mod, callbacks=[callback])
-        _record_output_interrupts(
-            callback,
-            result.output,
-            target_tool=str(scn.get("target_tool") or ""),
-        )
+    with make_progress(console, quiet=quiet) as progress:
+        task_id = progress.add_task("Executing scenarios", total=len(scenario_dicts))
+        for idx, scn in enumerate(scenario_dicts):
+            scn_id = str(scn.get("id") or scn.get("scenario_id") or f"SCN-{idx + 1:03d}")
+            caller_role = str(scn.get("caller_role") or "guest")
+            task_context = _infer_task_context(scn)
+            session = TraceSession(
+                scenario_id=scn_id,
+                caller_role=caller_role,
+                task_context=task_context,
+                metadata={"framework": framework},
+            )
+            callback = _GateAwareTelemetryCallback(
+                session,
+                approval_granted=bool(scn.get("approval_granted", False)),
+            )
+            effective_scn = {**scn, "task_context": task_context}
+            result = harness.run_scenario(target, effective_scn, mod, callbacks=[callback])
+            _record_output_interrupts(
+                callback,
+                result.output,
+                target_tool=str(scn.get("target_tool") or ""),
+            )
 
-        if not any(s.get("span_type") == "tool.call" for s in session.spans) and result.tool_calls:
-            for call_rec in result.tool_calls:
-                now_ns = getattr(call_rec, "timestamp_ns", None) or time.time_ns()
-                raw_tier = getattr(
-                    call_rec,
-                    "permission_tier",
-                    getattr(call_rec, "tier", None),
-                )
-                resolved_tier = (
-                    raw_tier
-                    if raw_tier in _VALID_SPAN_TIERS
-                    else tier_by_tool.get(call_rec.tool_name, "read")
-                )
-                output = getattr(call_rec, "output", None)
-                if isinstance(output, list):
-                    output = json.dumps(output, default=str)
-                session.append(
-                    {
-                        "span_id": f"span-{uuid.uuid4().hex[:8]}",
-                        "span_type": "tool.call",
-                        "name": call_rec.tool_name,
-                        "start_time_ns": now_ns,
-                        "end_time_ns": now_ns,
-                        "permission_tier": resolved_tier,
-                        "approval_granted": None,
-                        "input_parameters": call_rec.arguments,
-                        "output_result": output,
-                        "is_error": False,
-                        "error_message": None,
-                    }
-                )
+            if (
+                not any(s.get("span_type") == "tool.call" for s in session.spans)
+                and result.tool_calls
+            ):
+                for call_rec in result.tool_calls:
+                    now_ns = getattr(call_rec, "timestamp_ns", None) or time.time_ns()
+                    raw_tier = getattr(
+                        call_rec,
+                        "permission_tier",
+                        getattr(call_rec, "tier", None),
+                    )
+                    resolved_tier = (
+                        raw_tier
+                        if raw_tier in _VALID_SPAN_TIERS
+                        else tier_by_tool.get(call_rec.tool_name, "read")
+                    )
+                    output = getattr(call_rec, "output", None)
+                    if isinstance(output, list):
+                        output = json.dumps(output, default=str)
+                    session.append(
+                        {
+                            "span_id": f"span-{uuid.uuid4().hex[:8]}",
+                            "span_type": "tool.call",
+                            "name": call_rec.tool_name,
+                            "start_time_ns": now_ns,
+                            "end_time_ns": now_ns,
+                            "permission_tier": resolved_tier,
+                            "approval_granted": None,
+                            "input_parameters": call_rec.arguments,
+                            "output_result": output,
+                            "is_error": False,
+                            "error_message": None,
+                        }
+                    )
 
-        err_span = result.error_span(step_index=len(session.spans))
-        if err_span is not None:
-            session.append(err_span)
+            err_span = result.error_span(step_index=len(session.spans))
+            if err_span is not None:
+                session.append(err_span)
 
-        traces.append(exporter.validate(session.as_dict()))
+            traces.append(exporter.validate(session.as_dict()))
+            progress.advance(task_id)
 
     return traces
 
@@ -851,15 +897,16 @@ def scan(
         int,
         typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
     ] = 42,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Reduce terminal output to concise verdict summary"),
+    ] = False,
 ) -> None:
     """Run security invariant checks against generated or provided scenarios."""
     from jsonschema import ValidationError as JsonSchemaValidationError
 
     from secagent.engine import EvaluationResult, PolicyEngine, PolicyLoadError, PolicyReporter
     from secagent.generator import ScenarioGenerator
-
-    console.print("[bold green]SecAgent Security Scanner[/bold green] v0.1.0")
-    console.print(f"Policies: [cyan]{policies}[/cyan]")
 
     effective_policy_path = (
         None
@@ -871,6 +918,16 @@ def scan(
     except PolicyLoadError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
+
+    if not quiet:
+        render_scan_header(
+            console,
+            version=__version__,
+            target=agent_entrypoint or (str(trace) if trace is not None else "baseline_smoke"),
+            policies_path=str(policies),
+            rule_count=len(engine.ruleset.policies),
+            mode="external_trace" if trace is not None else "dry-run sandbox",
+        )
 
     if trace is not None:
         try:
@@ -901,6 +958,9 @@ def scan(
             agent_entrypoint,
             overrides,
         )
+
+        if not quiet:
+            render_discovered_tools(console, target_tools)
 
         if scenarios is None:
             from secagent.generator.cache import ScenarioCache
@@ -937,6 +997,7 @@ def scan(
                 scenario_dicts,
                 overrides,
                 timeout_s=timeout,
+                quiet=quiet,
             )
         except JsonSchemaValidationError as exc:
             console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
@@ -995,6 +1056,18 @@ def scan(
     )
     output_markdown.write_text(comment, encoding="utf-8")
     message = str(report["message"])
+    if not quiet:
+        render_violations(console, report.get("violations") or [])
+        render_summary_card(
+            console,
+            status=str(report["status"]),
+            scenarios=scenarios_count,
+            spans=int(report.get("total_spans_evaluated") or 0),
+            violations=int(report.get("violations_detected") or 0),
+            report_path=output_report,
+            markdown_path=output_markdown,
+            elapsed_ms=report.get("execution_time_ms"),
+        )
     if report["status"] == "FAIL":
         console.print(f"[bold red]{message}[/bold red]")
     elif report["status"] == "PASS":
@@ -1022,6 +1095,30 @@ def test_alias(
             help="Path to security rules YAML",
         ),
     ] = Path("policies/security_rules.yaml"),
+    scenarios: Annotated[
+        Path | None,
+        typer.Option(
+            "--scenarios",
+            "-s",
+            help="Optional path to custom scenarios directory.",
+        ),
+    ] = None,
+    trace: Annotated[
+        Path | None,
+        typer.Option(
+            "--trace",
+            "-t",
+            help="Optional path to pre-recorded trace JSON file or directory.",
+        ),
+    ] = None,
+    timeout: Annotated[
+        float,
+        typer.Option(
+            "--timeout",
+            min=0.1,
+            help="Per-scenario execution timeout in seconds.",
+        ),
+    ] = 5.0,
     output_report: Annotated[
         Path,
         typer.Option(
@@ -1038,14 +1135,26 @@ def test_alias(
             help="Output path for markdown summary",
         ),
     ] = Path("comment.md"),
+    seed: Annotated[
+        int,
+        typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
+    ] = 42,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Reduce terminal output to concise verdict summary"),
+    ] = False,
 ) -> None:
     """Alias for 'scan' command with dynamic scenario synthesis."""
     scan(
         agent_entrypoint=agent_entrypoint,
         policies=policies,
-        scenarios=None,
+        scenarios=scenarios,
+        trace=trace,
+        timeout=timeout,
         output_report=output_report,
         output_markdown=output_markdown,
+        seed=seed,
+        quiet=quiet,
     )
 
 
@@ -1084,6 +1193,35 @@ def fuzz(
             help="Directory to save discovered vulnerability scenarios",
         ),
     ] = Path("scenarios/generated/"),
+    execute: Annotated[
+        bool,
+        typer.Option(
+            "--execute",
+            help="Execute mutated scenarios against the target agent and evaluate policies",
+        ),
+    ] = False,
+    output_report: Annotated[
+        Path,
+        typer.Option(
+            "--output-report",
+            help="Output path for JSON audit report when --execute is enabled",
+        ),
+    ] = Path("report.json"),
+    output_markdown: Annotated[
+        Path,
+        typer.Option(
+            "--output-markdown",
+            help="Output path for markdown summary when --execute is enabled",
+        ),
+    ] = Path("comment.md"),
+    timeout: Annotated[
+        float,
+        typer.Option(
+            "--timeout",
+            min=0.1,
+            help="Per-scenario execution timeout in seconds when --execute is enabled",
+        ),
+    ] = 5.0,
 ) -> None:
     """Run prompt mutations to test policy coverage."""
     from secagent.generator import ScenarioGenerator
@@ -1094,12 +1232,11 @@ def fuzz(
     overrides = _resolve_policy_overrides(policies)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    target_tools = _resolve_target_tools(
+    target, mod, target_tools = _resolve_agent_target(
         generator,
         agent_entrypoint,
         overrides,
         include_schema=True,
-        fallback_label="Fuzzing",
     )
 
     fuzzed_scenarios = _synthesize_fuzz_scenarios(
@@ -1120,7 +1257,65 @@ def fuzz(
     console.print(
         f"[green]Completed across {len(fuzzed_scenarios)} mutated inputs. Output: {out_file}[/green]"
     )
-    raise typer.Exit(code=0)
+    if not execute:
+        raise typer.Exit(code=0)
+
+    from secagent.engine import PolicyEngine, PolicyLoadError, PolicyReporter
+
+    effective_policy_path = (
+        None
+        if policies == Path("policies/security_rules.yaml") and not policies.exists()
+        else policies
+    )
+    try:
+        engine = PolicyEngine(policy_path=effective_policy_path)
+    except PolicyLoadError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    scenario_dicts = [s.to_dict() for s in fuzzed_scenarios]
+    traces = _execute_scenarios_with_telemetry(
+        target,
+        mod,
+        target_tools,
+        scenario_dicts,
+        overrides,
+        timeout_s=timeout,
+    )
+    if not traces:
+        console.print("[yellow]No executable agent traces produced during fuzz run.[/yellow]")
+        raise typer.Exit(code=0)
+
+    evaluation = engine.evaluate_traces(traces)
+    agent_label = agent_entrypoint or "fuzz_target"
+    report = PolicyReporter().generate_report(
+        evaluation,
+        agent_name=agent_label,
+        scenarios_evaluated=len(scenario_dicts),
+        traces=traces,
+        generation_mode="schema_fuzz",
+    )
+    output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    output_markdown.write_text(
+        _format_markdown_report(
+            report,
+            agent_name=agent_label,
+            scenarios_evaluated=len(scenario_dicts),
+        ),
+        encoding="utf-8",
+    )
+    render_violations(console, report.get("violations") or [])
+    render_summary_card(
+        console,
+        status=str(report["status"]),
+        scenarios=len(scenario_dicts),
+        spans=int(report.get("total_spans_evaluated") or 0),
+        violations=int(report.get("violations_detected") or 0),
+        report_path=output_report,
+        markdown_path=output_markdown,
+        elapsed_ms=report.get("execution_time_ms"),
+    )
+    raise typer.Exit(code=1 if evaluation.has_blocking_violations else 0)
 
 
 @app.command(name="serve")
@@ -1153,6 +1348,12 @@ def serve(
     ] = 8501,
 ) -> None:
     """Launch local Streamlit security dashboard."""
+    if importlib.util.find_spec("streamlit") is None:
+        console.print(
+            "[red]Streamlit is not installed.[/red] Install dashboard extras: "
+            "[cyan]pip install 'secagent[dashboard]'[/cyan]"
+        )
+        raise typer.Exit(code=1)
     if not report.exists():
         console.print(f"[red]Report file not found: {report}[/red]")
         raise typer.Exit(code=1)
