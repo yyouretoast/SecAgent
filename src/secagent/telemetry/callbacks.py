@@ -10,6 +10,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from opentelemetry import trace
+from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExporter
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
 from secagent.telemetry.redactor import PIIRedactor
 
 try:
@@ -75,6 +80,111 @@ def _permission_tier(
     return resolve_permission_tier(tool_name, overrides=dict(tier_by_tool or {}))
 
 
+def _attribute_value(value: Any) -> str | int | float | bool:
+    """Convert redacted values to OpenTelemetry-compatible attribute values."""
+    scrubbed = PIIRedactor.scrub_container(value)
+    if isinstance(scrubbed, (str, int, float, bool)):
+        return scrubbed
+    return json.dumps(scrubbed, default=str, sort_keys=True)
+
+
+def _otel_attributes(span: dict[str, Any]) -> dict[str, str | int | float | bool]:
+    """Project a SecAgent span into safe, scalar OpenTelemetry attributes."""
+    attributes: dict[str, str | int | float | bool] = {
+        "secagent.span_type": str(span["span_type"]),
+        "secagent.permission_tier": str(span.get("permission_tier", "none")),
+        "secagent.input_parameters": _attribute_value(span.get("input_parameters", {})),
+        "secagent.is_error": bool(span.get("is_error", False)),
+    }
+    if span.get("approval_granted") is not None:
+        attributes["secagent.approval_granted"] = bool(span["approval_granted"])
+    if span.get("output_result") is not None:
+        attributes["secagent.output_result"] = _attribute_value(span["output_result"])
+    if span.get("error_message") is not None:
+        attributes["secagent.error_message"] = _attribute_value(span["error_message"])
+    if span.get("attributes") is not None:
+        attributes["secagent.attributes"] = _attribute_value(span["attributes"])
+    return attributes
+
+
+class OTelRuntime:
+    """Own the local OTel tracer and the shared trace context for one session."""
+
+    def __init__(
+        self,
+        *,
+        tracer_provider: TracerProvider | None = None,
+        span_processor: SpanProcessor | None = None,
+        span_exporter: SpanExporter | None = None,
+    ) -> None:
+        self.tracer_provider = tracer_provider or TracerProvider()
+        self.span_exporter: SpanExporter | None = span_exporter
+
+        processors: list[SpanProcessor] = []
+        if span_processor is not None:
+            processors.append(span_processor)
+        if span_exporter is not None:
+            processors.append(SimpleSpanProcessor(span_exporter))
+        if tracer_provider is None and not processors:
+            self.span_exporter = InMemorySpanExporter()
+            processors.append(SimpleSpanProcessor(self.span_exporter))
+
+        for processor in processors:
+            self.tracer_provider.add_span_processor(processor)
+
+        self.tracer = self.tracer_provider.get_tracer("secagent.telemetry")
+        root_context = trace.SpanContext(
+            trace_id=uuid.uuid4().int,
+            span_id=uuid.uuid4().int & ((1 << 64) - 1) or 1,
+            is_remote=False,
+            trace_flags=trace.TraceFlags(trace.TraceFlags.SAMPLED),
+        )
+        self._session_context = trace.set_span_in_context(trace.NonRecordingSpan(root_context))
+
+    def start_span(
+        self,
+        name: str,
+        *,
+        start_time_ns: int,
+        trace_span: dict[str, Any],
+        parent: trace.Span | None = None,
+    ) -> trace.Span:
+        context = trace.set_span_in_context(parent) if parent is not None else self._session_context
+        return self.tracer.start_span(
+            name,
+            context=context,
+            start_time=start_time_ns,
+            attributes=_otel_attributes(trace_span),
+        )
+
+    @staticmethod
+    def trace_id(span: trace.Span) -> str:
+        return f"{span.get_span_context().trace_id:032x}"
+
+    @staticmethod
+    def finish_span(
+        span: trace.Span,
+        trace_span: dict[str, Any],
+        *,
+        end_time_ns: int,
+    ) -> None:
+        span.set_attributes(_otel_attributes(trace_span))
+        if trace_span.get("is_error"):
+            span.set_status(
+                trace.Status(
+                    trace.StatusCode.ERROR,
+                    str(trace_span.get("error_message") or "SecAgent tool error"),
+                )
+            )
+        span.end(end_time=end_time_ns)
+
+
+@dataclass
+class _ActiveToolSpan:
+    trace_span: dict[str, Any]
+    otel_span: trace.Span
+
+
 @dataclass
 class TraceSession:
     """Mutable trace document shared by callbacks and the exporter."""
@@ -116,18 +226,27 @@ class TraceSession:
 
 
 class SecAgentTelemetryCallback(BaseCallbackHandler):
-    """Capture LangChain tool lifecycle callbacks as trace spans."""
+    """Capture LangChain tool lifecycle callbacks as SecAgent and OTel spans."""
 
     def __init__(
         self,
         session: TraceSession | None = None,
         *,
         tier_by_tool: Mapping[str, str] | None = None,
+        tracer_provider: TracerProvider | None = None,
+        span_processor: SpanProcessor | None = None,
+        span_exporter: SpanExporter | None = None,
     ) -> None:
         self.session = session or TraceSession()
         self.tier_by_tool = dict(tier_by_tool or {})
-        self._active: dict[str, dict[str, Any]] = {}
-        self._last_active: dict[str, Any] | None = None
+        self.otel = OTelRuntime(
+            tracer_provider=tracer_provider,
+            span_processor=span_processor,
+            span_exporter=span_exporter,
+        )
+        self.span_exporter = self.otel.span_exporter
+        self._active: dict[str, _ActiveToolSpan] = {}
+        self._last_active: _ActiveToolSpan | None = None
 
     @property
     def spans(self) -> list[dict[str, Any]]:
@@ -166,16 +285,25 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
         )
         if parent_run_id:
             span["parent_span_id"] = str(parent_run_id)
+        parent = self._active.get(str(parent_run_id)) if parent_run_id is not None else None
+        otel_span = self.otel.start_span(
+            span["name"],
+            start_time_ns=start_time,
+            trace_span=span,
+            parent=parent.otel_span if parent is not None else None,
+        )
+        span["trace_id"] = self.otel.trace_id(otel_span)
+        active_span = _ActiveToolSpan(trace_span=span, otel_span=otel_span)
         if run_id is not None:
-            self._active[str(run_id)] = span
-        self._last_active = span
+            self._active[str(run_id)] = active_span
+        self._last_active = active_span
 
-    def _find_active(self, run_id: Any) -> dict[str, Any] | None:
+    def _find_active(self, run_id: Any) -> _ActiveToolSpan | None:
         if run_id is not None:
             return self._active.get(str(run_id))
         return self._last_active
 
-    def _close(self, run_id: Any) -> dict[str, Any] | None:
+    def _close(self, run_id: Any) -> _ActiveToolSpan | None:
         span = self._find_active(run_id)
         if run_id is not None:
             self._active.pop(str(run_id), None)
@@ -184,28 +312,40 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
         return span
 
     def on_tool_end(self, output: Any, *, run_id: Any = None, **kwargs: Any) -> None:
-        span = self._close(run_id)
-        if span is None:
+        active_span = self._close(run_id)
+        if active_span is None:
             return
+        span = active_span.trace_span
         span["end_time_ns"] = time.time_ns()
         span["output_result"] = PIIRedactor.scrub_container(_json_value(output))
+        self.otel.finish_span(
+            active_span.otel_span,
+            span,
+            end_time_ns=span["end_time_ns"],
+        )
 
     def on_tool_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
-        span = self._close(run_id)
-        if span is None:
+        active_span = self._close(run_id)
+        if active_span is None:
             return
+        span = active_span.trace_span
         span["end_time_ns"] = time.time_ns()
         span["is_error"] = True
         span["error_message"] = PIIRedactor.scrub_text(str(error))
+        self.otel.finish_span(
+            active_span.otel_span,
+            span,
+            end_time_ns=span["end_time_ns"],
+        )
 
     def record_hitl(self, approval_granted: bool, **kwargs: Any) -> dict[str, Any]:
         """Append a normalized approval event to this callback's trace session."""
         from secagent.telemetry.hitl import HITLNormalizer
 
-        return HITLNormalizer(self.session).record(approval_granted, **kwargs)
+        return HITLNormalizer(self.session, otel=self.otel).record(approval_granted, **kwargs)
 
     def record_interrupt(self, event: Any, **kwargs: Any) -> dict[str, Any]:
         """Normalize a framework interrupt on this callback's trace session."""
         from secagent.telemetry.hitl import HITLNormalizer
 
-        return HITLNormalizer(self.session).normalize_interrupt(event, **kwargs)
+        return HITLNormalizer(self.session, otel=self.otel).normalize_interrupt(event, **kwargs)
