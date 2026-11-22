@@ -1002,8 +1002,6 @@ def scan(
 
         generator = ScenarioGenerator()
         overrides = dict(engine.ruleset.tool_tier_overrides)
-        if agent_entrypoint and not effective_quiet:
-            console.print(f"Target Agent: [yellow]{agent_entrypoint}[/yellow]")
         target, mod, target_tools = _resolve_agent_target(
             generator,
             agent_entrypoint,
@@ -1141,7 +1139,11 @@ def scan(
         sys.stdout.write(json.dumps(report, indent=2) + "\n")
     else:
         if not effective_quiet:
-            render_violations(console, report.get("violations") or [])
+            render_violations(
+                console,
+                report.get("violations") or [],
+                report_path=output_report,
+            )
             render_summary_card(
                 console,
                 status=str(report["status"]),
@@ -1403,7 +1405,7 @@ def fuzz(
         ),
         encoding="utf-8",
     )
-    render_violations(console, report.get("violations") or [])
+    render_violations(console, report.get("violations") or [], report_path=output_report)
     render_summary_card(
         console,
         status=str(report["status"]),

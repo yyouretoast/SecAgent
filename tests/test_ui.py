@@ -89,10 +89,42 @@ def test_render_violations_truncates_list_and_long_evidence():
         }
         for i in range(7)
     ]
-    render_violations(con, violations, max_display=3)
+    render_violations(con, violations, max_display=3, report_path=Path("vuln_report.json"))
     out = buf.getvalue()
-    assert "showing 3 of 7 violations" in out
+    assert "showing 3 of 7 violation groups" in out
+    assert "vuln_report.json" in out
     assert "..." in out
+
+    con_grouped, buf_grouped = _buffer_console()
+    repeated = [
+        {
+            "rule_id": "POL-ASI03-001",
+            "severity": "CRITICAL",
+            "rule_name": "Gate Check",
+            "owasp_category": "ASI03: Identity & Privilege Abuse",
+            "offending_tool_name": "execute_trade",
+            "offending_span_id": f"s-{i}",
+            "offending_step_index": 1,
+            "remediation": "Add gate",
+        }
+        for i in range(5)
+    ] + [
+        {
+            "rule_id": "POL-ASI03-001",
+            "severity": "CRITICAL",
+            "rule_name": "Gate Check",
+            "owasp_category": "ASI03: Identity & Privilege Abuse",
+            "offending_tool_name": "transfer_funds",
+            "offending_span_id": "s-tf",
+            "offending_step_index": 1,
+            "remediation": "Add gate",
+        }
+    ]
+    render_violations(con_grouped, repeated, max_display=5)
+    grouped_out = buf_grouped.getvalue()
+    assert "execute_trade" in grouped_out
+    assert "transfer_funds" in grouped_out
+    assert "(×5)" in grouped_out
 
 
 def test_render_summary_card_includes_sarif_and_omits_owasp_when_not_evaluated():
