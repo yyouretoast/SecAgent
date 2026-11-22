@@ -30,6 +30,7 @@ TRACE_SPAN_TYPES = frozenset({"agent.run", "model.inference", "tool.call", "gate
 
 SUPPORTED_RULE_TYPES = {
     "goal_hijack",
+    "toxic_flow",
     "predecessor_gate",
     "context_privilege",
     "parameter_regex_blocklist",
@@ -40,6 +41,7 @@ SUPPORTED_RULE_TYPES = {
 
 REQUIRED_CONDITION_FIELDS = {
     "goal_hijack": {"injection_patterns", "protected_contexts"},
+    "toxic_flow": {"taint_source_tiers", "taint_patterns", "sink_tiers"},
     "predecessor_gate": {"target_tiers", "required_gate"},
     "context_privilege": {"task_context", "forbidden_tiers"},
     "parameter_regex_blocklist": {"target_tools", "regex_patterns"},
@@ -52,6 +54,13 @@ CONDITION_FIELD_TYPES = {
     "goal_hijack": {
         "injection_patterns": "string_list",
         "protected_contexts": "protected_contexts",
+    },
+    "toxic_flow": {
+        "taint_source_tiers": "tier_list",
+        "taint_patterns": "string_list",
+        "sink_tiers": "tier_list",
+        "sink_tools": "string_list",
+        "required_gate": "approval_gate",
     },
     "predecessor_gate": {
         "target_tiers": "tier_list",
@@ -66,11 +75,13 @@ CONDITION_FIELD_TYPES = {
     },
     "parameter_regex_blocklist": {
         "target_tools": "string_list",
+        "target_tiers": "tier_list",
         "regex_patterns": "string_list",
     },
     "field_scope_allowlist": {
         "task_context": "string",
         "target_tools": "string_list",
+        "target_tiers": "tier_list",
         "parameter_key": "string",
         "target_locations": "span_location_list",
         "forbidden_fields": "string_list",
@@ -81,6 +92,7 @@ CONDITION_FIELD_TYPES = {
     },
     "network_egress_allowlist": {
         "target_tiers": "tier_list",
+        "target_tools": "string_list",
         "allowed_domains": "string_list",
         "forbidden_destination_patterns": "optional_string_list",
     },
@@ -88,6 +100,7 @@ CONDITION_FIELD_TYPES = {
 
 RULE_ID_PREFIXES = {
     "goal_hijack": ("POL-ASI01-",),
+    "toxic_flow": ("POL-ASI01-",),
     "predecessor_gate": ("POL-ASI03-",),
     "context_privilege": ("POL-ASI03-",),
     "parameter_regex_blocklist": ("POL-ASI02-", "POL-ASI05-"),
@@ -277,6 +290,7 @@ class PolicyDefinition(BaseModel):
 
         pattern_fields = {
             "goal_hijack": "injection_patterns",
+            "toxic_flow": "taint_patterns",
             "parameter_regex_blocklist": "regex_patterns",
             "network_egress_allowlist": "forbidden_destination_patterns",
         }
