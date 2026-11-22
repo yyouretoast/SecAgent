@@ -22,6 +22,7 @@ from secagent.ui import (
 )
 
 MAX_GITHUB_COMMENT_LENGTH = 65000
+COMMENT_MARKER = "<!-- secagent-security-gate -->"
 _SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 _VALID_SPAN_TIERS = frozenset({"pure", "read", "write", "pay", "admin", "net", "gate", "none"})
 
@@ -87,6 +88,7 @@ def _format_markdown_report(
 
     if status == "NOT_EVALUATED":
         return (
+            f"{COMMENT_MARKER}\n"
             "### SecAgent Security Gate: NOT_EVALUATED\n\n"
             f"- **Target Agent**: `{effective_agent}`\n"
             f"- **Scenarios Prepared**: {effective_scenarios}\n"
@@ -96,6 +98,7 @@ def _format_markdown_report(
 
     if status == "PASS" and not violations:
         return (
+            f"{COMMENT_MARKER}\n"
             "### SecAgent Security Gate: PASS\n\n"
             f"- **Target Agent**: `{effective_agent}`\n"
             f"- **Scenarios Evaluated**: {effective_scenarios}\n"
@@ -112,6 +115,7 @@ def _format_markdown_report(
     )
 
     header = (
+        f"{COMMENT_MARKER}\n"
         f"### SecAgent Security Gate: {status}\n\n"
         f"- **Target Agent**: `{effective_agent}`\n"
         f"- **Scenarios Evaluated**: {effective_scenarios}\n"
@@ -882,6 +886,13 @@ def scan(
             help="Output path for markdown summary",
         ),
     ] = Path("comment.md"),
+    output_sarif: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-sarif",
+            help="Optional output path for SARIF 2.1.0 report",
+        ),
+    ] = None,
     seed: Annotated[
         int,
         typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
@@ -894,7 +905,7 @@ def scan(
     """Run security invariant checks against generated or provided scenarios."""
     from jsonschema import ValidationError as JsonSchemaValidationError
 
-    from secagent.engine import PolicyEngine, PolicyLoadError, PolicyReporter
+    from secagent.engine import EvaluationResult, PolicyEngine, PolicyLoadError, PolicyReporter
     from secagent.generator import ScenarioGenerator
 
     effective_policy_path = (
@@ -1007,6 +1018,12 @@ def scan(
         )
         exit_code = 1 if evaluation.has_blocking_violations else 0
     else:
+        evaluation = EvaluationResult(
+            status="PASS",
+            total_spans_evaluated=0,
+            violations=[],
+            execution_time_ms=0.0,
+        )
         report = {
             "status": "NOT_EVALUATED",
             "agent": agent_label or "baseline_smoke",
@@ -1023,6 +1040,14 @@ def scan(
         exit_code = 0
 
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    if output_sarif is not None:
+        sarif = PolicyReporter().generate_sarif(
+            evaluation,
+            agent_name=agent_label or "baseline_smoke",
+            rules=engine.ruleset.policies,
+        )
+        output_sarif.write_text(json.dumps(sarif, indent=2), encoding="utf-8")
 
     comment = _format_markdown_report(
         report,

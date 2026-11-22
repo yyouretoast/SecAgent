@@ -15,6 +15,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT_DIR / "policies" / "security_rules.yaml"
 EXPECTED_POLICY_IDS = {
     "POL-ASI01-001",
+    "POL-ASI01-002",
     "POL-ASI02-001",
     "POL-ASI03-001",
     "POL-ASI03-002",
@@ -485,3 +486,61 @@ def test_loader_span_types_match_trace_schema_enum():
     schema_span_types = schema["properties"]["spans"]["items"]["properties"]["span_type"]["enum"]
 
     assert loader_module.TRACE_SPAN_TYPES == frozenset(schema_span_types)
+
+
+def test_loader_accepts_target_tiers_and_toxic_flow(tmp_path: Path):
+    policy = tmp_path / "extended-rules.yaml"
+    policy.write_text(
+        """
+version: "1"
+policies:
+  - id: POL-ASI01-002
+    name: Toxic flow
+    owasp_category: ASI01
+    severity: CRITICAL
+    rule_type: toxic_flow
+    condition:
+      taint_source_tiers: [read, net]
+      taint_patterns: ["ignore previous instructions"]
+      sink_tiers: [pay, admin]
+      sink_tools: [execute_trade]
+    failure_action: BLOCK_PR
+  - id: POL-ASI02-002
+    name: Tiered regex
+    owasp_category: ASI02
+    severity: HIGH
+    rule_type: parameter_regex_blocklist
+    condition:
+      target_tools: [custom_db]
+      target_tiers: [read, write]
+      regex_patterns: ["DROP\\\\s+TABLE"]
+    failure_action: BLOCK_PR
+  - id: POL-ASI06-002
+    name: Tiered field scope
+    owasp_category: ASI06
+    severity: HIGH
+    rule_type: field_scope_allowlist
+    condition:
+      task_context: address_update
+      target_tools: [custom_db]
+      target_tiers: [read]
+      target_locations: [input_parameters, output_result, attributes]
+      forbidden_fields: [ssn]
+    failure_action: BLOCK_PR
+  - id: POL-ASI10-002
+    name: Tool-targeted egress
+    owasp_category: ASI10
+    severity: CRITICAL
+    rule_type: network_egress_allowlist
+    condition:
+      target_tiers: [net]
+      target_tools: [send_webhook]
+      allowed_domains: [internal.corp.local]
+    failure_action: BLOCK_PR
+""".strip(),
+        encoding="utf-8",
+    )
+
+    ruleset = PolicyLoader(policy).load()
+    assert len(ruleset.policies) == 4
+    assert ruleset.policies[0].rule_type == "toxic_flow"

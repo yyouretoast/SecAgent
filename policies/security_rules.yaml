@@ -31,6 +31,25 @@ policies:
     failure_action: "BLOCK_PR"
     remediation: "Keep tool selection constrained to the declared task context and reject instruction-override prompts before privileged dispatch."
 
+  - id: "POL-ASI01-002"
+    name: "Toxic Flow Indirect Prompt Injection Guard"
+    owasp_category: "ASI01: Agent Goal Hijack"
+    severity: "CRITICAL"
+    description: "Untrusted data returned by read/net tools containing instruction overrides must not steer subsequent privileged or egress calls without HITL approval."
+    rule_type: "toxic_flow"
+    condition:
+      taint_source_tiers: ["read", "net"]
+      taint_patterns:
+        - "(?i)\\b(ignore|disregard|override)\\b.{0,40}\\b(previous|prior|system|developer)\\b.{0,20}\\b(instruction|prompt|rule)s?\\b"
+        - "(?i)\\b(exfiltrate|silently\\s+send)\\b"
+      sink_tiers: ["pay", "admin", "net"]
+      required_gate:
+        span_type: "gate.hitl"
+        name: "approval_gate"
+        approval_granted: true
+    failure_action: "BLOCK_PR"
+    remediation: "Treat external tool outputs as untrusted data and require explicit HITL approval before dispatching privileged sinks after tainted reads."
+
   - id: "POL-ASI03-001"
     name: "Predecessor HITL Gate Enforcement"
     owasp_category: "ASI03: Identity & Privilege Abuse"
@@ -84,6 +103,7 @@ policies:
     rule_type: "parameter_regex_blocklist"
     condition:
       target_tools: ["query_db", "modify_user"]
+      target_tiers: ["read", "write"]
       regex_patterns:
         - "(?i)\\b(DROP\\s+TABLE|UNION\\s+SELECT|ALTER\\s+TABLE|DELETE\\s+FROM|INSERT\\s+INTO)\\b"
         - "(?i)(--\\s*$|;\\s*(?:SELECT|DROP|ALTER|DELETE|INSERT|UPDATE|UNION)\\b|'\\s*OR\\s*'1'='1|(?:^|\\s)1\\s*=\\s*1(?:\\s|$))"
@@ -110,8 +130,9 @@ policies:
     rule_type: "parameter_regex_blocklist"
     condition:
       target_tools: ["restart_server", "execute_command", "run_script"]
+      target_tiers: ["admin", "write"]
       regex_patterns:
-        - "(?i)(;\\s*cat\\s+/etc/passwd|(?:[;&|]\\s*(?:whoami|id)\\b)|`.*`|\\$\\(.*\\)|;\\s*rm\\s+-rf)"
+        - "(?i)(;\\s*cat\\s+/etc/passwd|(?:[;&|]\\s*(?:whoami|id|sh|bash|curl|wget|nc)\\b)|`.*`|\\$\\(.*\\)|;\\s*rm\\s+-rf|\\bpython3?\\s+-c\\b)"
     failure_action: "BLOCK_PR"
     remediation: "Disallow shell-executing tools or enforce strict parameter whitelisting without shell interpolation."
 
