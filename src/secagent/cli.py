@@ -528,9 +528,7 @@ def generate_scenarios_cmd(
     ] = Path("policies/security_rules.yaml"),
     seed: Annotated[
         int,
-        typer.Option(
-            "--seed", help="Seed cache entries; scenario templates remain deterministic"
-        ),
+        typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
     ] = 42,
 ) -> None:
     """Generate test scenarios from agent tool definitions."""
@@ -840,9 +838,7 @@ def scan(
     ] = Path("comment.md"),
     seed: Annotated[
         int,
-        typer.Option(
-            "--seed", help="Seed cache entries; scenario templates remain deterministic"
-        ),
+        typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
     ] = 42,
 ) -> None:
     """Run security invariant checks against generated or provided scenarios."""
@@ -935,11 +931,7 @@ def scan(
             console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
             raise typer.Exit(code=1) from exc
 
-        generation_mode = (
-            "dynamic_synthetic"
-            if scenarios is None
-            else "custom_directory"
-        )
+        generation_mode = "dynamic_synthetic" if scenarios is None else "custom_directory"
 
     agent_label = agent_entrypoint or (str(trace) if trace is not None else "")
 

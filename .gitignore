@@ -56,4 +56,5 @@ traces/*.json
 report.json
 comment.md
 scenarios/generated/
+scenarios/.cache/
 *.log

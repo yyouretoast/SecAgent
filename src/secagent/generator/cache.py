@@ -6,8 +6,8 @@ and hashes only reachable source files owned by the declared local roots.
 
 from __future__ import annotations
 
-import hashlib
 import ast
+import hashlib
 import importlib.machinery
 import importlib.util
 import json
@@ -222,9 +222,12 @@ def agent_source_fingerprint(module: Any = None) -> str:
                     )
             elif locations:
                 owners = {
-                    "local" if any(under(location, root) for _, root in roots)
-                    else "stdlib" if any(under(location, base) for base in stdlib_roots)
-                    else "third-party" if any(under(location, base) for base in site_roots)
+                    "local"
+                    if any(under(location, root) for _, root in roots)
+                    else "stdlib"
+                    if any(under(location, base) for base in stdlib_roots)
+                    else "third-party"
+                    if any(under(location, base) for base in site_roots)
                     else "unknown"
                     for location in locations
                 }
@@ -267,12 +270,16 @@ def agent_source_fingerprint(module: Any = None) -> str:
         try:
             content = source.read_bytes()
         except OSError as exc:
-            raise AgentFingerprintError(f"Cannot read relevant agent source '{source}': {exc}") from exc
+            raise AgentFingerprintError(
+                f"Cannot read relevant agent source '{source}': {exc}"
+            ) from exc
         sources[source] = content
         try:
             tree = ast.parse(content, filename=str(source))
         except (SyntaxError, UnicodeDecodeError) as exc:
-            raise AgentFingerprintError(f"Cannot parse relevant agent source '{source}': {exc}") from exc
+            raise AgentFingerprintError(
+                f"Cannot parse relevant agent source '{source}': {exc}"
+            ) from exc
 
         is_package = source.name == "__init__.py"
         current_package = module_name if is_package else module_name.rpartition(".")[0]
@@ -362,15 +369,17 @@ class ScenarioCache:
         settings: dict[str, Any],
         source_fingerprint: str,
     ) -> str:
-        return _digest({
-            "cache_schema_version": CACHE_SCHEMA_VERSION,
-            "generator_schema_version": GENERATOR_SCHEMA_VERSION,
-            "tools": tool_fingerprint_data(tools),
-            "policy_overrides": policy_overrides or {},
-            "seed": seed,
-            "settings": settings,
-            "agent_source": source_fingerprint,
-        })
+        return _digest(
+            {
+                "cache_schema_version": CACHE_SCHEMA_VERSION,
+                "generator_schema_version": GENERATOR_SCHEMA_VERSION,
+                "tools": tool_fingerprint_data(tools),
+                "policy_overrides": policy_overrides or {},
+                "seed": seed,
+                "settings": settings,
+                "agent_source": source_fingerprint,
+            }
+        )
 
     def load(self, key: str) -> list[dict[str, Any]] | None:
         path = self.directory / f".scenario-cache-{key}.json"
@@ -410,7 +419,9 @@ class ScenarioCache:
             "scenarios": scenarios,
         }
         path = self.directory / f".scenario-cache-{key}.json"
-        fd, temporary = tempfile.mkstemp(prefix=".scenario-cache-", suffix=".tmp", dir=self.directory)
+        fd, temporary = tempfile.mkstemp(
+            prefix=".scenario-cache-", suffix=".tmp", dir=self.directory
+        )
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 json.dump(document, handle, sort_keys=True, indent=2)
@@ -422,5 +433,3 @@ class ScenarioCache:
                 os.unlink(temporary)
             except FileNotFoundError:
                 pass
-
-

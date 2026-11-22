@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import json
 import importlib.util
+import json
 import types
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
+import secagent.generator.cache as cache_module
 from secagent.cli import app
 from secagent.generator import GeneratedScenario, ToolMetadata
 from secagent.generator.cache import (
@@ -16,7 +17,6 @@ from secagent.generator.cache import (
     ScenarioCache,
     agent_source_fingerprint,
 )
-import secagent.generator.cache as cache_module
 
 
 def _key(cache, *, seed=42, tools=None, overrides=None, settings=None, source="source-a"):
@@ -103,9 +103,7 @@ def test_source_fingerprint_traverses_initializer_imports_but_ignores_unrelated_
 ):
     package = tmp_path / "agentpkg" / "subpkg"
     package.mkdir(parents=True)
-    (tmp_path / "agentpkg" / "__init__.py").write_text(
-        "import init_helper\n", encoding="utf-8"
-    )
+    (tmp_path / "agentpkg" / "__init__.py").write_text("import init_helper\n", encoding="utf-8")
     (package / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
     (package / "agent.py").write_text("VALUE = 1\n", encoding="utf-8")
     helper = tmp_path / "init_helper.py"
@@ -145,11 +143,15 @@ def _fingerprint_module(root: Path, monkeypatch, name: str = "agentpkg.agent"):
     return types.SimpleNamespace(__file__=str(source), __package__=package, __name__=name)
 
 
-def test_source_fingerprint_tracks_direct_and_transitive_external_helpers(tmp_path: Path, monkeypatch):
+def test_source_fingerprint_tracks_direct_and_transitive_external_helpers(
+    tmp_path: Path, monkeypatch
+):
     package = tmp_path / "agentpkg"
     package.mkdir()
     (package / "__init__.py").write_text("", encoding="utf-8")
-    (package / "agent.py").write_text("from helpers import direct\nVALUE = direct.VALUE", encoding="utf-8")
+    (package / "agent.py").write_text(
+        "from helpers import direct\nVALUE = direct.VALUE", encoding="utf-8"
+    )
     (tmp_path / "helpers.py").write_text("from deeper import VALUE", encoding="utf-8")
     (tmp_path / "deeper.py").write_text("VALUE = 1", encoding="utf-8")
     module = _fingerprint_module(tmp_path, monkeypatch)
@@ -161,7 +163,9 @@ def test_source_fingerprint_tracks_direct_and_transitive_external_helpers(tmp_pa
     assert agent_source_fingerprint(module) != direct_changed
 
 
-def test_source_fingerprint_ignores_unimported_sources_and_external_dependencies(tmp_path: Path, monkeypatch):
+def test_source_fingerprint_ignores_unimported_sources_and_external_dependencies(
+    tmp_path: Path, monkeypatch
+):
     package = tmp_path / "agentpkg"
     package.mkdir()
     (package / "__init__.py").write_text("", encoding="utf-8")
@@ -214,12 +218,16 @@ def test_source_fingerprint_recognizes_user_site_packages_dependency(tmp_path: P
     dependency.write_text("VALUE = 1", encoding="utf-8")
     monkeypatch.setattr(cache_module.site, "getsitepackages", lambda: [])
     monkeypatch.setattr(cache_module.site, "getusersitepackages", lambda: str(user_site))
-    monkeypatch.setattr(cache_module.sysconfig, "get_paths", lambda: {
-        "stdlib": str(tmp_path / "stdlib"),
-        "platstdlib": str(tmp_path / "stdlib"),
-        "purelib": str(tmp_path / "other" / "purelib"),
-        "platlib": str(tmp_path / "other" / "platlib"),
-    })
+    monkeypatch.setattr(
+        cache_module.sysconfig,
+        "get_paths",
+        lambda: {
+            "stdlib": str(tmp_path / "stdlib"),
+            "platstdlib": str(tmp_path / "stdlib"),
+            "purelib": str(tmp_path / "other" / "purelib"),
+            "platlib": str(tmp_path / "other" / "platlib"),
+        },
+    )
     original = cache_module.importlib.machinery.PathFinder.find_spec
 
     # Return an explicit package spec whose source sits in the controlled user site.
@@ -231,7 +239,9 @@ def test_source_fingerprint_recognizes_user_site_packages_dependency(tmp_path: P
             return spec
         return original(name, path, target)
 
-    monkeypatch.setattr(cache_module.importlib.machinery.PathFinder, "find_spec", find_user_site_spec)
+    monkeypatch.setattr(
+        cache_module.importlib.machinery.PathFinder, "find_spec", find_user_site_spec
+    )
     assert agent_source_fingerprint(module)
 
 
@@ -286,7 +296,9 @@ def test_source_fingerprint_resolves_relative_and_from_package_imports(tmp_path:
     package = tmp_path / "agentpkg"
     (package / "sub").mkdir(parents=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
-    (package / "agent.py").write_text("from . import sub\nfrom .sub import helper", encoding="utf-8")
+    (package / "agent.py").write_text(
+        "from . import sub\nfrom .sub import helper", encoding="utf-8"
+    )
     (package / "sub" / "__init__.py").write_text("", encoding="utf-8")
     helper = package / "sub" / "helper.py"
     helper.write_text("VALUE = 1", encoding="utf-8")
@@ -404,8 +416,10 @@ def test_cli_fingerprint_errors_exit_before_cache_key_creation(
     else:
         args.extend(
             [
-                "--output-report", str(tmp_path / "report.json"),
-                "--output-markdown", str(tmp_path / "report.md"),
+                "--output-report",
+                str(tmp_path / "report.json"),
+                "--output-markdown",
+                str(tmp_path / "report.md"),
             ]
         )
     result = CliRunner().invoke(app, args)
@@ -520,7 +534,9 @@ def test_generate_replays_cache_and_rewrites_stale_manifests(tmp_path: Path, mon
 
     def synth(*args, **kwargs):
         calls.append(1)
-        return [GeneratedScenario("GEN-ASI01-001", "ASI01-AgentGoalHijack", "T", "D", "lookup", "P")]
+        return [
+            GeneratedScenario("GEN-ASI01-001", "ASI01-AgentGoalHijack", "T", "D", "lookup", "P")
+        ]
 
     monkeypatch.setattr(cli, "_synthesize_whole_suite_scenarios", synth)
     monkeypatch.setattr(cli, "_synthesize_per_tool_scenarios", synth)
@@ -593,7 +609,9 @@ def test_default_generate_and_scan_share_whole_suite_cache(tmp_path: Path, monke
         ["generate", "--output-dir", str(output), "--policies", str(policy_file)],
     )
     assert generated.exit_code == 0, generated.stdout
-    generated_records = json.loads((output / "generated_scenarios.json").read_text(encoding="utf-8"))
+    generated_records = json.loads(
+        (output / "generated_scenarios.json").read_text(encoding="utf-8")
+    )
 
     scan_records = []
     monkeypatch.setattr(
