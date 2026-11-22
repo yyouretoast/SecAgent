@@ -84,12 +84,12 @@ sequenceDiagram
 
 ## Core Capabilities
 
-* **GitHub Action (`action.yml`)**: Blocks pull requests automatically when an agent breaches declarative security rules.
-* **Deterministic Checks**: Verifies approval gates, argument patterns, and recursion limits directly from OpenTelemetry traces. No LLM-as-a-judge.
-* **Automatic Test Generation (`secagent generate`, `secagent fuzz`)**: Inspects agent tools and synthesizes schema-directed adversarial test cases without manually written YAML files.
-* **Interactive Audit Dashboard (`secagent serve`)**: Launches a local Streamlit waterfall timeline and span inspector for reports and traces.
+* **GitHub Action (`action.yml`)**: Blocks pull requests automatically when an agent breaches declarative security rules, posts sticky PR triage comments, writes GitHub Actions job summaries, and exports SARIF 2.1.0 (`--output-sarif`) for GitHub Code Scanning.
+* **Deterministic Checks**: Verifies approval gates (including argument-bound HITL), toxic indirect prompt injection flows (`ToxicFlowRule`), tool-description poisoning (`POL-ASI04-001`), argument patterns, and recursion limits directly from OpenTelemetry traces. No LLM-as-a-judge.
+* **Automatic Test Generation (`secagent generate`, `secagent fuzz`)**: Inspects agent tools and synthesizes schema-directed adversarial test cases, with `secagent fuzz --execute` running mutated suites directly against target agents.
+* **Interactive Audit Dashboard (`secagent serve`)**: Launches a local Streamlit waterfall timeline, span inspector, and `--baseline` regression diff view (installable via `pip install "secagent[dashboard]"`).
 * **Privilege SDK (`@secagent.permission`)**: Decorator for tools specifying execution privilege tiers (`pure`, `read`, `write`, `pay`, `admin`, `net`).
-* **Trace-Observable OWASP Coverage**: 7 active categories (ASI01, ASI02, ASI03, ASI05, ASI06, ASI08, ASI10), including deterministic goal-hijack sequence detection.
+* **Trace-Observable OWASP Coverage**: 8 OWASP ASI categories (`ASI01`, `ASI02`, `ASI03`, `ASI04`, `ASI05`, `ASI06`, `ASI08`, `ASI10`), including deterministic goal-hijack, toxic-flow, and tool-poisoning detection.
 
 ---
 
@@ -101,6 +101,8 @@ sequenceDiagram
 git clone https://github.com/yyouretoast/SecAgent.git
 cd SecAgent
 python -m pip install -e ".[dev]"
+# Or for runtime + Streamlit dashboard only:
+python -m pip install -e ".[dashboard]"
 ```
 
 ### 2. Protect Agent Tools
@@ -128,7 +130,7 @@ def execute_trade(symbol: str, quantity: int) -> dict:
 Run a scan against an agent module:
 
 ```bash
-secagent scan --agent examples.finance_agent.agent:app --policies policies/security_rules.yaml
+secagent scan --agent examples.finance_agent.agent:app --policies policies/security_rules.yaml --output-sarif report.sarif
 ```
 
 ### 4. Synthesize & Fuzz Test Scenarios
@@ -137,15 +139,15 @@ Generate adversarial test cases or run schema-directed parameter mutations by in
 
 ```bash
 secagent generate --agent examples.devops_agent.agent --per-tool 3
-secagent fuzz --agent examples.support_agent.agent --iterations 10
+secagent fuzz --agent examples.support_agent.agent --iterations 10 --execute
 ```
 
 ### 5. Inspect Traces in the Dashboard
 
-Launch the local Streamlit audit dashboard to inspect trace waterfalls and policy violations:
+Launch the local Streamlit audit dashboard to inspect trace waterfalls, policy violations, and baseline regression diffs:
 
 ```bash
-secagent serve --report report.json
+secagent serve --report report.json --baseline old_report.json
 ```
 
 ### 6. GitHub Action Integration
@@ -202,7 +204,8 @@ secagent/
 │   └── secagent/
 │       ├── app.py                     # Streamlit audit & trace inspection dashboard
 │       ├── cli.py                     # Typer CLI (generate, scan, fuzz, serve)
-│       ├── engine/                    # Policy ruleset loader & evaluators
+│       ├── ui.py                      # Rich terminal UI components & welcome banner
+│       ├── engine/                    # Policy ruleset loader, evaluators & SARIF reporter
 │       ├── generator/                 # Dynamic scenario synthesis & schema fuzzer
 │       ├── harness/                   # Introspector, sandbox & timeout runner
 │       ├── sdk/                       # @permission decorator & exports

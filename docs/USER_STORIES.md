@@ -150,7 +150,7 @@ A user story is accepted as complete if:
 > **I want** working reference agents in `examples/`,  
 > **So that** compliant and vulnerable agent behaviors can be demonstrated reproducibly.
 
-* **Priority**: High (P1) | **Points**: 5 | **Sprint**: 3 | **Status**: In Progress
+* **Priority**: High (P1) | **Points**: 5 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `examples/finance_agent/`, `examples/devops_agent/`, `examples/support_agent/`
 * **Acceptance Criteria**:
   ```gherkin
@@ -296,7 +296,7 @@ A user story is accepted as complete if:
 > **I want** injection payloads injected specifically into matching string parameters,  
 > **So that** generated attack vectors trigger realistic tool execution without type errors.
 
-* **Priority**: High (P1) | **Points**: 5 | **Sprint**: 2 | **Status**: Planned
+* **Priority**: High (P1) | **Points**: 5 | **Sprint**: 2 | **Status**: Complete
 * **Target Interface**: `src/secagent/generator/fuzzer.py`
 * **Acceptance Criteria**:
   ```gherkin
@@ -314,7 +314,7 @@ A user story is accepted as complete if:
 > **I want** dynamic test suites cached in `scenarios/generated/` with fixed random seeds,  
 > **So that** unchanged commits do not experience non-deterministic test flakiness.
 
-* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Planned
+* **Priority**: High (P0) | **Points**: 3 | **Sprint**: 3 | **Status**: Complete
 * **Target Interface**: `src/secagent/generator/cache.py`
 * **Acceptance Criteria**:
   ```gherkin

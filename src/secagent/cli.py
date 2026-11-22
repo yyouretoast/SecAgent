@@ -905,7 +905,13 @@ def scan(
     """Run security invariant checks against generated or provided scenarios."""
     from jsonschema import ValidationError as JsonSchemaValidationError
 
-    from secagent.engine import EvaluationResult, PolicyEngine, PolicyLoadError, PolicyReporter
+    from secagent.engine import (
+        EvaluationResult,
+        PolicyEngine,
+        PolicyLoadError,
+        PolicyReporter,
+        scan_tool_definitions,
+    )
     from secagent.generator import ScenarioGenerator
 
     effective_policy_path = (
@@ -941,6 +947,7 @@ def scan(
 
         scenarios_count = len(traces)
         generation_mode = "external_trace"
+        tool_def_violations = []
     else:
         if scenarios is not None and not scenarios.exists():
             console.print(
@@ -958,6 +965,7 @@ def scan(
             agent_entrypoint,
             overrides,
         )
+        tool_def_violations = scan_tool_definitions(target_tools)
 
         if not quiet:
             render_discovered_tools(console, target_tools)
@@ -1008,7 +1016,35 @@ def scan(
     agent_label = agent_entrypoint or (str(trace) if trace is not None else "")
 
     if traces:
-        evaluation = engine.evaluate_traces(traces)
+        base_eval = engine.evaluate_traces(traces)
+        if tool_def_violations:
+            evaluation = EvaluationResult(
+                status="FAIL",
+                total_spans_evaluated=base_eval.total_spans_evaluated,
+                violations=[*tool_def_violations, *base_eval.violations],
+                execution_time_ms=base_eval.execution_time_ms,
+                violation_scenario_ids=(
+                    *(None for _ in tool_def_violations),
+                    *base_eval.violation_scenario_ids,
+                ),
+            )
+        else:
+            evaluation = base_eval
+        report = PolicyReporter().generate_report(
+            evaluation,
+            agent_name=agent_label or "baseline_smoke",
+            scenarios_evaluated=scenarios_count,
+            traces=traces,
+            generation_mode=generation_mode,
+        )
+        exit_code = 1 if evaluation.has_blocking_violations else 0
+    elif tool_def_violations:
+        evaluation = EvaluationResult(
+            status="FAIL",
+            total_spans_evaluated=0,
+            violations=tool_def_violations,
+            execution_time_ms=0.0,
+        )
         report = PolicyReporter().generate_report(
             evaluation,
             agent_name=agent_label or "baseline_smoke",
@@ -1066,6 +1102,7 @@ def scan(
             violations=int(report.get("violations_detected") or 0),
             report_path=output_report,
             markdown_path=output_markdown,
+            sarif_path=output_sarif,
             elapsed_ms=report.get("execution_time_ms"),
         )
     if report["status"] == "FAIL":
@@ -1135,6 +1172,13 @@ def test_alias(
             help="Output path for markdown summary",
         ),
     ] = Path("comment.md"),
+    output_sarif: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-sarif",
+            help="Optional output path for SARIF 2.1.0 report",
+        ),
+    ] = None,
     seed: Annotated[
         int,
         typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
@@ -1153,6 +1197,7 @@ def test_alias(
         timeout=timeout,
         output_report=output_report,
         output_markdown=output_markdown,
+        output_sarif=output_sarif,
         seed=seed,
         quiet=quiet,
     )
