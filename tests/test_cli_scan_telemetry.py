@@ -522,3 +522,73 @@ def test_scan_detects_poisoned_tool_definition_automatically(tmp_path: Path, mon
     assert any(v["rule_id"] == "POL-ASI04-001" for v in report["violations"])
     sarif = json.loads(sarif_path.read_text(encoding="utf-8"))
     assert sarif["runs"][0]["results"][0]["ruleId"] == "POL-ASI04-001"
+
+
+def test_scan_json_flag_emits_pure_json_and_ui_renders_evidence_and_owasp_strip(tmp_path: Path):
+    from io import StringIO
+
+    from rich.console import Console
+
+    from secagent.ui import render_owasp_strip, render_violations
+
+    trace_path = Path(__file__).resolve().parent / "fixtures" / "trace_privilege_violation.json"
+    res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--trace",
+            str(trace_path),
+            "--output-report",
+            str(tmp_path / "r.json"),
+            "--output-markdown",
+            str(tmp_path / "c.md"),
+            "--json",
+        ],
+    )
+    assert res.exit_code == 1
+    payload = json.loads(res.stdout)
+    assert payload["status"] == "FAIL"
+    assert payload["violations_detected"] == 1
+
+    agent_res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--agent",
+            "examples.finance_agent.agent:app",
+            "--output-report",
+            str(tmp_path / "agent_r.json"),
+            "--output-markdown",
+            str(tmp_path / "agent_c.md"),
+            "--json",
+        ],
+    )
+    assert agent_res.exit_code == 0
+    assert json.loads(agent_res.stdout)["status"] == "PASS"
+
+    buf = StringIO()
+    con = Console(file=buf, force_terminal=False, no_color=True)
+    render_violations(
+        con,
+        [
+            {
+                "rule_id": "POL-ASI03-001",
+                "severity": "CRITICAL",
+                "rule_name": "Predecessor HITL",
+                "owasp_category": "ASI03: Identity & Privilege Abuse",
+                "offending_tool_name": "execute_trade",
+                "offending_span_id": "s-1",
+                "offending_step_index": 1,
+                "evidence": {"reason": "no_predecessor"},
+                "remediation": "Add gate",
+            }
+        ],
+    )
+    render_owasp_strip(
+        con,
+        [{"owasp_category": "ASI03: Identity & Privilege Abuse"}],
+    )
+    rendered = buf.getvalue()
+    assert "reason=no_predecessor" in rendered
+    assert "ASI03 ✗(1)" in rendered
+    assert "ASI01 ✓" in rendered

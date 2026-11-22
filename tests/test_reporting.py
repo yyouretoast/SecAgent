@@ -206,3 +206,27 @@ def test_cli_scan_writes_sarif_output(tmp_path: Path):
     sarif = json.loads(sarif_path.read_text(encoding="utf-8"))
     assert sarif["version"] == "2.1.0"
     assert sarif["runs"][0]["results"][0]["ruleId"] == "POL-ASI03-001"
+
+
+def test_format_markdown_report_includes_severity_breakdown_and_details_accordion():
+    result = {
+        "status": "FAIL",
+        "violations": [
+            {
+                "rule_id": "POL-ASI03-001",
+                "severity": "CRITICAL",
+                "owasp_category": "ASI03: Identity & Privilege Abuse",
+                "offending_tool_name": "execute_trade",
+                "offending_span_id": "span-1",
+                "offending_step_index": 0,
+                "evidence": {"reason": "no_predecessor"},
+                "remediation": "Add approval_gate",
+            }
+        ],
+    }
+    md = _format_markdown_report(result, agent_name="finance", scenarios_evaluated=1)
+    assert "- **Severity Breakdown**: CRITICAL: 1 · HIGH: 0 · MEDIUM: 0 · LOW: 0" in md
+    assert "<details>" in md
+    assert "<summary><b>Detailed Evidence (Top Findings)</b></summary>" in md
+    assert "no_predecessor" in md
+    assert "secagent serve --report report.json" in md

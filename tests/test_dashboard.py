@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from secagent.app import (
     _total_trace_duration_ms,
+    build_owasp_breakdown,
     build_timeline_rows,
     build_waterfall_chart_spec,
     diff_violations,
@@ -449,3 +450,17 @@ def test_cli_serve_forwards_baseline_flag(tmp_path: Path, monkeypatch):
     assert captured
     assert "--baseline" in captured[0]
     assert str(baseline) in captured[0]
+
+
+def test_build_owasp_breakdown_aggregates_counts():
+    breakdown = build_owasp_breakdown(
+        [
+            {"owasp_category": "ASI03: Identity & Privilege Abuse"},
+            {"owasp_category": "ASI03: Identity & Privilege Abuse"},
+            {"owasp_category": "ASI02: Tool Misuse & Exploitation"},
+        ]
+    )
+    assert breakdown == [
+        {"owasp_category": "ASI03: Identity & Privilege Abuse", "count": 2},
+        {"owasp_category": "ASI02: Tool Misuse & Exploitation", "count": 1},
+    ]
