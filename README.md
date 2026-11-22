@@ -139,7 +139,7 @@ Generate adversarial test cases or run schema-directed parameter mutations by in
 
 ```bash
 secagent generate --agent examples.devops_agent.agent --per-tool 3
-secagent fuzz --agent examples.support_agent.agent --iterations 10 --execute
+secagent fuzz --agent examples.support_agent.agent:app --iterations 10 --execute
 ```
 
 ### 5. Inspect Traces in the Dashboard
@@ -147,6 +147,8 @@ secagent fuzz --agent examples.support_agent.agent --iterations 10 --execute
 Launch the local Streamlit audit dashboard to inspect trace waterfalls, policy violations, and baseline regression diffs:
 
 ```bash
+secagent serve --report report.json
+# Or diff against a previous baseline report:
 secagent serve --report report.json --baseline old_report.json
 ```
 
