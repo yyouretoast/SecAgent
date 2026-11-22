@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from itertools import zip_longest
 from typing import Any
 
 from secagent import __version__
@@ -86,11 +87,13 @@ class PolicyReporter:
             )
 
         sarif_results: list[dict[str, Any]] = []
-        for violation, scenario_id in zip(
+        for violation, scenario_id in zip_longest(
             result.violations,
-            result.violation_scenario_ids or [None] * len(result.violations),
-            strict=False,
+            result.violation_scenario_ids,
+            fillvalue=None,
         ):
+            if violation is None:
+                continue
             if violation.rule_id not in seen_rule_ids:
                 seen_rule_ids.add(violation.rule_id)
                 driver_rules.append(

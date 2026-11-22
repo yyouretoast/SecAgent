@@ -165,3 +165,22 @@ def test_reporter_generates_valid_sarif_2_1_0():
     assert run["results"][0]["ruleId"] == "POL-ASI03-001"
     assert run["results"][0]["level"] == "error"
     assert "issue_refund" in run["results"][0]["message"]["text"]
+
+
+def test_generate_sarif_preserves_violations_when_scenario_ids_shorter():
+    engine = PolicyEngine(policy_path=POLICY_PATH)
+    priv = json.loads((FIXTURES_DIR / "trace_privilege_violation.json").read_text(encoding="utf-8"))
+    base_result = engine.evaluate_trace(priv)
+    partial_result = EvaluationResult(
+        status="FAIL",
+        total_spans_evaluated=base_result.total_spans_evaluated,
+        violations=[base_result.violations[0], base_result.violations[0]],
+        execution_time_ms=base_result.execution_time_ms,
+        violation_scenario_ids=("SCN-ONLY-FIRST",),
+    )
+
+    sarif = PolicyReporter().generate_sarif(partial_result)
+    results = sarif["runs"][0]["results"]
+    assert len(results) == 2
+    assert results[0]["properties"]["scenario_id"] == "SCN-ONLY-FIRST"
+    assert "scenario_id" not in results[1]["properties"]
