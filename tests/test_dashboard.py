@@ -68,6 +68,7 @@ def test_build_timeline_rows_highlights_violating_spans():
 
     color_scale = spec["encoding"]["color"]["scale"]
     assert color_scale["range"][color_scale["domain"].index("VIOLATION")] == "#d93025"
+    assert spec["encoding"]["y"]["sort"] == {"field": "step_index", "order": "ascending"}
     tooltip_fields = {item["field"] for item in spec["encoding"]["tooltip"]}
     assert {"duration_ns", "offset_ns", "violated", "rule_ids"}.issubset(tooltip_fields)
 
