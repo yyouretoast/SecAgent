@@ -6,15 +6,32 @@ import time
 import uuid
 from typing import Any
 
-from secagent.telemetry.callbacks import TraceSession
+from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+from opentelemetry.sdk.trace.export import SpanExporter
+
+from secagent.telemetry.callbacks import OTelRuntime, TraceSession
 from secagent.telemetry.redactor import PIIRedactor
 
 
 class HITLNormalizer:
     """Append an approval decision while preserving session ordering."""
 
-    def __init__(self, session: TraceSession) -> None:
+    def __init__(
+        self,
+        session: TraceSession,
+        *,
+        otel: OTelRuntime | None = None,
+        tracer_provider: TracerProvider | None = None,
+        span_processor: SpanProcessor | None = None,
+        span_exporter: SpanExporter | None = None,
+    ) -> None:
         self.session = session
+        self.otel = otel or OTelRuntime(
+            tracer_provider=tracer_provider,
+            span_processor=span_processor,
+            span_exporter=span_exporter,
+        )
+        self.span_exporter = self.otel.span_exporter
 
     def record(
         self,
@@ -42,7 +59,15 @@ class HITLNormalizer:
             "is_error": False,
             "error_message": None,
         }
-        return self.session.append(PIIRedactor.scrub_container(span))
+        trace_span = self.session.append(PIIRedactor.scrub_container(span))
+        otel_span = self.otel.start_span(
+            trace_span["name"],
+            start_time_ns=now,
+            trace_span=trace_span,
+        )
+        trace_span["trace_id"] = self.otel.trace_id(otel_span)
+        self.otel.finish_span(otel_span, trace_span, end_time_ns=now)
+        return trace_span
 
     def normalize_interrupt(
         self,
