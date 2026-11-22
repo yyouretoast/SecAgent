@@ -1002,7 +1002,7 @@ def scan(
 
         generator = ScenarioGenerator()
         overrides = dict(engine.ruleset.tool_tier_overrides)
-        if agent_entrypoint:
+        if agent_entrypoint and not effective_quiet:
             console.print(f"Target Agent: [yellow]{agent_entrypoint}[/yellow]")
         target, mod, target_tools = _resolve_agent_target(
             generator,

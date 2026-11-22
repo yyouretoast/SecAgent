@@ -550,6 +550,22 @@ def test_scan_json_flag_emits_pure_json_and_ui_renders_evidence_and_owasp_strip(
     assert payload["status"] == "FAIL"
     assert payload["violations_detected"] == 1
 
+    agent_res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--agent",
+            "examples.finance_agent.agent:app",
+            "--output-report",
+            str(tmp_path / "agent_r.json"),
+            "--output-markdown",
+            str(tmp_path / "agent_c.md"),
+            "--json",
+        ],
+    )
+    assert agent_res.exit_code == 0
+    assert json.loads(agent_res.stdout)["status"] == "PASS"
+
     buf = StringIO()
     con = Console(file=buf, force_terminal=False, no_color=True)
     render_violations(
