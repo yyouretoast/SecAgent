@@ -20,7 +20,6 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 from rich.table import Table
-from rich.text import Text
 from rich.tree import Tree
 
 _TIER_COLORS = {
@@ -146,9 +145,6 @@ def render_discovered_tools(
         tier = str(getattr(tool, "permission_tier", "read"))
         tier_style = _TIER_COLORS.get(tier, "white")
         sandbox_tag = "[dim cyan]MOCKED[/]" if tier in dry_run_tiers else "[dim green]LIVE[/]"
-        line = Text()
-        line.append(f"{name:<22} ")
-        line.append(f"{tier:<6} ", style=tier_style)
         tree.add(f"{escape(name):<22} [{tier_style}]{escape(tier):<6}[/] {sandbox_tag}")
     console.print(tree)
 
