@@ -12,6 +12,8 @@ from secagent.engine.rules import (
     NetworkEgressRule,
     ParameterRegexRule,
     PredecessorGateRule,
+    ToxicFlowRule,
+    scan_tool_definitions,
 )
 
 __all__ = [
@@ -31,4 +33,6 @@ __all__ = [
     "PolicyViolation",
     "PredecessorGateRule",
     "RULE_REGISTRY",
+    "ToxicFlowRule",
+    "scan_tool_definitions",
 ]

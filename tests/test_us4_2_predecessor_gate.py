@@ -177,3 +177,73 @@ def test_single_gate_cannot_be_replayed_across_two_calls_when_lookback_widened()
     assert len(violations) == 1
     assert violations[0].offending_tool_name == "transfer_funds"
     assert violations[0].evidence["reason"] == "gate_already_consumed"
+
+
+def test_argument_bound_hitl_rejects_mismatched_operation_and_allows_matching():
+    rule = _rule()
+    mismatched_trace = {
+        "spans": [
+            {
+                "span_id": "gate-1",
+                "step_index": 0,
+                "span_type": "gate.hitl",
+                "name": "approval_gate",
+                "approval_granted": True,
+                "input_parameters": {"operation": "get_stock_quote"},
+            },
+            {
+                "span_id": "span-1",
+                "step_index": 1,
+                "span_type": "tool.call",
+                "name": "execute_trade",
+                "permission_tier": "pay",
+            },
+        ]
+    }
+    violations = rule.evaluate(mismatched_trace)
+    assert len(violations) == 1
+    assert violations[0].evidence["reason"] == "gate_operation_mismatch"
+    assert violations[0].evidence["approved_operation"] == "get_stock_quote"
+    assert violations[0].evidence["expected_operation"] == "execute_trade"
+
+    matching_trace = {
+        "spans": [
+            {
+                "span_id": "gate-1",
+                "step_index": 0,
+                "span_type": "gate.hitl",
+                "name": "approval_gate",
+                "approval_granted": True,
+                "input_parameters": {"operation": "execute_trade"},
+            },
+            {
+                "span_id": "span-1",
+                "step_index": 1,
+                "span_type": "tool.call",
+                "name": "execute_trade",
+                "permission_tier": "pay",
+            },
+        ]
+    }
+    assert rule.evaluate(matching_trace) == []
+
+    generic_trace = {
+        "spans": [
+            {
+                "span_id": "gate-1",
+                "step_index": 0,
+                "span_type": "gate.hitl",
+                "name": "approval_gate",
+                "approval_granted": True,
+                "input_parameters": {"operation": "unknown_operation"},
+            },
+            {
+                "span_id": "span-1",
+                "step_index": 1,
+                "span_type": "tool.call",
+                "name": "execute_trade",
+                "permission_tier": "pay",
+            },
+        ]
+    }
+    assert rule.evaluate(generic_trace) == []
