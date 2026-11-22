@@ -90,6 +90,13 @@ class FieldScopeRule(BaseRule):
                     matched_by_location["output_result"] = resolved
                     all_hits.update(resolved)
 
+            if "attributes" in target_locations and span.get("attributes") is not None:
+                hits = _matched_forbidden_fields(span.get("attributes"), forbidden_patterns)
+                if hits:
+                    resolved = sorted(forbidden_map[h] for h in hits)
+                    matched_by_location["attributes"] = resolved
+                    all_hits.update(resolved)
+
             if not all_hits:
                 continue
 

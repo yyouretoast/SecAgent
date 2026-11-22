@@ -2042,16 +2042,19 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "rich" },
-    { name = "streamlit" },
     { name = "typer" },
 ]
 
 [package.optional-dependencies]
+dashboard = [
+    { name = "streamlit" },
+]
 dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+    { name = "streamlit" },
 ]
 
 [package.metadata]
@@ -2068,10 +2071,11 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
-    { name = "streamlit", specifier = ">=1.35.0" },
+    { name = "streamlit", marker = "extra == 'dashboard'", specifier = ">=1.35.0" },
+    { name = "streamlit", marker = "extra == 'dev'", specifier = ">=1.35.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dashboard", "dev"]
 
 [[package]]
 name = "shellingham"
