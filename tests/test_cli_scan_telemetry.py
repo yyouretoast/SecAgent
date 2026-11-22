@@ -370,3 +370,42 @@ def test_resolve_agent_target_invokes_zero_arg_factory(monkeypatch):
     )
     assert callable(getattr(target, "invoke", None))
     assert len(discovered) == 4
+
+
+def test_infer_task_context_maps_asi_policies():
+    from secagent.cli import _infer_task_context
+
+    assert _infer_task_context({"expected_failure_policy": "POL-ASI01-001"}) == "general_inquiry"
+    assert _infer_task_context({"expected_failure_policy": "POL-ASI03-002"}) == "general_inquiry"
+    assert _infer_task_context({"expected_failure_policy": "POL-ASI06-001"}) == "address_update"
+    assert _infer_task_context({"task_context": "custom_ctx"}) == "custom_ctx"
+    assert _infer_task_context({}) == "default"
+
+
+def test_bare_cli_renders_welcome_banner():
+    res = CliRunner().invoke(app, [])
+    assert res.exit_code == 0
+    assert "SecAgent" in res.stdout
+    assert "scan" in res.stdout
+
+
+def test_scan_quiet_mode_writes_reports(tmp_path: Path):
+    report_path = tmp_path / "q_report.json"
+    comment_path = tmp_path / "q_comment.md"
+    trace_path = Path(__file__).resolve().parent / "fixtures" / "sample_trace.json"
+    res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--trace",
+            str(trace_path),
+            "--output-report",
+            str(report_path),
+            "--output-markdown",
+            str(comment_path),
+            "--quiet",
+        ],
+    )
+    assert res.exit_code == 0
+    assert report_path.exists()
+    assert comment_path.exists()

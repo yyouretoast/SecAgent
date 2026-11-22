@@ -140,3 +140,54 @@ def test_resolve_policy_overrides_falls_back_to_packaged_defaults(tmp_path: Path
     assert overrides.get("restart_server") == "admin"
 
     assert _resolve_policy_overrides(tmp_path / "missing_custom.yaml") == {}
+
+
+def test_fuzz_execute_evaluates_vulnerable_and_safe_agents(tmp_path: Path):
+    """Verify `secagent fuzz --execute` runs mutated scenarios and enforces policy verdict."""
+    runner = CliRunner()
+    vuln_dir = tmp_path / "fuzz_vuln"
+    vuln_report = tmp_path / "fuzz_vuln_report.json"
+    vuln_md = tmp_path / "fuzz_vuln_comment.md"
+    vuln_res = runner.invoke(
+        app,
+        [
+            "fuzz",
+            "--agent",
+            "examples.finance_agent.agent:vulnerable_app",
+            "--iterations",
+            "8",
+            "--output-dir",
+            str(vuln_dir),
+            "--execute",
+            "--output-report",
+            str(vuln_report),
+            "--output-markdown",
+            str(vuln_md),
+        ],
+    )
+    assert vuln_res.exit_code == 1
+    assert json.loads(vuln_report.read_text(encoding="utf-8"))["status"] == "FAIL"
+    assert vuln_md.exists()
+
+    safe_dir = tmp_path / "fuzz_safe"
+    safe_report = tmp_path / "fuzz_safe_report.json"
+    safe_md = tmp_path / "fuzz_safe_comment.md"
+    safe_res = runner.invoke(
+        app,
+        [
+            "fuzz",
+            "--agent",
+            "examples.finance_agent.agent:app",
+            "--iterations",
+            "8",
+            "--output-dir",
+            str(safe_dir),
+            "--execute",
+            "--output-report",
+            str(safe_report),
+            "--output-markdown",
+            str(safe_md),
+        ],
+    )
+    assert safe_res.exit_code == 0
+    assert json.loads(safe_report.read_text(encoding="utf-8"))["status"] == "PASS"
