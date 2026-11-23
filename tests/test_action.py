@@ -25,11 +25,12 @@ def test_action_yml_contract_and_injection_safety():
         "trace",
         "output_report",
         "output_markdown",
+        "output_sarif",
         "post_comment",
     }
     assert expected_inputs.issubset(set(action.get("inputs", {}).keys()))
 
-    expected_outputs = {"status", "report_path", "markdown_path"}
+    expected_outputs = {"status", "report_path", "markdown_path", "sarif_path"}
     assert expected_outputs.issubset(set(action.get("outputs", {}).keys()))
 
     for step in action["runs"]["steps"]:
@@ -56,9 +57,14 @@ def test_action_yml_contract_and_injection_safety():
     )
     scan_step = action["runs"]["steps"][scan_idx]
     assert "INPUT_OUTPUT_REPORT" in scan_step["run"]
+    assert "INPUT_OUTPUT_SARIF" in scan_step["run"]
+    assert "GITHUB_STEP_SUMMARY" in scan_step["run"]
     assert "status=$REPORT_STATUS" in scan_step["run"]
     assert 'REPORT_STATUS="WARN"' in scan_step["run"]
     assert '"$SCAN_STATUS" = "WARN"' in gate_step["run"]
+    comment_step = action["runs"]["steps"][comment_idx]
+    assert "updateComment" in comment_step["with"]["script"]
+    assert "<!-- secagent-security-gate -->" in comment_step["with"]["script"]
 
 
 def test_ci_workflow_uses_composite_action():

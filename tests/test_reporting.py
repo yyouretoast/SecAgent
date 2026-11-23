@@ -41,6 +41,7 @@ def test_format_markdown_report_pass():
     md = _format_markdown_report(result, agent_name="finance_agent", scenarios_evaluated=7)
 
     assert "### SecAgent Security Gate: PASS" in md
+    assert "<!-- secagent-security-gate -->" in md
     assert "`finance_agent`" in md
     assert "- **Scenarios Evaluated**: 7" in md
     assert "- **Violations Detected**: 0" in md
@@ -149,9 +150,13 @@ def test_format_markdown_report_enforces_character_limit():
     assert "Truncated: showing" in md
 
 
-def test_cli_scan_generates_markdown_comment(tmp_path: Path):
+def test_cli_scan_generates_markdown_comment(tmp_path: Path, monkeypatch):
     """Verify secagent scan writes comment.md via _format_markdown_report."""
     from typer.testing import CliRunner
+
+    repo_root = Path(__file__).resolve().parent.parent
+    monkeypatch.syspath_prepend(str(repo_root))
+    monkeypatch.chdir(tmp_path)
 
     runner = CliRunner()
     comment_path = tmp_path / "comment.md"
@@ -173,3 +178,59 @@ def test_cli_scan_generates_markdown_comment(tmp_path: Path):
     content = comment_path.read_text(encoding="utf-8")
     assert "### SecAgent Security Gate: NOT_EVALUATED" in content
     assert "`examples.finance_agent.agent`" in content
+
+
+def test_cli_scan_writes_sarif_output(tmp_path: Path):
+    """Verify secagent scan --output-sarif emits valid SARIF 2.1.0 JSON."""
+    import json
+
+    from typer.testing import CliRunner
+
+    runner = CliRunner()
+    sarif_path = tmp_path / "report.sarif"
+    report_path = tmp_path / "report.json"
+    comment_path = tmp_path / "comment.md"
+    trace_path = Path(__file__).resolve().parent / "fixtures" / "trace_privilege_violation.json"
+
+    res = runner.invoke(
+        app,
+        [
+            "scan",
+            "--trace",
+            str(trace_path),
+            "--output-report",
+            str(report_path),
+            "--output-markdown",
+            str(comment_path),
+            "--output-sarif",
+            str(sarif_path),
+        ],
+    )
+    assert res.exit_code == 1
+    sarif = json.loads(sarif_path.read_text(encoding="utf-8"))
+    assert sarif["version"] == "2.1.0"
+    assert sarif["runs"][0]["results"][0]["ruleId"] == "POL-ASI03-001"
+
+
+def test_format_markdown_report_includes_severity_breakdown_and_details_accordion():
+    result = {
+        "status": "FAIL",
+        "violations": [
+            {
+                "rule_id": "POL-ASI03-001",
+                "severity": "CRITICAL",
+                "owasp_category": "ASI03: Identity & Privilege Abuse",
+                "offending_tool_name": "execute_trade",
+                "offending_span_id": "span-1",
+                "offending_step_index": 0,
+                "evidence": {"reason": "no_predecessor"},
+                "remediation": "Add approval_gate",
+            }
+        ],
+    }
+    md = _format_markdown_report(result, agent_name="finance", scenarios_evaluated=1)
+    assert "- **Severity Breakdown**: CRITICAL: 1 · HIGH: 0 · MEDIUM: 0 · LOW: 0" in md
+    assert "<details>" in md
+    assert "<summary><b>Detailed Evidence (Top Findings)</b></summary>" in md
+    assert "no_predecessor" in md
+    assert "secagent serve --report report.json" in md

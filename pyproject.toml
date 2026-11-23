@@ -31,15 +31,18 @@ dependencies = [
     "pyyaml>=6.0.1",
     "pydantic>=2.7.0",
     "jsonschema>=4.22.0",
-    "streamlit>=1.35.0"
 ]
 
 [project.optional-dependencies]
+dashboard = [
+    "streamlit>=1.35.0",
+]
 dev = [
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.4.0",
-    "mypy>=1.10.0"
+    "mypy>=1.10.0",
+    "streamlit>=1.35.0",
 ]
 
 [project.scripts]

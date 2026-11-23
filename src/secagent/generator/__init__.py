@@ -302,8 +302,14 @@ class ScenarioGenerator:
         tools: list[Callable[..., Any] | ToolMetadata | Any],
         scenarios_per_tool: int = 2,
         policy_overrides: dict[str, str] | None = None,
+        seed: int = 42,
     ) -> list[GeneratedScenario]:
-        """Generate security scenarios tailored to agent tools."""
+        """Generate security scenarios tailored to agent tools.
+
+        Current templates are deterministic; ``seed`` is accepted as a stable
+        generation input so future randomized strategies remain reproducible.
+        """
+        _ = seed
 
         meta_tools = self.introspect_tools(tools, policy_overrides=policy_overrides)
         scenarios: list[GeneratedScenario] = []

@@ -143,3 +143,86 @@ def test_reporter_generates_pass_report_for_compliant_trace():
     assert "all security policies satisfied" in report["message"]
     markdown = _format_markdown_report(report)
     assert "### SecAgent Security Gate: PASS" in markdown
+
+
+def test_reporter_generates_valid_sarif_2_1_0():
+    engine = PolicyEngine(policy_path=POLICY_PATH)
+    priv = json.loads((FIXTURES_DIR / "trace_privilege_violation.json").read_text(encoding="utf-8"))
+    result = engine.evaluate_trace(priv)
+
+    sarif = PolicyReporter().generate_sarif(
+        result,
+        agent_name="examples.support_agent.agent:vulnerable_app",
+        rules=engine.ruleset.policies,
+    )
+
+    assert sarif["version"] == "2.1.0"
+    assert len(sarif["runs"]) == 1
+    run = sarif["runs"][0]
+    assert run["tool"]["driver"]["name"] == "SecAgent"
+    assert len(run["tool"]["driver"]["rules"]) == len(engine.ruleset.policies)
+    assert len(run["results"]) == 1
+    assert run["results"][0]["ruleId"] == "POL-ASI03-001"
+    assert run["results"][0]["level"] == "error"
+    assert "issue_refund" in run["results"][0]["message"]["text"]
+
+
+def test_generate_sarif_preserves_violations_when_scenario_ids_shorter():
+    engine = PolicyEngine(policy_path=POLICY_PATH)
+    priv = json.loads((FIXTURES_DIR / "trace_privilege_violation.json").read_text(encoding="utf-8"))
+    base_result = engine.evaluate_trace(priv)
+    partial_result = EvaluationResult(
+        status="FAIL",
+        total_spans_evaluated=base_result.total_spans_evaluated,
+        violations=[base_result.violations[0], base_result.violations[0]],
+        execution_time_ms=base_result.execution_time_ms,
+        violation_scenario_ids=("SCN-ONLY-FIRST",),
+    )
+
+    sarif = PolicyReporter().generate_sarif(partial_result)
+    results = sarif["runs"][0]["results"]
+    assert len(results) == 2
+    assert results[0]["properties"]["scenario_id"] == "SCN-ONLY-FIRST"
+    assert "scenario_id" not in results[1]["properties"]
+
+
+def test_generate_sarif_maps_all_severity_levels_and_registers_rules():
+    from secagent.engine import PolicyViolation
+
+    pass_sarif = PolicyReporter().generate_sarif(
+        EvaluationResult(
+            status="PASS",
+            total_spans_evaluated=3,
+            violations=[],
+            execution_time_ms=1.0,
+        )
+    )
+    assert pass_sarif["runs"][0]["results"] == []
+
+    violations = [
+        PolicyViolation(
+            rule_id=f"POL-TEST-{sev}",
+            rule_name=f"Rule {sev}",
+            owasp_category="ASI03: Identity & Privilege Abuse",
+            severity=sev,  # type: ignore[arg-type]
+            offending_span_id=f"span-{sev}",
+            offending_step_index=idx,
+            offending_tool_name="tool_x",
+            failure_action="WARN" if sev in ("MEDIUM", "LOW") else "BLOCK_PR",
+            evidence={"k": "v"},
+            remediation="Fix it",
+        )
+        for idx, sev in enumerate(["CRITICAL", "HIGH", "MEDIUM", "LOW"])
+    ]
+    sarif = PolicyReporter().generate_sarif(
+        EvaluationResult(
+            status="FAIL",
+            total_spans_evaluated=4,
+            violations=violations,
+            execution_time_ms=2.0,
+        )
+    )
+    run = sarif["runs"][0]
+    registered_ids = {r["id"] for r in run["tool"]["driver"]["rules"]}
+    assert [r["level"] for r in run["results"]] == ["error", "error", "warning", "note"]
+    assert all(r["ruleId"] in registered_ids for r in run["results"])

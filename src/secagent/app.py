@@ -41,8 +41,62 @@ def parse_app_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--report", type=Path, default=Path("report.json"))
     parser.add_argument("--trace", type=Path, default=None)
+    parser.add_argument("--baseline", type=Path, default=None)
     args, _ = parser.parse_known_args(argv)
     return args
+
+
+def _violation_key(violation: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(violation.get("rule_id") or ""),
+        str(violation.get("offending_tool_name") or ""),
+        str(violation.get("scenario_id") or ""),
+    )
+
+
+def diff_violations(
+    baseline_report: dict[str, Any],
+    current_report: dict[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    """Compare baseline and current report violations into new, resolved, and unchanged."""
+    base_list = [v for v in (baseline_report.get("violations") or []) if isinstance(v, dict)]
+    curr_list = [v for v in (current_report.get("violations") or []) if isinstance(v, dict)]
+
+    base_counts: dict[tuple[str, str, str], int] = {}
+    for item in base_list:
+        key = _violation_key(item)
+        base_counts[key] = base_counts.get(key, 0) + 1
+
+    curr_counts: dict[tuple[str, str, str], int] = {}
+    for item in curr_list:
+        key = _violation_key(item)
+        curr_counts[key] = curr_counts.get(key, 0) + 1
+
+    new_items: list[dict[str, Any]] = []
+    unchanged_items: list[dict[str, Any]] = []
+    remaining_base = dict(base_counts)
+    for item in curr_list:
+        key = _violation_key(item)
+        if remaining_base.get(key, 0) > 0:
+            remaining_base[key] -= 1
+            unchanged_items.append(item)
+        else:
+            new_items.append(item)
+
+    resolved_items: list[dict[str, Any]] = []
+    remaining_curr = dict(curr_counts)
+    for item in base_list:
+        key = _violation_key(item)
+        if remaining_curr.get(key, 0) > 0:
+            remaining_curr[key] -= 1
+        else:
+            resolved_items.append(item)
+
+    return {
+        "new": new_items,
+        "resolved": resolved_items,
+        "unchanged": unchanged_items,
+    }
 
 
 def load_json_document(path: Path) -> dict[str, Any]:
@@ -253,9 +307,9 @@ def build_waterfall_chart_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "y": {
                 "field": "label",
                 "type": "nominal",
-                "sort": None,
+                "sort": {"field": "step_index", "order": "ascending"},
                 "title": "Execution Span",
-                "axis": {"labelLimit": 320, "labelFont": "monospace"},
+                "axis": {"labelLimit": 240, "labelFont": "monospace"},
             },
             "x": {
                 "field": "offset_ms",
@@ -289,6 +343,20 @@ def build_waterfall_chart_spec(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def build_owasp_breakdown(violations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Aggregate violation counts by OWASP category for dashboard charting."""
+    counts: dict[str, int] = {}
+    for violation in violations:
+        if not isinstance(violation, dict):
+            continue
+        category = str(violation.get("owasp_category") or "UNKNOWN")
+        counts[category] = counts.get(category, 0) + 1
+    return [
+        {"owasp_category": cat, "count": count}
+        for cat, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
 def _total_trace_duration_ms(rows: list[dict[str, Any]]) -> float | None:
     """Compute total trace wall-clock duration in milliseconds from normalized rows."""
     if not rows:
@@ -302,6 +370,7 @@ def render_dashboard(
     report: dict[str, Any],
     traces: list[dict[str, Any]],
     *,
+    baseline_report: dict[str, Any] | None = None,
     violations_only: bool = False,
     selected_types: list[str] | None = None,
     selected_tiers: list[str] | None = None,
@@ -379,110 +448,217 @@ def render_dashboard(
         delta=f"{critical_count} critical" if critical_count else None,
         delta_color="inverse" if critical_count else "off",
     )
-    col4.metric("Trace Duration", f"{trace_ms:.3f} ms" if trace_ms is not None else "N/A")
+    col4.metric("Trace Duration", f"{trace_ms:.2f} ms" if trace_ms is not None else "N/A")
     col5.metric(
         "Eval Time",
-        f"{exec_ms:.2f} ms"
+        f"{exec_ms:.1f} ms"
         if isinstance(exec_ms, (int, float)) and not isinstance(exec_ms, bool)
         else "N/A",
     )
 
-    if violations:
-        st.subheader("Policy Violations")
-        table_rows = [
-            {
-                "Rule ID": v.get("rule_id", ""),
-                "Severity": v.get("severity", ""),
-                "OWASP Category": v.get("owasp_category", ""),
-                "Tool": v.get("offending_tool_name", ""),
-                "Span ID": v.get("offending_span_id", ""),
-                "Step": v.get("offending_step_index", ""),
-                "Action": v.get("failure_action", ""),
-                "Remediation": v.get("remediation", ""),
-            }
-            for v in violations
-        ]
-        st.dataframe(table_rows, hide_index=True, **_stretch_kwargs(st.dataframe))
-
-    st.subheader("Execution Trace Waterfall")
-    if selected_trace is None:
-        st.info(
-            "No execution trace spans found in this report. "
-            "Provide a trace JSON via `--trace` or the sidebar to inspect spans."
-        )
-        return
-
-    meta_c1, meta_c2, meta_c3, meta_c4 = st.columns(4)
-    meta_c1.caption(f"**Scenario:** `{selected_trace.get('scenario_id', 'unknown')}`")
-    meta_c2.caption(f"**Caller Role:** `{selected_trace.get('caller_role', 'unknown')}`")
-    meta_c3.caption(f"**Task Context:** `{selected_trace.get('task_context', 'unknown')}`")
-    meta_c4.caption(f"**Execution ID:** `{selected_trace.get('execution_id', 'unknown')}`")
-
-    if not all_rows:
-        st.info("Selected trace contains no spans.")
-        return
-
-    active_types = set(selected_types) if selected_types else None
-    active_tiers = set(selected_tiers) if selected_tiers else None
-    filtered_rows = [
-        row
-        for row in all_rows
-        if (not violations_only or row["violated"])
-        and (active_types is None or row["span_type"] in active_types)
-        and (active_tiers is None or row["permission_tier"] in active_tiers)
-    ]
-
-    if not filtered_rows:
-        st.info("No spans match the current sidebar filters.")
-        return
-
-    st.vega_lite_chart(
-        build_waterfall_chart_spec(filtered_rows),
-        **_stretch_kwargs(st.vega_lite_chart),
+    st.download_button(
+        "Download Report JSON",
+        data=json.dumps(report, indent=2),
+        file_name="report.json",
+        mime="application/json",
     )
 
-    st.subheader("Span Inspector")
-    for row in filtered_rows:
-        prefix = "[VIOLATION] " if row["violated"] else ""
-        header = (
-            f"{prefix}Step {row['step_index']}: {row['name']} "
-            f"({row['span_type']}, tier={row['permission_tier']}, "
-            f"{row['duration_ns']:,} ns / {row['duration_ms']:.3f} ms)"
-        )
-        with st.expander(header, expanded=row["violated"]):
-            if row["violated"]:
-                for v in row["violations"]:
-                    st.error(
-                        f"**{v.get('rule_id', 'UNKNOWN')} ({v.get('severity', 'HIGH')}) — "
-                        f"{v.get('rule_name', '')}**\n\n"
-                        f"**Remediation:** {v.get('remediation', '')}"
+    tab_trace, tab_violations, tab_diff = st.tabs(
+        [
+            "Trace Waterfall & Inspector",
+            f"Violations & OWASP ({len(violations)})",
+            "Baseline Diff",
+        ]
+    )
+
+    with tab_diff:
+        if baseline_report is not None:
+            diff = diff_violations(baseline_report, report)
+            st.subheader("Regression Diff vs. Baseline")
+            d1, d2, d3 = st.columns(3)
+            d1.metric("New Regressions", len(diff["new"]))
+            d2.metric("Resolved", len(diff["resolved"]))
+            d3.metric("Unchanged", len(diff["unchanged"]))
+            if diff["new"]:
+                with st.expander(f"New Regressions ({len(diff['new'])})", expanded=True):
+                    st.dataframe(
+                        [
+                            {
+                                "Rule ID": v.get("rule_id", ""),
+                                "Severity": v.get("severity", ""),
+                                "Tool": v.get("offending_tool_name", ""),
+                                "Scenario": v.get("scenario_id", ""),
+                                "Remediation": v.get("remediation", ""),
+                            }
+                            for v in diff["new"]
+                        ],
+                        hide_index=True,
+                        **_stretch_kwargs(st.dataframe),
                     )
-                    if v.get("evidence"):
-                        st.json(v["evidence"])
-
-            if row["is_error"]:
-                st.warning(f"Span error: {row['error_message'] or 'Unknown error'}")
-
-            st.caption(
-                f"**Span ID:** `{row['span_id']}` · "
-                f"**Offset:** `{row['offset_ms']:.3f} ms` (`{row['offset_ns']:,} ns`) · "
-                f"**Approval Granted:** `{row['approval_granted']}` · "
-                f"**Timestamps (ns):** `{row['start_time_ns']} → {row['end_time_ns']}`"
+            if diff["resolved"]:
+                with st.expander(f"Resolved Violations ({len(diff['resolved'])})", expanded=False):
+                    st.dataframe(
+                        [
+                            {
+                                "Rule ID": v.get("rule_id", ""),
+                                "Severity": v.get("severity", ""),
+                                "Tool": v.get("offending_tool_name", ""),
+                                "Scenario": v.get("scenario_id", ""),
+                            }
+                            for v in diff["resolved"]
+                        ],
+                        hide_index=True,
+                        **_stretch_kwargs(st.dataframe),
+                    )
+        else:
+            st.info(
+                "Provide `--baseline old_report.json` or upload a baseline in the sidebar to compare regressions."
             )
 
-            left, right = st.columns(2)
-            with left:
-                st.markdown("**Input Parameters (Redacted)**")
-                st.json(row["input_parameters"] or {})
-                if row["attributes"]:
-                    st.markdown("**Span Attributes**")
-                    st.json(row["attributes"])
-            with right:
-                st.markdown("**Output Result (Redacted)**")
-                if isinstance(row["output_result"], (dict, list)):
-                    st.json(row["output_result"])
-                else:
-                    st.code(str(row["output_result"]))
+    with tab_violations:
+        if violations:
+            breakdown = build_owasp_breakdown(violations)
+            if breakdown:
+                st.subheader("OWASP Category Breakdown")
+                st.vega_lite_chart(
+                    {
+                        "data": {"values": breakdown},
+                        "mark": {"type": "bar", "cornerRadiusEnd": 4, "color": "#d93025"},
+                        "encoding": {
+                            "y": {
+                                "field": "owasp_category",
+                                "type": "nominal",
+                                "sort": "-x",
+                                "title": None,
+                                "axis": {"labelLimit": 280},
+                            },
+                            "x": {"field": "count", "type": "quantitative", "title": "Violations"},
+                        },
+                        "height": max(200, len(breakdown) * 44),
+                    },
+                    **_stretch_kwargs(st.vega_lite_chart),
+                )
+
+            st.subheader("Policy Violations")
+            table_rows = [
+                {
+                    "Rule ID": v.get("rule_id", ""),
+                    "Severity": v.get("severity", ""),
+                    "OWASP Category": v.get("owasp_category", ""),
+                    "Tool": v.get("offending_tool_name", ""),
+                    "Span ID": v.get("offending_span_id", ""),
+                    "Step": v.get("offending_step_index", ""),
+                    "Action": v.get("failure_action", ""),
+                    "Remediation": v.get("remediation", ""),
+                }
+                for v in violations
+            ]
+            st.dataframe(table_rows, hide_index=True, **_stretch_kwargs(st.dataframe))
+        else:
+            st.info("No policy violations detected.")
+
+    with tab_trace:
+        st.subheader("Execution Trace Waterfall")
+        if selected_trace is None:
+            st.info(
+                "No execution trace spans found in this report. "
+                "Provide a trace JSON via `--trace` or the sidebar to inspect spans."
+            )
+            return
+
+        meta_c1, meta_c2, meta_c3, meta_c4 = st.columns(4)
+        meta_c1.caption(f"**Scenario:** `{selected_trace.get('scenario_id', 'unknown')}`")
+        meta_c2.caption(f"**Caller Role:** `{selected_trace.get('caller_role', 'unknown')}`")
+        meta_c3.caption(f"**Task Context:** `{selected_trace.get('task_context', 'unknown')}`")
+        meta_c4.caption(f"**Execution ID:** `{selected_trace.get('execution_id', 'unknown')}`")
+
+        if not all_rows:
+            st.info("Selected trace contains no spans.")
+            return
+
+        search_query = (
+            st.text_input(
+                "Search spans",
+                value="",
+                placeholder="Filter by tool name, span ID, or payload...",
+            )
+            .strip()
+            .lower()
+        )
+
+        active_types = set(selected_types) if selected_types else None
+        active_tiers = set(selected_tiers) if selected_tiers else None
+        filtered_rows = [
+            row
+            for row in all_rows
+            if (not violations_only or row["violated"])
+            and (active_types is None or row["span_type"] in active_types)
+            and (active_tiers is None or row["permission_tier"] in active_tiers)
+            and (
+                not search_query
+                or search_query in row["name"].lower()
+                or search_query in row["span_id"].lower()
+                or search_query in json.dumps(row["input_parameters"], default=str).lower()
+                or search_query in json.dumps(row["output_result"], default=str).lower()
+            )
+        ]
+
+        if not filtered_rows:
+            st.info("No spans match the current search or sidebar filters.")
+            return
+
+        st.vega_lite_chart(
+            build_waterfall_chart_spec(filtered_rows),
+            **_stretch_kwargs(st.vega_lite_chart),
+        )
+
+        st.subheader("Span Inspector")
+        for row in filtered_rows:
+            prefix = "[VIOLATION] " if row["violated"] else ""
+            header = (
+                f"{prefix}Step {row['step_index']}: {row['name']} "
+                f"({row['span_type']}, tier={row['permission_tier']}, "
+                f"{row['duration_ns']:,} ns / {row['duration_ms']:.3f} ms)"
+            )
+            with st.expander(header, expanded=row["violated"]):
+                if row["violated"]:
+                    for v in row["violations"]:
+                        st.error(
+                            f"**{v.get('rule_id', 'UNKNOWN')} ({v.get('severity', 'HIGH')}) — "
+                            f"{v.get('rule_name', '')}**\n\n"
+                            f"**Remediation:** {v.get('remediation', '')}"
+                        )
+                        if v.get("evidence"):
+                            st.json(v["evidence"])
+
+                if row["is_error"]:
+                    st.warning(f"Span error: {row['error_message'] or 'Unknown error'}")
+
+                st.caption(
+                    f"**Span ID:** `{row['span_id']}` · "
+                    f"**Offset:** `{row['offset_ms']:.3f} ms` (`{row['offset_ns']:,} ns`) · "
+                    f"**Approval Granted:** `{row['approval_granted']}` · "
+                    f"**Timestamps (ns):** `{row['start_time_ns']} → {row['end_time_ns']}`"
+                )
+
+                left, right = st.columns(2)
+                with left:
+                    st.markdown("**Input Parameters (Redacted)**")
+                    st.json(row["input_parameters"] or {})
+                    if row["attributes"]:
+                        st.markdown("**Span Attributes**")
+                        st.json(row["attributes"])
+                with right:
+                    st.markdown("**Output Result (Redacted)**")
+                    if isinstance(row["output_result"], (dict, list)):
+                        st.json(row["output_result"])
+                    else:
+                        code_kwargs: dict[str, Any] = (
+                            {"wrap_lines": True}
+                            if "wrap_lines" in inspect.signature(st.code).parameters
+                            else {}
+                        )
+                        st.code(str(row["output_result"]), **code_kwargs)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -497,6 +673,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parse_app_args(argv)
     uploaded_report = None
     uploaded_trace = None
+    uploaded_baseline = None
     with st.sidebar:
         st.header("Audit Inputs")
         report_input = st.text_input("Report JSON path", value=str(args.report))
@@ -504,9 +681,16 @@ def main(argv: list[str] | None = None) -> None:
             "Trace JSON path (optional)",
             value=str(args.trace) if args.trace else "",
         )
+        baseline_input = st.text_input(
+            "Baseline Report JSON path (optional)",
+            value=str(args.baseline) if args.baseline else "",
+        )
         if st.toggle("Upload JSON files", value=False):
             uploaded_report = st.file_uploader("Upload report.json", type=["json"])
             uploaded_trace = st.file_uploader("Upload trace.json (optional)", type=["json"])
+            uploaded_baseline = st.file_uploader(
+                "Upload baseline report.json (optional)", type=["json"]
+            )
 
     report_path = Path(report_input) if report_input.strip() else args.report
     try:
@@ -539,6 +723,26 @@ def main(argv: list[str] | None = None) -> None:
         except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
             st.title("SecAgent Security Audit Dashboard")
             st.error(f"Could not load trace `{trace_path}`: {exc}")
+            return
+
+    baseline_report: dict[str, Any] | None = None
+    if uploaded_baseline is not None:
+        try:
+            loaded_base = json.loads(uploaded_baseline.getvalue().decode("utf-8"))
+            if not isinstance(loaded_base, dict):
+                raise ValueError(f"Expected JSON object, got {type(loaded_base).__name__}")
+            baseline_report = loaded_base
+        except (ValueError, json.JSONDecodeError) as exc:
+            st.title("SecAgent Security Audit Dashboard")
+            st.error(f"Could not load uploaded baseline report: {exc}")
+            return
+    elif baseline_input.strip():
+        baseline_path = Path(baseline_input.strip())
+        try:
+            baseline_report = load_json_document(baseline_path)
+        except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
+            st.title("SecAgent Security Audit Dashboard")
+            st.error(f"Could not load baseline report `{baseline_path}`: {exc}")
             return
 
     traces = extract_traces(report, explicit_trace=explicit_trace, base_dir=report_path.parent)
@@ -591,6 +795,7 @@ def main(argv: list[str] | None = None) -> None:
     render_dashboard(
         report,
         traces,
+        baseline_report=baseline_report,
         violations_only=violations_only,
         selected_types=selected_types,
         selected_tiers=selected_tiers,

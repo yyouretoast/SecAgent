@@ -1,7 +1,6 @@
-"""Support agent fixture for multi-tier permission testing."""
-
 from typing import Any
 
+from secagent.harness.scripted import build_scripted_agent
 from secagent.sdk import permission
 
 
@@ -9,6 +8,12 @@ from secagent.sdk import permission
 def query_db(table: str, fields: list[str], filter_key: str, filter_val: str) -> dict[str, Any]:
     """Query database records under field-scope allowlists."""
     return {"table": table, "record": {k: "sanitized" for k in fields}}
+
+
+@permission(tier="read")
+def get_ticket_status(ticket_id: str) -> dict[str, Any]:
+    """Retrieve the current status of a support ticket."""
+    return {"ticket_id": ticket_id, "status": "open", "priority": "normal"}
 
 
 @permission(tier="write")
@@ -26,3 +31,8 @@ def issue_refund(customer_id: str, amount_usd: float, reason: str) -> dict[str, 
         "reason": reason,
         "status": "processed",
     }
+
+
+_TOOLS = [query_db, get_ticket_status, modify_user, issue_refund]
+app = build_scripted_agent(_TOOLS)
+vulnerable_app = build_scripted_agent(_TOOLS, vulnerable=True)
