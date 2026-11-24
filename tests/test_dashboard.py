@@ -83,6 +83,12 @@ def test_extract_traces_supports_embedded_and_relative_trace_paths(tmp_path: Pat
     assert len(extract_traces({"trace_path": "trace.json"}, base_dir=tmp_path)) == 1
     assert len(extract_traces(sample)) == 1
 
+    outside = tmp_path.parent / "outside_trace.json"
+    outside.write_text(json.dumps(sample), encoding="utf-8")
+    assert extract_traces({"trace_path": "../outside_trace.json"}, base_dir=tmp_path) == []
+    assert extract_traces({"trace_path": str(trace_file)}, base_dir=tmp_path) == []
+    assert extract_traces({"trace_path": "trace.json"}, base_dir=None) == []
+
 
 def test_parse_app_args_ignores_streamlit_flags():
     args = parse_app_args(

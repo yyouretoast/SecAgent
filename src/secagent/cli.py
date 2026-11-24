@@ -10,6 +10,7 @@ from typing import Annotated, Any
 
 import typer
 from rich.console import Console
+from rich.markup import escape as escape_markup
 
 from secagent import __version__
 from secagent.ui import (
@@ -78,7 +79,7 @@ def _format_markdown_report(
     scenarios_evaluated: int = 0,
 ) -> str:
     """Format an evaluation result (dict or object) as a GitHub PR Markdown triage comment."""
-    status = str(_field(result, "status", "PASS") or "PASS")
+    status = _escape_cell(_field(result, "status", "PASS") or "PASS")
     raw_violations = _field(result, "violations", [])
     violations = list(raw_violations) if isinstance(raw_violations, (list, tuple)) else []
     effective_agent = _escape_cell(
@@ -174,7 +175,12 @@ def _format_markdown_report(
             rule_id = _escape_cell(_field(v, "rule_id", "UNKNOWN"))
             tool_name = _escape_cell(_field(v, "offending_tool_name", "unknown"))
             span_id = _escape_cell(_field(v, "offending_span_id", "unknown"))
-            ev_json = json.dumps(ev, default=str).replace("`", "'")
+            ev_json = (
+                json.dumps(ev, default=str)
+                .replace("`", "'")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
             if len(ev_json) > 220:
                 ev_json = ev_json[:217] + "..."
             evidence_lines.append(f"- **`{rule_id}`** (`{tool_name}` · `{span_id}`): `{ev_json}`")
@@ -311,11 +317,17 @@ def _resolve_agent_target(
         raw_tools = _discover_raw_tools(generator, target, mod)
         discovered = generator.introspect_tools(raw_tools, policy_overrides=overrides)
     except Exception as exc:
-        console.print(f"[red]Error loading agent entrypoint '{agent_entrypoint}': {exc}[/red]")
+        console.print(
+            f"[red]Error loading agent entrypoint '{escape_markup(agent_entrypoint)}': "
+            f"{escape_markup(str(exc))}[/red]"
+        )
         raise typer.Exit(code=1) from exc
 
     if not discovered:
-        console.print(f"[red]No tools discovered for agent entrypoint '{agent_entrypoint}'.[/red]")
+        console.print(
+            f"[red]No tools discovered for agent entrypoint "
+            f"'{escape_markup(agent_entrypoint)}'.[/red]"
+        )
         raise typer.Exit(code=1)
 
     return target, mod, discovered
@@ -328,7 +340,7 @@ def _fingerprint_agent_source(module: Any) -> str:
     try:
         return agent_source_fingerprint(module)
     except AgentFingerprintError as exc:
-        console.print(f"[red]Error fingerprinting agent source: {exc}[/red]")
+        console.print(f"[red]Error fingerprinting agent source: {escape_markup(str(exc))}[/red]")
         raise typer.Exit(code=1) from exc
 
 
@@ -461,8 +473,12 @@ def _write_generated_scenarios(output_dir: Path, scenario_dicts: list[dict[str, 
         if stale_path.is_file():
             stale_path.unlink()
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     for item in scenario_dicts:
-        (output_dir / f"{item['id']}.json").write_text(
+        safe_id = Path(str(item.get("id") or "")).name
+        if not safe_id or safe_id in (".", ".."):
+            raise ValueError(f"Invalid scenario id: {item.get('id')!r}")
+        (output_dir / f"{safe_id}.json").write_text(
             json.dumps(item, sort_keys=True, indent=2), encoding="utf-8"
         )
     summary_file.write_text(json.dumps(scenario_dicts, sort_keys=True, indent=2), encoding="utf-8")
@@ -966,7 +982,7 @@ def scan(
     try:
         engine = PolicyEngine(policy_path=effective_policy_path)
     except PolicyLoadError as exc:
-        console.print(f"[red]{exc}[/red]")
+        console.print(f"[red]{escape_markup(str(exc))}[/red]")
         raise typer.Exit(code=1) from exc
 
     if not effective_quiet:
@@ -983,10 +999,12 @@ def scan(
         try:
             traces = _load_external_traces(trace)
         except JsonSchemaValidationError as exc:
-            console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
+            console.print(
+                f"[red]Trace schema validation failed: {escape_markup(exc.message)}[/red]"
+            )
             raise typer.Exit(code=1) from exc
         except (OSError, ValueError, json.JSONDecodeError) as exc:
-            console.print(f"[red]{exc}[/red]")
+            console.print(f"[red]{escape_markup(str(exc))}[/red]")
             raise typer.Exit(code=1) from exc
 
         scenarios_count = len(traces)
@@ -1118,6 +1136,7 @@ def scan(
         }
         exit_code = 0
 
+    output_report.parent.mkdir(parents=True, exist_ok=True)
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     if output_sarif is not None:
@@ -1126,6 +1145,7 @@ def scan(
             agent_name=agent_label or "baseline_smoke",
             rules=engine.ruleset.policies,
         )
+        output_sarif.parent.mkdir(parents=True, exist_ok=True)
         output_sarif.write_text(json.dumps(sarif, indent=2), encoding="utf-8")
 
     comment = _format_markdown_report(
@@ -1133,6 +1153,7 @@ def scan(
         agent_name=agent_label or "default_fixture",
         scenarios_evaluated=scenarios_count,
     )
+    output_markdown.parent.mkdir(parents=True, exist_ok=True)
     output_markdown.write_text(comment, encoding="utf-8")
     message = str(report["message"])
     if json_output:
@@ -1347,7 +1368,10 @@ def fuzz(
         policy_overrides=overrides,
     )
     for scenario in fuzzed_scenarios:
-        manifest_path = output_dir / f"{scenario.id}.json"
+        safe_id = Path(str(scenario.id)).name
+        if not safe_id or safe_id in (".", ".."):
+            raise ValueError(f"Invalid scenario id: {scenario.id!r}")
+        manifest_path = output_dir / f"{safe_id}.json"
         manifest_path.write_text(json.dumps(scenario.to_dict(), indent=2), encoding="utf-8")
 
     out_file = output_dir / "fuzz_findings.json"
@@ -1371,7 +1395,7 @@ def fuzz(
     try:
         engine = PolicyEngine(policy_path=effective_policy_path)
     except PolicyLoadError as exc:
-        console.print(f"[red]{exc}[/red]")
+        console.print(f"[red]{escape_markup(str(exc))}[/red]")
         raise typer.Exit(code=1) from exc
 
     scenario_dicts = [s.to_dict() for s in fuzzed_scenarios]
@@ -1396,7 +1420,9 @@ def fuzz(
         traces=traces,
         generation_mode="schema_fuzz",
     )
+    output_report.parent.mkdir(parents=True, exist_ok=True)
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    output_markdown.parent.mkdir(parents=True, exist_ok=True)
     output_markdown.write_text(
         _format_markdown_report(
             report,
@@ -1483,6 +1509,8 @@ def serve(
         "streamlit",
         "run",
         str(app_path),
+        "--server.address",
+        "127.0.0.1",
         "--server.port",
         str(port),
         "--",

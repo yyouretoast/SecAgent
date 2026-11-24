@@ -28,7 +28,10 @@ def _extract_hostnames(value: str, path: str) -> list[str]:
     if urls:
         hosts: list[str] = []
         for raw_url in urls:
-            hostname = urlparse(raw_url).hostname
+            try:
+                hostname = urlparse(raw_url).hostname
+            except ValueError:
+                continue
             if hostname:
                 hosts.append(hostname.lower())
         return hosts
@@ -36,7 +39,10 @@ def _extract_hostnames(value: str, path: str) -> list[str]:
     if _leaf_key(path) in _DESTINATION_KEYS and " " not in candidate:
         bare_host = candidate.split("/", 1)[0].split(":", 1)[0].lower()
         if "." in candidate or bare_host == "localhost" or candidate.startswith("["):
-            hostname = urlparse(f"https://{candidate}").hostname
+            try:
+                hostname = urlparse(f"https://{candidate}").hostname
+            except ValueError:
+                return []
             return [hostname.lower()] if hostname else []
     return []
 

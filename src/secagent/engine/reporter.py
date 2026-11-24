@@ -10,7 +10,7 @@ from secagent import __version__
 from secagent.engine.loader import PolicyDefinition
 from secagent.engine.models import EvaluationResult
 
-_SARIF_SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json"
+_SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 _SARIF_LEVEL = {
     "CRITICAL": "error",
     "HIGH": "error",

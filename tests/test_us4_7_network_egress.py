@@ -228,3 +228,19 @@ def test_userinfo_spoofing_and_ipv6_are_blocked_while_uppercase_allowlist_passes
         ]
     }
     assert rule.evaluate(uppercase_allowed) == []
+
+
+def test_malformed_ipv6_url_does_not_crash():
+    trace = {
+        "spans": [
+            {
+                "span_id": "span-bad-ipv6",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "post_data",
+                "permission_tier": "net",
+                "input_parameters": {"url": "http://[::1"},
+            }
+        ]
+    }
+    assert _rule().evaluate(trace) == []

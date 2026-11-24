@@ -12,7 +12,7 @@ POISON_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "instruction_override",
         re.compile(
-            r"(?i)\b(ignore|disregard|override)\b.{0,40}\b(previous|prior|system|user)\b.{0,20}\b(instruction|prompt|rule)s?\b"
+            r"(?is)\b(ignore|disregard|override)\b.{0,40}\b(previous|prior|system|user)\b.{0,20}\b(instruction|prompt|rule)s?\b"
         ),
     ),
     (
@@ -22,7 +22,7 @@ POISON_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "covert_directive",
         re.compile(
-            r"(?i)\b(exfiltrate|silently\s+send|do\s+not\s+tell\s+the\s+user|hidden\s+instruction)\b"
+            r"(?is)\b(exfiltrate|silently\s+send|do\s+not\s+tell\s+the\s+user|hidden\s+instruction)\b"
         ),
     ),
 )

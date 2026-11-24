@@ -53,6 +53,30 @@ class PolicyEngine:
         """Evaluate a single trace document across all configured rules."""
         return self.evaluate_traces([trace])
 
+    def _apply_tier_overrides(self, trace: Mapping[str, Any]) -> Mapping[str, Any]:
+        overrides = self.ruleset.tool_tier_overrides
+        spans = trace.get("spans")
+        if not overrides or not isinstance(spans, Sequence) or isinstance(spans, (str, bytes)):
+            return trace
+        updated_spans: list[Any] = []
+        changed = False
+        for span in spans:
+            if (
+                isinstance(span, Mapping)
+                and span.get("span_type") == "tool.call"
+                and (not span.get("permission_tier") or span.get("permission_tier") == "none")
+                and str(span.get("name") or "") in overrides
+            ):
+                updated_spans.append(
+                    {**span, "permission_tier": overrides[str(span.get("name") or "")]}
+                )
+                changed = True
+            else:
+                updated_spans.append(span)
+        if not changed:
+            return trace
+        return {**trace, "spans": updated_spans}
+
     def evaluate_traces(self, traces: Sequence[Mapping[str, Any]]) -> EvaluationResult:
         """Evaluate a sequence of traces and return an aggregate EvaluationResult."""
         started = time.perf_counter()
@@ -60,7 +84,8 @@ class PolicyEngine:
         scenario_ids: list[str | None] = []
         total_spans = 0
 
-        for trace in traces:
+        for raw_trace in traces:
+            trace = self._apply_tier_overrides(raw_trace)
             spans = trace.get("spans", ())
             if isinstance(spans, Sequence) and not isinstance(spans, (str, bytes, bytearray)):
                 total_spans += len(spans)

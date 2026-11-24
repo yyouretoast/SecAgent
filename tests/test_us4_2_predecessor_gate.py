@@ -247,3 +247,29 @@ def test_argument_bound_hitl_rejects_mismatched_operation_and_allows_matching():
         ]
     }
     assert rule.evaluate(generic_trace) == []
+
+
+def test_errored_gate_does_not_grant_approval():
+    rule = PredecessorGateRule(_policy())
+    trace = {
+        "spans": [
+            {
+                "span_id": "gate-err",
+                "step_index": 0,
+                "span_type": "gate.hitl",
+                "name": "approval_gate",
+                "approval_granted": True,
+                "is_error": True,
+            },
+            {
+                "span_id": "span-1",
+                "step_index": 1,
+                "span_type": "tool.call",
+                "name": "execute_trade",
+                "permission_tier": "pay",
+            },
+        ]
+    }
+    violations = rule.evaluate(trace)
+    assert len(violations) == 1
+    assert violations[0].offending_tool_name == "execute_trade"

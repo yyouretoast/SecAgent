@@ -48,10 +48,10 @@ python -m pip install -e ".[dev]"
 
 ```bash
 # Compliant reference agent -> PASS (exit code 0)
-secagent scan --agent examples.finance_agent.agent:app
+secagent scan --agent examples.finance_agent.agent:app --output-report safe_report.json
 
 # Vulnerable reference agent -> FAIL (exit code 1) + SARIF 2.1.0 export
-secagent scan --agent examples.finance_agent.agent:vulnerable_app --output-sarif vuln.sarif
+secagent scan --agent examples.finance_agent.agent:vulnerable_app --output-report vuln_report.json --output-sarif vuln.sarif
 ```
 
 ### 3. Inspect Traces & Baseline Regression Diffs
@@ -64,7 +64,7 @@ secagent serve --report vuln_report.json --baseline safe_report.json
 
 ## GitHub Action Integration
 
-Add SecAgent to `.github/workflows/security.yml` to gate pull requests, post sticky PR triage comments, write GitHub Step Summaries, and upload SARIF 2.1.0 alerts to GitHub Code Scanning:
+Add SecAgent to `.github/workflows/security.yml` to gate pull requests, post sticky PR triage comments, write GitHub Step Summaries, and export SARIF 2.1.0 reports (which can be uploaded to GitHub Code Scanning with `github/codeql-action/upload-sarif@v3`):
 
 ```yaml
 name: Agent Security Gate
@@ -90,6 +90,11 @@ jobs:
           output_report: "report.json"
           output_markdown: "comment.md"
           output_sarif: "report.sarif"
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: report.sarif
 ```
 
 <p align="center">
@@ -121,9 +126,9 @@ SecAgent deterministically evaluates **8 of 10** categories from the OWASP Top 1
 
 ---
 
-## Verified Multi-Agent Results
+## Reference Scripted Fixtures
 
-Results from running `secagent scan` across the repository's 3 reference agent fixtures (each with a compliant `:app` and an intentionally insecure `:vulnerable_app`):
+Results from running `secagent scan` across the repository's 3 deterministic, zero-LLM LangGraph reference fixtures (each with a compliant `:app` and an intentionally insecure `:vulnerable_app`):
 
 | Agent Fixture | Safe (`:app`) | Vulnerable (`:vulnerable_app`) | Scenarios | Spans (Safe / Vuln) |
 | :--- | :--- | :--- | :---: | :---: |
@@ -137,7 +142,7 @@ Results from running `secagent scan` across the repository's 3 reference agent f
 | :--- | :---: | :---: | :---: | :---: |
 | **Zero-LLM-Judge Determinism** | ✅ | Partial | Mixed | ✅ |
 | **CI/CD PR Gate & SARIF 2.1.0** | ✅ | ✅ | CLI only | Gateway / Explorer |
-| **Schema-Directed Attack Synthesis** | ✅ | ✅ | Static probes | ❌ (Passive) |
+| **Schema-Directed Attack Synthesis** | Template + fuzzer | ✅ | Static probes | ❌ (Passive) |
 | **Baseline Trace Regression Diff** | ✅ | ✅ | ❌ | ❌ |
 | **Primary Lane** | **Pre-merge CI behavioral gate** | Prompt / RAG evals | Model red-teaming | Runtime proxy & MCP scan |
 

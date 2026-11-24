@@ -14,7 +14,8 @@ _GENERIC_OPERATIONS = frozenset({"unknown_operation", "interrupt"})
 
 def _matches_required_gate(span: Mapping[str, Any], required_gate: Mapping[str, Any]) -> bool:
     return (
-        span.get("span_type") == required_gate.get("span_type", "gate.hitl")
+        not span.get("is_error", False)
+        and span.get("span_type") == required_gate.get("span_type", "gate.hitl")
         and span.get("name") == required_gate.get("name", "approval_gate")
         and span.get("approval_granted") is required_gate.get("approval_granted", True)
     )

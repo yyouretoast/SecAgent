@@ -101,7 +101,7 @@ def diff_violations(
 
 def load_json_document(path: Path) -> dict[str, Any]:
     """Load a JSON object from ``path`` and validate that its root is a mapping."""
-    if not path.exists():
+    if not path.is_file():
         raise FileNotFoundError(f"JSON file not found: {path}")
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -125,12 +125,16 @@ def extract_traces(
         return [report["trace"]]
 
     trace_path_raw = report.get("trace_path")
-    if isinstance(trace_path_raw, str) and trace_path_raw.strip():
+    if isinstance(trace_path_raw, str) and trace_path_raw.strip() and base_dir is not None:
         candidate = Path(trace_path_raw)
-        if not candidate.is_absolute() and base_dir is not None:
-            candidate = base_dir / candidate
-        if candidate.is_file():
-            return [load_json_document(candidate)]
+        if not candidate.is_absolute():
+            try:
+                base_resolved = base_dir.resolve()
+                resolved = (base_resolved / candidate).resolve()
+                if resolved.is_relative_to(base_resolved) and resolved.is_file():
+                    return [load_json_document(resolved)]
+            except (OSError, ValueError):
+                return []
 
     if isinstance(report.get("spans"), list) and "scenario_id" in report:
         return [report]

@@ -6,9 +6,9 @@
 * **Target Delivery**: Late November 2026 (DEPI Agentic AI Track Capstone)
 * **Team**: 5 Senior Engineering Students (Part-Time: 4–6 hours/week per student)
 * **Companion Specifications**:
-  - [Detailed Technical Implementation Plan](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/IMPLEMENTATION_PLAN.md)
-  - [Agile User Stories & Acceptance Criteria](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/USER_STORIES.md)
-  - [Team Implementation Playbook](file:///c:/Users/Yassin/Desktop/secagent-twin/docs/PLAYBOOK.md)
+  - [Detailed Technical Implementation Plan](IMPLEMENTATION_PLAN.md)
+  - [Agile User Stories & Acceptance Criteria](USER_STORIES.md)
+  - [Team Implementation Playbook](PLAYBOOK.md)
 
 ---
 
