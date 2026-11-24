@@ -9,7 +9,6 @@ from typing import Any
 
 from rich import box
 from rich.console import Console
-from rich.markup import escape as escape_markup
 from rich.markup import escape
 from rich.panel import Panel
 from rich.progress import (
@@ -63,7 +62,7 @@ def _workspace_status() -> list[tuple[str, str]]:
             rows.append(
                 (
                     "Last Scan",
-                    f"[cyan]{report_path}[/] ([{color}]{escape_markup(status)}[/] · {violations} violations)",
+                    f"[cyan]{report_path}[/] ([{color}]{escape(status)}[/] · {violations} violations)",
                 )
             )
         except (OSError, ValueError, TypeError):
