@@ -749,7 +749,11 @@ def main(argv: list[str] | None = None) -> None:
             st.error(f"Could not load baseline report `{baseline_path}`: {exc}")
             return
 
-    traces = extract_traces(report, explicit_trace=explicit_trace, base_dir=report_path.parent)
+    traces = extract_traces(
+        report,
+        explicit_trace=explicit_trace,
+        base_dir=None if uploaded_report is not None else report_path.parent,
+    )
 
     discovered_types: list[str] = []
     discovered_tiers: list[str] = []

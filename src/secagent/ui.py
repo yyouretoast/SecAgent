@@ -9,6 +9,7 @@ from typing import Any
 
 from rich import box
 from rich.console import Console
+from rich.markup import escape as escape_markup
 from rich.markup import escape
 from rich.panel import Panel
 from rich.progress import (
@@ -54,13 +55,15 @@ def _workspace_status() -> list[tuple[str, str]]:
     if report_path.is_file():
         try:
             data = json.loads(report_path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                return rows
             status = str(data.get("status") or "UNKNOWN")
             violations = int(data.get("violations_detected") or len(data.get("violations") or []))
             color = "green" if status == "PASS" else ("red" if status == "FAIL" else "yellow")
             rows.append(
                 (
                     "Last Scan",
-                    f"[cyan]{report_path}[/] ([{color}]{status}[/] · {violations} violations)",
+                    f"[cyan]{report_path}[/] ([{color}]{escape_markup(status)}[/] · {violations} violations)",
                 )
             )
         except (OSError, ValueError, TypeError):

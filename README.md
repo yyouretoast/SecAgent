@@ -10,7 +10,7 @@
 [![SARIF 2.1.0](https://img.shields.io/badge/SARIF-2.1.0-6f42c1?style=flat-square)](src/secagent/engine/reporter.py)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square)](LICENSE)
 
-[Quickstart](#quickstart) · [GitHub Action](#github-action-integration) · [OWASP Coverage](#owasp-agentic-coverage) · [Benchmarks](#verified-multi-agent-results) · [CLI](#cli-reference) · [Architecture](#architecture)
+[Quickstart](#quickstart) · [GitHub Action](#github-action-integration) · [OWASP Coverage](#owasp-agentic-coverage) · [Fixtures](#reference-scripted-fixtures) · [CLI](#cli-reference) · [Architecture](#architecture)
 
 </div>
 

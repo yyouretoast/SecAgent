@@ -62,11 +62,13 @@ def _field(obj: Any, key: str, default: Any = None) -> Any:
 
 
 def _escape_cell(value: Any) -> str:
-    """Escape pipe characters, backticks, and newlines inside a Markdown table cell."""
+    """Escape pipe characters, backticks, HTML angle brackets, and newlines inside a Markdown cell."""
     return (
         str(value)
         .replace("|", "\\|")
         .replace("`", "'")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
         .replace("\r\n", " ")
         .replace("\n", " ")
         .strip()
