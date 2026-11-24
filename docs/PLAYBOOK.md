@@ -13,18 +13,7 @@
 
 ## 1. Project Overview
 
-### Problem
-When developers modify system prompts, tool schemas, or models, agents can introduce critical regressions:
-* Bypassing required human approval gates before executing sensitive tools (ASI03).
-* Passing unvalidated inputs directly into database or shell calls (ASI02, ASI05).
-* Exfiltrating sensitive credentials or querying restricted database fields (ASI06, ASI10).
-* Getting trapped in non-terminating execution loops (ASI08).
-
-### Solution
-1. Single-trace evaluation: SecAgent evaluates a candidate agent's execution trace directly against declarative security rules in `policies/security_rules.yaml`.
-2. No LLM judge in CI: Checks are deterministic (caller role, approval gates, regex patterns, step counts).
-3. Tool-aware scenario generation: SecAgent inspects the agent's tools and synthesizes attack inputs, caching test suites for deterministic CI replay.
-4. If an invariant rule is violated, `action.yml` exits with code 1 and blocks the pull request.
+SecAgent evaluates autonomous AI agent execution traces deterministically against declarative rules in `policies/security_rules.yaml` (no LLM-as-a-judge in CI), synthesizes tool-aware attack scenarios, and blocks pull requests via `action.yml` when security invariants fail. See [README](../README.md) and [RFC-001](RFC-001-architecture.md) for full architecture details.
 
 ---
 

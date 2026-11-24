@@ -106,11 +106,11 @@ SecAgent provides a GitHub Action and CLI scanner that:
   1. *Explicit Decorator*: Checks for `@permission(tier="...")` attribute attached to functions (`pure`, `read`, `write`, `pay`, `admin`, `net`).
   2. *Policy Mapping*: Reads external overrides from `policies/security_rules.yaml` (`tool_tier_overrides`).
   3. *Semantic Heuristic*: Infers tiers from tool naming patterns:
-     - `pure`: `*(calc|format|parse|convert|validate)*`
      - `pay`: `*(pay|refund|trade|charge|transfer|buy)*`
      - `admin`: `*(drop|delete|restart|kill|exec|bash|deploy)*`
      - `write`: `*(write|update|modify|insert|create)*`
      - `net`: `*(network|http|webhook|curl|fetch|post_)*`
+     - `pure`: `*(calc|format|parse|convert|validate)*`
      - `read`: all other tools.
 * **Privilege SDK (Optional)**:
   ```python
@@ -147,7 +147,7 @@ Evaluates YAML policies against execution traces deterministically:
 3. **Context Privilege Invariant (ASI03)**: Read-only contexts cannot execute mutating tools.
 4. **Parameter Injection Invariant (ASI02, ASI05)**: Regex blocklists for SQL and command injection payloads.
 5. **Field Scope Invariant (ASI06)**: Blocks queries requesting or returning restricted fields (`ssn`, `password_hash`).
-6. **Circuit Breaker Invariant (ASI08)**: Step count limits ($N \le 10$) and duplicate call thresholds.
+6. **Circuit Breaker Invariant (ASI08)**: Step count limits (<= 10) and duplicate call thresholds.
 7. **Egress Allowlist Invariant (ASI10)**: Network tools can only access approved domains.
 8. **Tool-Description Poisoning Check (ASI04)**: Scans introspected tool descriptions and schemas for embedded prompt-injection instructions (`POL-ASI04-001`).
 
