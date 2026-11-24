@@ -28,7 +28,7 @@ A user story is ready for sprint ingestion if:
 ### 1.3 Definition of Done (DoD)
 A user story is accepted as complete if:
 1. All Gherkin acceptance criteria pass with automated `pytest` tests.
-2. Code strictly passes `ruff check .` and `ruff format --check .`.
+2. Code strictly passes `ruff check .`, `ruff format --check .`, and `mypy src/secagent`.
 3. Public functions contain type annotations and docstrings.
 4. No regressions introduced to `tests/test_contracts.py`.
 
@@ -46,7 +46,7 @@ A user story is accepted as complete if:
 > **So that** attack scenarios are synthesized without manual tool manifest authoring.
 
 * **Priority**: High (P0) | **Points**: 5 | **Sprint**: 1 | **Status**: Complete
-* **Target Interface**: `secagent.generator.discover_tools(target: Any, mod: Any = None) -> list[Any]`
+* **Target Interface**: `secagent.harness.introspector.discover_tools(target: Any, mod: Any = None) -> list[Any]`
 * **Acceptance Criteria**:
   ```gherkin
   Scenario: Introspecting LangGraph CompiledStateGraph
@@ -61,8 +61,8 @@ A user story is accepted as complete if:
 
   Scenario: Dynamic import failure resilience
     Given a malformed or non-existent entrypoint string "invalid_mod:missing_app"
-    When introspect_tools() is invoked
-    Then it logs a descriptive warning and falls back to baseline benchmark tools
+    When introspect_entrypoint() is invoked with on_error="warn"
+    Then it logs a descriptive warning and falls back to baseline benchmark tools (while explicit CLI --agent failures fail closed with exit 1)
   ```
 
 ---
@@ -85,12 +85,12 @@ A user story is accepted as complete if:
   Scenario: 3-tier precedence tier resolution
     Given a tool named "drop_database" with no decorator
     And policies/security_rules.yaml defines tool_tier_overrides: { drop_database: "admin" }
-    When _infer_permission_tier("drop_database") is evaluated
+    When resolve_permission_tier("drop_database", overrides=...) is evaluated
     Then it resolves to "admin" via policy override
 
   Scenario: Semantic naming fallback resolution
     Given an undecorated tool named "quick_refund" not listed in policy overrides
-    When _infer_permission_tier("quick_refund") is evaluated
+    When resolve_permission_tier("quick_refund") is evaluated
     Then it resolves to "pay" via semantic substring matching ("refund")
   ```
 

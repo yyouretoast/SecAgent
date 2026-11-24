@@ -98,9 +98,17 @@ jobs:
 ```
 
 <p align="center">
-  <img src="docs/assets/pr-comment.png" alt="SecAgent sticky PR triage comment" width="48%" />
-  <img src="docs/assets/dashboard-diff.png" alt="SecAgent Streamlit waterfall and baseline diff" width="48%" />
+  <img src="docs/assets/dashboard-diff.png" alt="SecAgent Streamlit baseline regression diff" width="860" />
 </p>
+
+<details>
+<summary><b>Example Sticky PR Triage Comment (auto-posted on blocked PRs)</b></summary>
+
+<p align="center">
+  <img src="docs/assets/pr-comment.png" alt="SecAgent sticky PR triage comment" width="760" />
+</p>
+
+</details>
 
 ---
 
@@ -252,13 +260,17 @@ sequenceDiagram
 secagent/
 ├── action.yml                         # GitHub Action composite definition
 ├── pyproject.toml                     # Project packaging & CLI entrypoints
+├── SECURITY.md                        # Vulnerability disclosure policy
 ├── .github/
 │   ├── workflows/secagent-ci.yml      # CI workflow running scanner & pytest
 │   └── pull_request_template.md       # Team PR checklist & template
 ├── docs/
-│   ├── RFC-001-architecture.md        # Technical specification
+│   ├── assets/                        # CLI, PR comment & dashboard visuals
 │   ├── CONTRIBUTING.md                # Development workflow & conventions
-│   └── PLAYBOOK.md                    # Work breakdown & team roles
+│   ├── IMPLEMENTATION_PLAN.md         # Detailed subsystem & sprint plan
+│   ├── PLAYBOOK.md                    # Work breakdown & team roles
+│   ├── RFC-001-architecture.md        # Technical specification
+│   └── USER_STORIES.md                # Agile user stories & acceptance criteria
 ├── examples/                          # Smoke-test fixture agents
 │   ├── devops_agent/agent.py          # DevOps agent (admin tier)
 │   ├── finance_agent/agent.py         # Finance agent (pay tier)
@@ -274,12 +286,13 @@ secagent/
 │       ├── app.py                     # Streamlit audit & trace inspection dashboard
 │       ├── cli.py                     # Typer CLI (generate, scan, fuzz, serve)
 │       ├── ui.py                      # Rich terminal UI components & welcome banner
+│       ├── agent/state.py             # LangGraph runtime state contract
 │       ├── engine/                    # Policy ruleset loader, evaluators & SARIF reporter
 │       ├── generator/                 # Dynamic scenario synthesis & schema fuzzer
 │       ├── harness/                   # Introspector, sandbox & timeout runner
+│       ├── schemas/                   # Packaged trace JSON schema
 │       ├── sdk/                       # @permission decorator & exports
-│       ├── telemetry/                 # OTel callback, HITL normalizer & PII redactor
-│       └── agent/state.py             # LangGraph runtime state contract
+│       └── telemetry/                 # OTel callback, HITL normalizer & PII redactor
 └── tests/                             # Contract, engine, telemetry, CLI, Action & UI tests
 ```
 
@@ -291,6 +304,7 @@ secagent/
 
 - [Architecture RFC (RFC-001)](docs/RFC-001-architecture.md)
 - [Contributing Guide](docs/CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
 - [Team Playbook](docs/PLAYBOOK.md)
 - [User Stories](docs/USER_STORIES.md)
 

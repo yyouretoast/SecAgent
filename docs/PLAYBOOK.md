@@ -36,7 +36,7 @@ When developers modify system prompts, tool schemas, or models, agents can intro
 | **Week 2 (Oct 28 – Nov 03)** | **Subsystem Integration Gate 1 (Harness + Telemetry)** | Merge S1 (`harness/`) and S3 (`telemetry/`). Verify candidate agent runs emit compliant trace JSON passing `jsonschema.validate()`. |
 | **Week 3 (Nov 04 – Nov 10)** | **Subsystem Integration Gate 2 (Engine + Generator)** | Merge S2 (`generator/`) and S4 (`engine/`). Verify generated attack scenarios execute against Policy Engine, yielding exit code 1 on violating fixtures. |
 | **Week 4 (Nov 11 – Nov 17)** | **End-to-End Pipeline & Dashboard** | Merge S5 (`cli.py`, `action.yml`, `app.py`). Connect `secagent scan` to runner and engine. Build Streamlit trace inspection dashboard. |
-| **Week 5 (Nov 18 – Nov 25)** | **Hardening, Benchmarking & Defense Rehearsal** | Multi-agent matrix testing, Promptfoo comparison benchmark, documentation finalization, and live "Broken vs. Fixed" PR demonstration rehearsal. |
+| **Week 5 (Nov 18 – Nov 25)** | **Hardening, Evaluation & Defense Rehearsal** | Multi-agent evaluation matrix, documentation finalization, and live "Broken vs. Fixed" PR demonstration rehearsal. |
 
 ---
 
@@ -58,7 +58,7 @@ Each student owns a discrete module behind a typed interface contract.
 ---
 
 ### Student 2: Dynamic Scenario Generation Lead
-* **Scope**: `src/secagent/generator/` (`__init__.py`, `fuzzer.py`, `cache.py`, `templates.py`)
+* **Scope**: `src/secagent/generator/` (`__init__.py`, `fuzzer.py`, `cache.py`)
 * **Assigned Stories**: [US-3.1](USER_STORIES.md#us-31-7-category-owasp-attack-vector-synthesizer), [US-3.2](USER_STORIES.md#us-32-schema-directed-parameter-fuzzing-engine), [US-3.3](USER_STORIES.md#us-33-deterministic-seeding--test-suite-caching) (16 pts)
 * **Tasks**:
   * Implement `ScenarioGenerator` to synthesize adversarial test vectors tailored to introspected tools.
@@ -129,4 +129,5 @@ Each student owns a discrete module behind a typed interface contract.
    pytest tests/ -v
    ruff check .
    ruff format --check .
+   mypy src/secagent
    ```

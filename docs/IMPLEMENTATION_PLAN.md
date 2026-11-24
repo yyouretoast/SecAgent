@@ -17,7 +17,7 @@ Autonomous agent evaluation in CI/CD is constrained by two distinct architectura
 
 SecAgent implements a deterministic single-trace verification architecture. A candidate agent executes within a sandboxed execution harness that emits an OpenTelemetry GenAI trace. SecAgent evaluates this trace against declarative invariant policies defined in `policies/security_rules.yaml`. Invariant checks (predecessor approval gates, argument regex patterns, step recursion limits, field projections, and egress destinations) execute in $<2.0$ seconds in-memory with zero external model API calls during evaluation.
 
-### 1.2 Seven Trace-Observable OWASP Categories
+### 1.2 Eight OWASP Agentic Categories
 
 SecAgent restricts evaluation scope to vulnerability classes with deterministic, structural evidence in OpenTelemetry traces conforming to `schemas/trace_event.schema.json`:
 
@@ -93,7 +93,7 @@ flowchart TD
 * **Lead Engineer**: Student 1
 * **Target Package**: `src/secagent/harness/`, `src/secagent/sdk/`, `examples/`
 * **Module Layout**:
-  ```
+  ```text
   src/secagent/harness/
   ├── __init__.py          # Exports: ExecutionHarness, VirtualizedToolWrapper
   ├── introspector.py      # Entrypoint tool discovery across 4 extraction strategies
@@ -142,7 +142,7 @@ Where $\text{SemanticRegexHeuristic}(name)$ matches:
 #### Virtualized Dry-Run Sandbox (`sandbox.py`)
 To prevent accidental infrastructure damage or financial loss during automated CI audits:
 - **Observation vs. Interception**: While OpenTelemetry callbacks observe execution, callbacks cannot alter function return values. Sandboxing wraps tool execution functions directly.
-- **VirtualizedToolWrapper**: Before invoking the agent, all tools classified under `pay`, `admin`, or `write` are wrapped. When invoked:
+- **VirtualizedToolWrapper**: Before invoking the agent, all tools classified under `pay`, `admin`, `write`, or `net` are wrapped. When invoked:
   1. The wrapper captures the call parameters and records them to the active trace span.
   2. Physical side effects (database drops, shell execution, external transfers) are suppressed.
   3. A synthetic success dictionary (`{"status": "mock_success", "dry_run": true}`) is returned to allow the agent's reasoning loop to proceed normally.
@@ -157,7 +157,7 @@ To prevent accidental infrastructure damage or financial loss during automated C
 * **Lead Engineer**: Student 3
 * **Target Package**: `src/secagent/telemetry/`
 * **Module Layout**:
-  ```
+  ```text
   src/secagent/telemetry/
   ├── __init__.py          # Exports: SecAgentTelemetryCallback, Redactor, TraceExporter
   ├── callbacks.py         # OpenTelemetry callback hooks (tool.call, agent.run)
@@ -235,12 +235,11 @@ Before traces are saved or passed to the policy verifier, `TraceExporter` valida
 * **Lead Engineer**: Student 2
 * **Target Package**: `src/secagent/generator/`
 * **Module Layout**:
-  ```
+  ```text
   src/secagent/generator/
   ├── __init__.py          # Exports: ScenarioGenerator, ToolMetadata, GeneratedScenario
   ├── fuzzer.py            # Schema-aware parameter injection engine
-  ├── cache.py             # Deterministic caching & hash invalidation
-  └── templates.py         # 7 OWASP attack vector templates
+  └── cache.py             # Deterministic caching & hash invalidation
   ```
 
 #### Schema-Aware Parameter Fuzzing (`fuzzer.py`)
@@ -254,7 +253,7 @@ Blind parameter injection causes premature tool schema validation failures rathe
 #### Deterministic Seeding & Test Suite Caching (`cache.py`)
 - Test suites are generated deterministically using pseudo-random seeds (`--seed 42`).
 - Generated scenarios serialize into `scenarios/generated/generated_scenarios.json`.
-- A SHA-256 hash of tool signatures and policy rules is stored in `.scenario_cache_manifest`.
+- A SHA-256 cache key of tool signatures, overrides, and source fingerprint is stored under `scenarios/.cache/`.
 - In CI runs, `secagent scan` verifies the cache hash. If unchanged, generation is bypassed, executing the cached test suite in $<100\text{ms}$.
 
 ---
@@ -263,7 +262,7 @@ Blind parameter injection causes premature tool schema validation failures rathe
 * **Lead Engineer**: Student 4
 * **Target Package**: `src/secagent/engine/`
 * **Module Layout**:
-  ```
+  ```text
   src/secagent/engine/
   ├── __init__.py          # Exports: PolicyEngine, PolicyViolation, EvaluationResult
   ├── loader.py            # YAML policy parser & Pydantic schema validator
@@ -356,7 +355,7 @@ class EvaluationResult:
 * **Lead Engineer**: Student 5
 * **Target Package**: `action.yml`, `src/secagent/cli.py`, `src/secagent/app.py`, `.github/`
 * **Module Layout**:
-  ```
+  ```text
   src/secagent/
   ├── cli.py               # Typer CLI application (scan, generate, fuzz, serve)
   └── app.py               # Streamlit trace & violation inspection dashboard
@@ -366,7 +365,7 @@ class EvaluationResult:
   ```
 
 #### CLI Execution Mechanics (`cli.py`)
-```
+```bash
 secagent scan --agent <module:app> --policies <path> [--scenarios <dir>] [--output-report <path>] [--output-markdown <path>]
 ```
 1. Invokes Subsystem 1 introspector to extract tool signatures.
@@ -454,7 +453,7 @@ sequenceDiagram
 
 The implementation spans 4 two-week sprints based on a 4–6 hrs/week budget per student (5 students total):
 
-```
+```text
 Sprint 1 (Weeks 1-2): Interface Contracts & Baseline Framework
 Sprint 2 (Weeks 3-4): Core Detection, Dry-Run Sandbox & Telemetry Hooks
 Sprint 3 (Weeks 5-6): Full 7-Category Verification & End-to-End Pipeline

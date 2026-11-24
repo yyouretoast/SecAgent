@@ -15,8 +15,10 @@ Guidelines for contributing to SecAgent.
 3. **Deterministic CI**:
    * Continuous integration audits must execute deterministically without external API dependencies.
 4. **Code Quality**:
-   * All code must pass `ruff check .`, `ruff format --check .`, and `pytest tests/` before opening a pull request.
+   * All code must pass `ruff check .`, `ruff format --check .`, `mypy src/secagent`, and `pytest tests/` before opening a pull request.
    * Type annotations are required on public functions.
+5. **Security Disclosures**:
+   * Report suspected vulnerabilities privately following [SECURITY.md](../SECURITY.md).
 
 ---
 
@@ -45,6 +47,7 @@ Guidelines for contributing to SecAgent.
    pytest tests/ -v
    ruff check .
    ruff format --check .
+   mypy src/secagent
    ```
 5. Open a pull request against `main`. Fill out the checklist in `.github/pull_request_template.md`.
 6. Merging requires a passing CI workflow and review approval.
@@ -57,9 +60,13 @@ Guidelines for contributing to SecAgent.
 git clone https://github.com/yyouretoast/SecAgent.git
 cd SecAgent
 
+# Using uv (recommended, matches uv.lock)
+uv sync --extra dev
+uv run pytest tests/ -v
+
+# Or using pip
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
 pip install -e ".[dev]"
 pytest tests/ -v
 ```

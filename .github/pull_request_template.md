@@ -29,5 +29,5 @@
 - [ ] Local tests pass (`pytest tests/ -v`)
 - [ ] Linter checks pass (`ruff check .`)
 - [ ] Code formatting verified (`ruff format --check .`)
-- [ ] Type checks pass (`mypy src/secagent/cli.py src/secagent/app.py src/secagent/engine src/secagent/ui.py`)
+- [ ] Type checks pass (`mypy src/secagent`)
 - [ ] Does not break schema contracts (`schemas/trace_event.schema.json`)

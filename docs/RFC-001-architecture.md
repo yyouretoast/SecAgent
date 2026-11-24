@@ -29,7 +29,7 @@ When developers update system prompts, modify tool definitions, or upgrade model
 ### 1.3 SecAgent Objective
 SecAgent provides a GitHub Action and CLI scanner that:
 1. Targets autonomous agents (LangGraph-first in Phase 1, using framework-agnostic OpenTelemetry trace schema).
-2. Evaluates execution traces against 7 core OWASP Top 10 for Agentic AI Applications categories.
+2. Evaluates execution traces against 8 OWASP Top 10 for Agentic AI Applications categories (7 trace-verifiable in YAML + static `ASI04` tool-description poisoning check).
 3. Provides an SDK decorator (`@permission(tier="...")`) standardizing tool privilege tiers (`read`, `write`, `pay`, `admin`, `net`).
 4. Generates adversarial test scenarios dynamically on the fly based on tool signatures.
 
@@ -37,7 +37,7 @@ SecAgent provides a GitHub Action and CLI scanner that:
 
 ## 2. System Architecture
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                                   SECAGENT SYSTEM ARCHITECTURE                         │
 └────────────────────────────────────────────────────────────────────────────────────────┘
@@ -167,10 +167,11 @@ Evaluates YAML policies against execution traces deterministically:
 
 ## 4. Targeted Threat Model
 
-SecAgent evaluates 7 trace-verifiable categories from the OWASP Top 10 for Agentic AI Applications:
-* **ASI01: Agent Goal Hijack**: Prompts overriding system persona or deviating from assigned scope.
+SecAgent evaluates 8 categories from the OWASP Top 10 for Agentic AI Applications (7 trace-verifiable in YAML + static `ASI04` tool-description scan):
+* **ASI01: Agent Goal Hijack**: Prompts overriding system persona (`POL-ASI01-001`) and indirect prompt injection flows (`POL-ASI01-002`).
 * **ASI02: Tool Misuse**: SQL injection payloads in tool arguments (`POL-ASI02-001`).
 * **ASI03: Identity & Privilege Abuse**: Predecessor approval enforcement (`POL-ASI03-001`) and context boundaries (`POL-ASI03-002`).
+* **ASI04: Agentic Supply Chain Vulnerabilities**: Embedded prompt directives in tool descriptions and metadata (`POL-ASI04-001`).
 * **ASI05: Unexpected Code Execution**: Command injection and shell metacharacters in tool parameters (`POL-ASI05-001`).
 * **ASI06: Scope Abuse**: Over-fetching sensitive attributes (`POL-ASI06-001`).
 * **ASI08: Cascading Failures**: Runaway execution loops and retry depth (`POL-ASI08-001`).
@@ -196,3 +197,10 @@ SecAgent evaluates 7 trace-verifiable categories from the OWASP Top 10 for Agent
 * **Parameter Injection Detection**: Flags inputs matching known SQL and command injection patterns in user-controlled arguments.
 * **Execution Overhead**: Complete CI evaluation runs in under 10 seconds.
 * **Deterministic Precision**: Validated against compliant reference fixtures to ensure standard tool invocations pass without spurious policy triggers.
+
+---
+
+## 7. Alternatives Considered & Trade-offs
+
+* **LLM-as-a-Judge vs. Deterministic Trace Rules**: LLM judges catch fuzzy semantic failures but introduce API cost, multi-second latency, and flaky CI verdicts. SecAgent chose deterministic rule evaluation on traces for sub-10ms, zero-cost, reproducible PR gates, accepting that regex/structural rules require explicit policy updates for novel phrasings.
+* **Production Runtime Proxy vs. Pre-Merge CI Gate**: Inline runtime proxies block live traffic but add production latency and risk false-positive outages. SecAgent targets pre-merge CI/CD with dry-run sandboxing and baseline diffing, trading runtime interception for zero production overhead.
