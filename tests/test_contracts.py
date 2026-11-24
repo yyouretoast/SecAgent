@@ -279,3 +279,10 @@ def test_cli_agent_entrypoint_discovery(tmp_path):
     assert report_file.exists()
     data = json.loads(report_file.read_text(encoding="utf-8"))
     assert data["agent"] == "examples.devops_agent.agent"
+
+
+def test_packaged_trace_schema_matches_root_schema():
+    root = Path(__file__).resolve().parents[1]
+    root_schema = (root / "schemas" / "trace_event.schema.json").read_bytes()
+    pkg_schema = (root / "src" / "secagent" / "schemas" / "trace_event.schema.json").read_bytes()
+    assert pkg_schema == root_schema

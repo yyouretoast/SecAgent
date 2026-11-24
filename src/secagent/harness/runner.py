@@ -68,6 +68,14 @@ def build_initial_state(scenario: Any) -> dict[str, Any]:
     }
 
 
+def _adapt_state_for_target(target: Any, state: dict[str, Any]) -> dict[str, Any]:
+    """Filter initial state keys to match the target graph's declared channels when available."""
+    channels = getattr(target, "channels", None)
+    if isinstance(channels, dict) and "messages" in channels:
+        return {key: value for key, value in state.items() if key in channels}
+    return state
+
+
 class ExecutionHarness:
     def __init__(
         self,
@@ -137,7 +145,7 @@ class ExecutionHarness:
 
         scenario_id = str(_get(scenario, "id", "adhoc"))
         wrapper = VirtualizedToolWrapper(overrides=self.policy_overrides, dry_run=self.dry_run)
-        state = build_initial_state(scenario)
+        state = _adapt_state_for_target(target, build_initial_state(scenario))
         config: dict[str, Any] = {"recursion_limit": self.recursion_limit}
         if callbacks:
             config["callbacks"] = callbacks

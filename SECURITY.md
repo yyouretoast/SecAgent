@@ -11,3 +11,7 @@ Please **do not** open a public GitHub issue for suspected security vulnerabilit
 1. Use GitHub's private **Security Advisories** feature (`Security` → `Advisories` → `Report a vulnerability` on `yyouretoast/SecAgent`).
 2. Include a minimal reproduction trace, policy file, or CLI invocation and the expected vs. observed behavior.
 3. Maintainers will acknowledge reports within 72 hours and coordinate a fix before public disclosure.
+
+## Deployment Scope
+
+`secagent serve` launches a single-user local developer dashboard bound to `127.0.0.1`. Do not expose it on public interfaces or behind an unauthenticated reverse proxy, as its sidebar inputs are designed for inspecting local report and trace JSON files.

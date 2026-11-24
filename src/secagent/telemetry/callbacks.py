@@ -52,8 +52,6 @@ def _input_parameters(value: Any) -> dict[str, Any]:
         return _json_safe(value)
     if isinstance(value, str):
         try:
-            import json
-
             parsed = json.loads(value)
         except (TypeError, ValueError):
             parsed = value
