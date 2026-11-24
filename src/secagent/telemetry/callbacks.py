@@ -242,7 +242,7 @@ class TraceSession:
         return safe_span
 
     def as_dict(self) -> dict[str, Any]:
-        result = {
+        result: dict[str, Any] = {
             "scenario_id": self.scenario_id,
             "execution_id": self.execution_id,
             "timestamp": self.timestamp,

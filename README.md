@@ -1,22 +1,179 @@
+<div align="center">
+
 # SecAgent
 
-CI/CD security gate and testing tool for autonomous AI agents (LangGraph-first, with framework-agnostic OpenTelemetry traces). Evaluates execution traces against 7 trace-observable categories from the OWASP Top 10 for Agentic AI Applications.
+**Deterministic CI/CD security gate for autonomous AI agents — zero LLM-as-a-judge.**
 
-[![CI](https://github.com/yyouretoast/SecAgent/actions/workflows/secagent-ci.yml/badge.svg)](https://github.com/yyouretoast/SecAgent/actions)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![CI](https://img.shields.io/github/actions/workflow/status/yyouretoast/SecAgent/secagent-ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/yyouretoast/SecAgent/actions/workflows/secagent-ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue?style=flat-square)](https://www.python.org/downloads/)
+[![OWASP Agentic](https://img.shields.io/badge/OWASP_Agentic-8%2F10_Categories-0a7ea4?style=flat-square)](policies/security_rules.yaml)
+[![SARIF 2.1.0](https://img.shields.io/badge/SARIF-2.1.0-6f42c1?style=flat-square)](src/secagent/engine/reporter.py)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square)](LICENSE)
+
+[Quickstart](#quickstart) · [GitHub Action](#github-action-integration) · [OWASP Coverage](#owasp-agentic-coverage) · [Benchmarks](#verified-multi-agent-results) · [CLI](#cli-reference) · [Architecture](#architecture)
+
+</div>
+
+<p align="center">
+  <img src="docs/assets/cli-demo.svg" alt="SecAgent CLI security scan demo" width="860" />
+</p>
 
 ---
 
-## What SecAgent Does
+## Why SecAgent?
 
-When developers change system prompts, tool schemas, or underlying models, agents can introduce security regressions:
-* Executing sensitive financial actions without required approval gates (ASI03).
-* Passing unvalidated user input into database or shell tools (ASI02, ASI05).
-* Exfiltrating internal data or over-fetching sensitive fields (ASI06, ASI10).
-* Getting trapped in non-terminating execution loops (ASI08).
+When developers modify system prompts, tool schemas, or foundation models, AI agents can silently regress:
+- Skipping human-in-the-loop (HITL) approval gates before `pay` or `admin` actions (`ASI03`)
+- Passing unvalidated parameters into database or shell tools (`ASI02`, `ASI05`)
+- Following indirect prompt injections or poisoned tool descriptions (`ASI01`, `ASI04`)
+- Over-fetching PII/credentials, exfiltrating data, or looping indefinitely (`ASI06`, `ASI08`, `ASI10`)
 
-SecAgent runs in CI/CD pipelines, synthesizes adversarial attack scenarios tailored to the agent's tools, executes the agent, inspects its execution trace, and blocks pull requests if security boundaries are breached.
+**SecAgent** introspects your agent's tools (LangGraph-first, plus framework-agnostic OpenTelemetry trace JSON), synthesizes schema-directed adversarial scenarios, executes the agent in a dry-run sandbox, and deterministically evaluates **8 OWASP Agentic AI categories** in milliseconds — blocking pull requests before regressions ship.
+
+---
+
+## Quickstart
+
+### 1. Install
+
+```bash
+git clone https://github.com/yyouretoast/SecAgent.git
+cd SecAgent
+python -m pip install -e ".[dashboard]"
+# Or with test/lint dependencies:
+python -m pip install -e ".[dev]"
+```
+
+### 2. Run a Security Scan (PASS vs. FAIL)
+
+```bash
+# Compliant reference agent -> PASS (exit code 0)
+secagent scan --agent examples.finance_agent.agent:app
+
+# Vulnerable reference agent -> FAIL (exit code 1) + SARIF 2.1.0 export
+secagent scan --agent examples.finance_agent.agent:vulnerable_app --output-sarif vuln.sarif
+```
+
+### 3. Inspect Traces & Baseline Regression Diffs
+
+```bash
+secagent serve --report vuln_report.json --baseline safe_report.json
+```
+
+---
+
+## GitHub Action Integration
+
+Add SecAgent to `.github/workflows/security.yml` to gate pull requests, post sticky PR triage comments, write GitHub Step Summaries, and upload SARIF 2.1.0 alerts to GitHub Code Scanning:
+
+```yaml
+name: Agent Security Gate
+on: [pull_request]
+
+jobs:
+  secagent-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run SecAgent Security Gate
+        uses: yyouretoast/SecAgent@main
+        with:
+          agent_entrypoint: "my_agent.graph:app"
+          policies: "policies/security_rules.yaml"
+          output_report: "report.json"
+          output_markdown: "comment.md"
+          output_sarif: "report.sarif"
+```
+
+<p align="center">
+  <img src="docs/assets/pr-comment.png" alt="SecAgent sticky PR triage comment" width="48%" />
+  <img src="docs/assets/dashboard-diff.png" alt="SecAgent Streamlit waterfall and baseline diff" width="48%" />
+</p>
+
+---
+
+## OWASP Agentic Coverage
+
+SecAgent deterministically evaluates **8 of 10** categories from the OWASP Top 10 for Agentic AI Applications (9 declarative rules in [`policies/security_rules.yaml`](policies/security_rules.yaml) + static tool-definition poisoning scan):
+
+| OWASP Category | Rule ID | Severity | Deterministic Check |
+| :--- | :--- | :--- | :--- |
+| **ASI01** Agent Goal Hijack | `POL-ASI01-001` | `CRITICAL` | Flags instruction-override patterns followed by out-of-scope privileged tool calls (`GoalHijackRule`). |
+| **ASI01** Indirect Prompt Injection | `POL-ASI01-002` | `CRITICAL` | Flags tainted `read`/`net` tool outputs steering unapproved `pay`/`admin`/`net` sinks (`ToxicFlowRule`). |
+| **ASI02** Tool Misuse & Exploitation | `POL-ASI02-001` | `CRITICAL` | Blocks SQL injection keywords and tautologies in tool input parameters (`ParameterRegexRule`). |
+| **ASI03** Identity & Privilege Abuse | `POL-ASI03-001` | `CRITICAL` | Enforces unconsumed, operation-bound `gate.hitl` approval prior to `pay`/`admin` tools (`PredecessorGateRule`). |
+| **ASI03** Context Privilege Boundary | `POL-ASI03-002` | `HIGH` | Forbids `write`/`pay`/`admin`/`net` tools during `general_inquiry` sessions (`ContextPrivilegeRule`). |
+| **ASI04** Agentic Supply Chain | `POL-ASI04-001` | `CRITICAL` | Scans introspected tool docstrings & parameter metadata for hidden prompt directives (`scan_tool_definitions`). |
+| **ASI05** Unexpected Code Execution | `POL-ASI05-001` | `CRITICAL` | Blocks shell metacharacters and command injection payloads in tool arguments (`ParameterRegexRule`). |
+| **ASI06** Context Poisoning / Scope | `POL-ASI06-001` | `HIGH` | Flags sensitive PII/credential fields (`ssn`, `salary`, `password_hash`, `credit_card`, `pin`) in scoped queries (`FieldScopeRule`). |
+| **ASI08** Cascading Failures | `POL-ASI08-001` | `HIGH` | Enforces max operational steps (`10`) and consecutive identical tool-call limits (`2`) (`CircuitBreakerRule`). |
+| **ASI10** Rogue Agent Egress | `POL-ASI10-001` | `CRITICAL` | Enforces domain allowlists and blocks known exfiltration sinks (`webhook.site`, `pastebin.com`, `ngrok.io`) (`NetworkEgressRule`). |
+
+> [!NOTE]
+> **Roadmap:** `ASI07` (Insecure Inter-Agent Communication) and `ASI09` (Human-Agent Trust Exploitation) are planned for upcoming releases.
+
+---
+
+## Verified Multi-Agent Results
+
+Results from running `secagent scan` across the repository's 3 reference agent fixtures (each with a compliant `:app` and an intentionally insecure `:vulnerable_app`):
+
+| Agent Fixture | Safe (`:app`) | Vulnerable (`:vulnerable_app`) | Scenarios | Spans (Safe / Vuln) |
+| :--- | :--- | :--- | :---: | :---: |
+| `examples.finance_agent.agent` | `PASS` (exit `0`, `0` violations) | `FAIL` (exit `1`, `10` violations) | 17 | 33 / 33 |
+| `examples.devops_agent.agent` | `PASS` (exit `0`, `0` violations) | `FAIL` (exit `1`, `8` violations) | 9 | 19 / 30 |
+| `examples.support_agent.agent` | `PASS` (exit `0`, `0` violations) | `FAIL` (exit `1`, `5` violations) | 15 | 29 / 29 |
+
+### How SecAgent Compares
+
+| Capability | **SecAgent** | **Promptfoo** | **Garak** | **Invariant Labs (Snyk)** |
+| :--- | :---: | :---: | :---: | :---: |
+| **Zero-LLM-Judge Determinism** | ✅ | Partial | Mixed | ✅ |
+| **CI/CD PR Gate & SARIF 2.1.0** | ✅ | ✅ | CLI only | Gateway / Explorer |
+| **Schema-Directed Attack Synthesis** | ✅ | ✅ | Static probes | ❌ (Passive) |
+| **Baseline Trace Regression Diff** | ✅ | ✅ | ❌ | ❌ |
+| **Primary Lane** | **Pre-merge CI behavioral gate** | Prompt / RAG evals | Model red-teaming | Runtime proxy & MCP scan |
+
+---
+
+## Privilege SDK (`@permission`)
+
+Decorate sensitive agent tools with `@permission` to assign explicit privilege tiers (`pure`, `read`, `write`, `pay`, `admin`, `net`) without modifying policy YAML:
+
+```python
+from secagent.sdk import permission
+
+
+@permission(tier="admin")
+def restart_server(server_id: str) -> dict:
+    """Restarts host infrastructure."""
+    return {"server": server_id, "status": "restarted"}
+
+
+@permission(tier="pay")
+def execute_trade(symbol: str, quantity: int) -> dict:
+    """Executes market order. Requires prior HITL approval."""
+    return {"order": "filled", "symbol": symbol, "quantity": quantity}
+```
+
+---
+
+## CLI Reference
+
+| Command | Purpose | Example |
+| :--- | :--- | :--- |
+| `secagent scan` (`test`) | Synthesize/load scenarios, run dry-run sandbox, evaluate policies, emit JSON/Markdown/SARIF | `secagent scan --agent examples.finance_agent.agent:app --output-sarif report.sarif` |
+| `secagent scan --trace` | Evaluate pre-recorded trace JSON file(s) conforming to `schemas/trace_event.schema.json` | `secagent scan --trace tests/fixtures/sample_trace.json` |
+| `secagent generate` | Introspect tools and write cached adversarial scenario suites | `secagent generate --agent examples.devops_agent.agent --per-tool 3` |
+| `secagent fuzz` | Run schema-directed parameter mutations (and optionally `--execute` against the agent) | `secagent fuzz --agent examples.support_agent.agent:app --iterations 10 --execute` |
+| `secagent serve` | Launch local Streamlit waterfall timeline & `--baseline` regression diff dashboard | `secagent serve --report vuln_report.json --baseline safe_report.json` |
 
 ---
 
@@ -25,16 +182,16 @@ SecAgent runs in CI/CD pipelines, synthesizes adversarial attack scenarios tailo
 ```mermaid
 flowchart TD
     PR["Pull Request / Commit"] --> Action["GitHub Action Runner"]
-    Action --> CLI["secagent CLI (scan)"]
-    
+    Action --> CLI["secagent scan"]
+
     subgraph Pipeline ["SecAgent Evaluation Pipeline"]
         Scenarios["Test Scenarios<br/>(Cached / Generated)"]
         Harness["Execution Harness<br/>(Dry-run sandbox)"]
         Telemetry["Telemetry Interceptor<br/>(OpenTelemetry + PII Redactor)"]
         Trace["Execution Trace JSON"]
-        Verifier["Policy Engine<br/>(7 OWASP Invariants)"]
+        Verifier["Policy Engine<br/>(8 OWASP Categories)"]
     end
-    
+
     subgraph Target ["Agent Under Test"]
         Agent["Candidate Agent<br/>(LangGraph / Generic OTel)"]
     end
@@ -49,7 +206,8 @@ flowchart TD
     Verifier -->|"Fail (Exit 1)"| FailGate["Block PR & Post Triage Comment"]
 ```
 
-### Execution Lifecycle
+<details>
+<summary><b>Execution Lifecycle Sequence Diagram</b></summary>
 
 ```mermaid
 sequenceDiagram
@@ -70,7 +228,7 @@ sequenceDiagram
         Agent-->>Runner: Return execution result
     end
     Telem->>Engine: Export execution trace JSON
-    Engine->>Engine: Verify 7 OWASP invariant rules
+    Engine->>Engine: Verify OWASP invariant rules
     alt Violations Found
         Engine-->>CI: Exit Code 1 (FAIL)
         CI-->>Dev: Block PR & Post Remediation Comment
@@ -80,108 +238,12 @@ sequenceDiagram
     end
 ```
 
----
+</details>
 
-## Core Capabilities
+<details>
+<summary><b>Repository Structure</b></summary>
 
-* **GitHub Action (`action.yml`)**: Blocks pull requests automatically when an agent breaches declarative security rules, posts sticky PR triage comments, writes GitHub Actions job summaries, and exports SARIF 2.1.0 (`--output-sarif`) for GitHub Code Scanning.
-* **Deterministic Checks**: Verifies approval gates (including argument-bound HITL), toxic indirect prompt injection flows (`ToxicFlowRule`), tool-description poisoning (`POL-ASI04-001`), argument patterns, and recursion limits directly from OpenTelemetry traces. No LLM-as-a-judge.
-* **Automatic Test Generation (`secagent generate`, `secagent fuzz`)**: Inspects agent tools and synthesizes schema-directed adversarial test cases, with `secagent fuzz --execute` running mutated suites directly against target agents.
-* **Interactive Audit Dashboard (`secagent serve`)**: Launches a local Streamlit waterfall timeline, span inspector, and `--baseline` regression diff view (installable via `pip install "secagent[dashboard]"`).
-* **Privilege SDK (`@secagent.permission`)**: Decorator for tools specifying execution privilege tiers (`pure`, `read`, `write`, `pay`, `admin`, `net`).
-* **Trace-Observable OWASP Coverage**: 8 OWASP ASI categories (`ASI01`, `ASI02`, `ASI03`, `ASI04`, `ASI05`, `ASI06`, `ASI08`, `ASI10`), including deterministic goal-hijack, toxic-flow, and tool-poisoning detection.
-
----
-
-## Quickstart
-
-### 1. Installation
-
-```bash
-git clone https://github.com/yyouretoast/SecAgent.git
-cd SecAgent
-python -m pip install -e ".[dev]"
-# Or for runtime + Streamlit dashboard only:
-python -m pip install -e ".[dashboard]"
-```
-
-### 2. Protect Agent Tools
-
-Decorate sensitive agent tools with `@permission`:
-
-```python
-from secagent.sdk import permission
-
-
-@permission(tier="admin")
-def restart_server(server_id: str) -> dict:
-    """Restarts host infrastructure."""
-    return {"server": server_id, "status": "restarted"}
-
-
-@permission(tier="pay")
-def execute_trade(symbol: str, quantity: int) -> dict:
-    """Executes market order. Requires prior HITL approval."""
-    return {"order": "filled", "symbol": symbol, "quantity": quantity}
-```
-
-### 3. Run a Security Scan
-
-Run a scan against an agent module:
-
-```bash
-secagent scan --agent examples.finance_agent.agent:app --policies policies/security_rules.yaml --output-sarif report.sarif
-```
-
-### 4. Synthesize & Fuzz Test Scenarios
-
-Generate adversarial test cases or run schema-directed parameter mutations by inspecting the agent's tool definitions:
-
-```bash
-secagent generate --agent examples.devops_agent.agent --per-tool 3
-secagent fuzz --agent examples.support_agent.agent:app --iterations 10 --execute
-```
-
-### 5. Inspect Traces in the Dashboard
-
-Launch the local Streamlit audit dashboard to inspect trace waterfalls, policy violations, and baseline regression diffs:
-
-```bash
-secagent serve --report report.json
-# Or diff against a previous baseline report:
-secagent serve --report report.json --baseline old_report.json
-```
-
-### 6. GitHub Action Integration
-
-Add `SecAgent` to `.github/workflows/security.yml`:
-
-```yaml
-name: Agent Security Audit
-on: [pull_request]
-
-jobs:
-  secagent-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Run SecAgent Security Gate
-        uses: ./
-        with:
-          agent_entrypoint: "my_agent.graph:app"
-          policies: "policies/security_rules.yaml"
-          output_report: "report.json"
-          output_markdown: "comment.md"
-```
-
----
-
-## Repository Structure
-
-```
+```text
 secagent/
 ├── action.yml                         # GitHub Action composite definition
 ├── pyproject.toml                     # Project packaging & CLI entrypoints
@@ -191,7 +253,7 @@ secagent/
 ├── docs/
 │   ├── RFC-001-architecture.md        # Technical specification
 │   ├── CONTRIBUTING.md                # Development workflow & conventions
-│   └── PLAYBOOK.md                    # Work breakdown & student roles
+│   └── PLAYBOOK.md                    # Work breakdown & team roles
 ├── examples/                          # Smoke-test fixture agents
 │   ├── devops_agent/agent.py          # DevOps agent (admin tier)
 │   ├── finance_agent/agent.py         # Finance agent (pay tier)
@@ -213,16 +275,18 @@ secagent/
 │       ├── sdk/                       # @permission decorator & exports
 │       ├── telemetry/                 # OTel callback, HITL normalizer & PII redactor
 │       └── agent/state.py             # LangGraph runtime state contract
-└── tests/
-    ├── fixtures/                      # Compliant and violating trace fixtures
-    ├── test_action.py                 # GitHub Action contract & integration tests
-    ├── test_contracts.py              # Schema and CLI contract test suite
-    ├── test_dashboard.py              # Dashboard unit and Streamlit AppTest suite
-    └── test_reporting.py              # PR triage Markdown formatter tests
+└── tests/                             # Contract, engine, telemetry, CLI, Action & UI tests
 ```
+
+</details>
 
 ---
 
-## License
+## Documentation & License
 
-Apache License 2.0. See [LICENSE](LICENSE) for details.
+- [Architecture RFC (RFC-001)](docs/RFC-001-architecture.md)
+- [Contributing Guide](docs/CONTRIBUTING.md)
+- [Team Playbook](docs/PLAYBOOK.md)
+- [User Stories](docs/USER_STORIES.md)
+
+Licensed under the [Apache License 2.0](LICENSE).

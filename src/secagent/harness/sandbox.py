@@ -55,7 +55,7 @@ class VirtualizedToolWrapper:
 
         if getattr(fn, _MARK, False):
             fn = getattr(fn, _ORIGINAL, fn)
-        tool_label = name or getattr(fn, "__name__", "unknown_tool")
+        tool_label = str(name or getattr(fn, "__name__", "unknown_tool"))
         resolved = tier or resolve_permission_tier(tool_label, explicit_tier_of(fn), self.overrides)
         if inspect.iscoroutinefunction(fn):
 
@@ -114,7 +114,7 @@ class VirtualizedToolWrapper:
             for key, tool in list(tbn.items()):
                 tbn[key] = self.wrap(tool)
                 self.patched.append(tool_name(tool))
-                undo.append(lambda d=tbn, k=key, t=tool: d.__setitem__(k, t))
+                undo.append(functools.partial(tbn.__setitem__, key, tool))
 
         for owner in (target, mod):
             for attr in ("tools", "toolkit", "available_tools", "agent_tools"):
@@ -123,14 +123,14 @@ class VirtualizedToolWrapper:
                     original = list(items)
                     items[:] = [self.wrap(t) for t in original]
                     self.patched.extend(tool_name(t) for t in original)
-                    undo.append(lambda lst=items, orig=original: lst.__setitem__(slice(None), orig))
+                    undo.append(functools.partial(items.__setitem__, slice(None), original))
 
         if mod is not None and inspect.ismodule(mod):
             for attr, obj in inspect.getmembers(mod):
                 if callable(obj) and hasattr(obj, TIER_ATTR) and not isinstance(obj, BaseTool):
                     setattr(mod, attr, self.wrap_callable(obj, attr))
                     self.patched.append(attr)
-                    undo.append(lambda m=mod, a=attr, o=obj: setattr(m, a, o))
+                    undo.append(functools.partial(setattr, mod, attr, obj))
         try:
             yield self
         finally:

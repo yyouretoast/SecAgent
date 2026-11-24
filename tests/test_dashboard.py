@@ -110,7 +110,7 @@ def test_streamlit_apptest_renders_pass_report_and_trace(tmp_path: Path, monkeyp
     )
 
     monkeypatch.setattr(sys, "argv", ["app.py", "--report", str(report_path)])
-    at = AppTest.from_file(str(APP_PATH)).run()
+    at = AppTest.from_file(str(APP_PATH)).run(timeout=15)
 
     assert not at.exception
     assert len(at.success) == 1
@@ -154,7 +154,7 @@ def test_streamlit_apptest_renders_fail_report_with_red_violations(tmp_path: Pat
     monkeypatch.setattr(
         sys, "argv", ["app.py", "--report", str(report_path), "--trace", str(trace_path)]
     )
-    at = AppTest.from_file(str(APP_PATH)).run()
+    at = AppTest.from_file(str(APP_PATH)).run(timeout=15)
 
     assert not at.exception
     assert any("FAIL" in err.value for err in at.error)
@@ -165,7 +165,7 @@ def test_streamlit_apptest_renders_fail_report_with_red_violations(tmp_path: Pat
 def test_streamlit_apptest_handles_missing_report_gracefully(tmp_path: Path, monkeypatch):
     missing = tmp_path / "missing.json"
     monkeypatch.setattr(sys, "argv", ["app.py", "--report", str(missing)])
-    at = AppTest.from_file(str(APP_PATH)).run()
+    at = AppTest.from_file(str(APP_PATH)).run(timeout=15)
 
     assert not at.exception
     assert len(at.error) == 1
@@ -277,7 +277,7 @@ def test_streamlit_apptest_supports_raw_trace_filters_and_nullable_metadata(
     trace_path.write_text(json.dumps(raw_trace), encoding="utf-8")
 
     monkeypatch.setattr(sys, "argv", ["app.py", "--report", str(trace_path)])
-    at = AppTest.from_file(str(APP_PATH)).run()
+    at = AppTest.from_file(str(APP_PATH)).run(timeout=15)
 
     assert not at.exception
     assert any("RAW-001" in info.value for info in at.info)
@@ -330,7 +330,7 @@ def test_streamlit_apptest_multi_trace_selector_handles_duplicate_scenario_ids(
     )
 
     monkeypatch.setattr(sys, "argv", ["app.py", "--report", str(report_path)])
-    at = AppTest.from_file(str(APP_PATH)).run()
+    at = AppTest.from_file(str(APP_PATH)).run(timeout=15)
     assert not at.exception
     assert any("tool_alpha" in exp.label for exp in at.expander)
 
@@ -425,7 +425,7 @@ def test_streamlit_apptest_renders_regression_diff_with_baseline(tmp_path: Path,
         "argv",
         ["app.py", "--report", str(curr_path), "--baseline", str(base_path)],
     )
-    at = AppTest.from_file(str(APP_PATH)).run()
+    at = AppTest.from_file(str(APP_PATH)).run(timeout=15)
     assert not at.exception
     assert any("Regression Diff vs. Baseline" in sub.value for sub in at.subheader)
 

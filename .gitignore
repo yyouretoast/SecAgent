@@ -55,6 +55,9 @@ traces/*.json
 !tests/fixtures/*.json
 report.json
 comment.md
+*.sarif
+*_report.json
+*_comment.md
 scenarios/generated/
 scenarios/.cache/
 *.log

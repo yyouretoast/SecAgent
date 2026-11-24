@@ -155,7 +155,7 @@ def agent_source_fingerprint(module: Any = None) -> str:
     def external_spec(name: str):
         """Resolve without importing modules, using path-based finders only."""
         parts = name.split(".")
-        search_path = sys.path
+        search_path: list[str] | None = sys.path
         spec = None
         qualified = ""
         for part in parts:
