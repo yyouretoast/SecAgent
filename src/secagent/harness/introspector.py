@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 from langchain_core.tools import BaseTool
 
+from secagent.harness.topology import TopologyProfile, classify_topology
 from secagent.sdk.decorators import VALID_TIERS
 
 logger = logging.getLogger("secagent.harness")
@@ -105,17 +106,51 @@ def _dedupe(tools: list[Any]) -> list[Any]:
     return unique
 
 
+def _child_graphs(graph: Any) -> list[Any]:
+    getter = getattr(graph, "get_subgraphs", None)
+    if not callable(getter):
+        return []
+    try:
+        return [sub for _, sub in getter()]
+    except Exception as exc:
+        logger.debug("get_subgraphs() raised %r; sub-graph tools not collected", exc)
+        return []
+
+
 def graph_tool_dicts(target: Any) -> list[dict[str, Any]]:
     dicts: list[dict[str, Any]] = []
-    nodes = getattr(target, "nodes", None)
-    if not isinstance(nodes, dict):
-        return dicts
-    for node in nodes.values():
-        for holder in (node, getattr(node, "bound", None)):
-            tbn = getattr(holder, "tools_by_name", None)
-            if isinstance(tbn, dict) and tbn not in dicts:
-                dicts.append(tbn)
+    seen_dicts: set[int] = set()
+    seen_graphs: set[int] = set()
+
+    def walk(graph: Any) -> None:
+        if id(graph) in seen_graphs:
+            return
+        seen_graphs.add(id(graph))
+        nodes = getattr(graph, "nodes", None)
+        if not isinstance(nodes, dict):
+            return
+        for node in nodes.values():
+            for holder in (node, getattr(node, "bound", None)):
+                tbn = getattr(holder, "tools_by_name", None)
+                if isinstance(tbn, dict) and id(tbn) not in seen_dicts:
+                    seen_dicts.add(id(tbn))
+                    dicts.append(tbn)
+        for sub in _child_graphs(graph):
+            walk(sub)
+
+    walk(target)
     return dicts
+
+
+def introspect_topology(entrypoint: str, on_error: str = "raise") -> TopologyProfile:
+    try:
+        target, _ = load_entrypoint(entrypoint)
+    except Exception as exc:
+        if on_error == "raise":
+            raise HarnessLoadError(f"Cannot load {entrypoint!r}: {exc}") from exc
+        logger.warning("Could not load %r (%s); topology not inspectable", entrypoint, exc)
+        return TopologyProfile(kind="single_agent", inspectable=False)
+    return classify_topology(target)
 
 
 def discover_tools(target: Any, mod: Any = None) -> list[Any]:

@@ -1,5 +1,3 @@
-"""Tests for tool discovery and tier resolution (US-1.1, US-1.2)."""
-
 import logging
 from pathlib import Path
 
@@ -18,6 +16,7 @@ from secagent.harness import (
     load_policy_overrides,
     resolve_permission_tier,
 )
+from secagent.harness.introspector import introspect_topology
 from secagent.sdk import permission
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -150,3 +149,16 @@ def test_policy_override_with_invalid_tier_is_rejected(tmp_path):
     rules.write_text("tool_tier_overrides:\n  drop_database: admn\n", encoding="utf-8")
     with pytest.raises(HarnessLoadError, match="admn"):
         load_policy_overrides(rules)
+
+
+def test_introspect_topology_classifies_by_entrypoint():
+    assert introspect_topology("examples.multi_agent_ops.agent:app").is_multi_agent
+    assert not introspect_topology("examples.finance_agent.agent:app").is_multi_agent
+
+
+def test_introspect_topology_raises_or_degrades_on_a_bad_entrypoint():
+    with pytest.raises(HarnessLoadError):
+        introspect_topology("no_such_module_xyz:app")
+    profile = introspect_topology("no_such_module_xyz:app", on_error="fallback")
+    assert profile.kind == "single_agent"
+    assert profile.inspectable is False
