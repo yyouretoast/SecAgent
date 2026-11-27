@@ -174,7 +174,7 @@ def test_cli_scan_generates_markdown_comment(tmp_path: Path, monkeypatch):
             str(comment_path),
         ],
     )
-    assert res.exit_code == 0
+    assert res.exit_code == 1
     content = comment_path.read_text(encoding="utf-8")
     assert "### SecAgent Security Gate: NOT_EVALUATED" in content
     assert "`examples.finance_agent.agent`" in content
@@ -234,3 +234,38 @@ def test_format_markdown_report_includes_severity_breakdown_and_details_accordio
     assert "<summary><b>Detailed Evidence (Top Findings)</b></summary>" in md
     assert "no_predecessor" in md
     assert "secagent serve --report report.json" in md
+
+
+def test_cli_scan_empty_trace_exits_nonzero(tmp_path: Path):
+    import json
+
+    from typer.testing import CliRunner
+
+    empty_trace = tmp_path / "empty.json"
+    empty_trace.write_text("[]", encoding="utf-8")
+    report_path = tmp_path / "r.json"
+    md_path = tmp_path / "m.md"
+    res = CliRunner().invoke(
+        app,
+        [
+            "scan",
+            "--trace",
+            str(empty_trace),
+            "--output-report",
+            str(report_path),
+            "--output-markdown",
+            str(md_path),
+            "--json",
+        ],
+    )
+    assert res.exit_code == 1
+    payload = json.loads(res.stdout)
+    assert payload["status"] == "NOT_EVALUATED"
+
+
+def test_sarif_artifact_uri_blocks_traversal_and_encodes_spaces():
+    from secagent.engine.reporter import _sarif_artifact_uri
+
+    assert ".." not in _sarif_artifact_uri("../../outside/trace file.json")
+    assert "%20" in _sarif_artifact_uri("my traces/run #1.json")
+    assert "%23" in _sarif_artifact_uri("my traces/run #1.json")

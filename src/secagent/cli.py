@@ -975,6 +975,7 @@ def scan(
     from secagent.generator import ScenarioGenerator
 
     effective_quiet = quiet or json_output
+    err_console = Console(stderr=True) if json_output else console
 
     effective_policy_path = (
         None
@@ -984,7 +985,7 @@ def scan(
     try:
         engine = PolicyEngine(policy_path=effective_policy_path)
     except PolicyLoadError as exc:
-        console.print(f"[red]{escape_markup(str(exc))}[/red]")
+        err_console.print(f"[red]{escape_markup(str(exc))}[/red]")
         raise typer.Exit(code=1) from exc
 
     if not effective_quiet:
@@ -1001,12 +1002,12 @@ def scan(
         try:
             traces = _load_external_traces(trace)
         except JsonSchemaValidationError as exc:
-            console.print(
+            err_console.print(
                 f"[red]Trace schema validation failed: {escape_markup(exc.message)}[/red]"
             )
             raise typer.Exit(code=1) from exc
         except (OSError, ValueError, json.JSONDecodeError) as exc:
-            console.print(f"[red]{escape_markup(str(exc))}[/red]")
+            err_console.print(f"[red]{escape_markup(str(exc))}[/red]")
             raise typer.Exit(code=1) from exc
 
         scenarios_count = len(traces)
@@ -1014,7 +1015,7 @@ def scan(
         tool_def_violations = []
     else:
         if scenarios is not None and not scenarios.exists():
-            console.print(
+            err_console.print(
                 f"[red]Custom scenarios directory not found: {scenarios}. "
                 "Provide an existing directory with scenario files.[/red]"
             )
@@ -1071,7 +1072,9 @@ def scan(
                 quiet=effective_quiet,
             )
         except JsonSchemaValidationError as exc:
-            console.print(f"[red]Trace schema validation failed: {exc.message}[/red]")
+            err_console.print(
+                f"[red]Trace schema validation failed: {escape_markup(exc.message)}[/red]"
+            )
             raise typer.Exit(code=1) from exc
 
         generation_mode = "dynamic_synthetic" if scenarios is None else "custom_directory"
@@ -1127,6 +1130,7 @@ def scan(
             "status": "NOT_EVALUATED",
             "agent": agent_label or "baseline_smoke",
             "scenarios_evaluated": scenarios_count,
+            "total_spans_evaluated": 0,
             "violations_detected": 0,
             "violations": [],
             "traces": traces,
@@ -1136,7 +1140,7 @@ def scan(
                 "no runnable agent traces were executed (NOT_EVALUATED)."
             ),
         }
-        exit_code = 0
+        exit_code = 1 if (agent_entrypoint.strip() or trace is not None) else 0
 
     output_report.parent.mkdir(parents=True, exist_ok=True)
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -1338,6 +1342,13 @@ def fuzz(
             help="Output path for markdown summary when --execute is enabled",
         ),
     ] = Path("comment.md"),
+    output_sarif: Annotated[
+        Path | None,
+        typer.Option(
+            "--output-sarif",
+            help="Optional output path for SARIF 2.1.0 report when --execute is enabled",
+        ),
+    ] = None,
     timeout: Annotated[
         float,
         typer.Option(
@@ -1346,12 +1357,17 @@ def fuzz(
             help="Per-scenario execution timeout in seconds when --execute is enabled",
         ),
     ] = 5.0,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Emit raw JSON report to stdout when --execute is enabled"),
+    ] = False,
 ) -> None:
     """Run prompt mutations to test policy coverage."""
     from secagent.generator import ScenarioGenerator
 
-    console.print(f"[bold magenta]Running fuzzer[/bold magenta] ({iterations} iterations)")
-    console.print(f"Target: [yellow]{agent_entrypoint or 'all configured agents'}[/yellow]")
+    if not json_output:
+        console.print(f"[bold magenta]Running fuzzer[/bold magenta] ({iterations} iterations)")
+        console.print(f"Target: [yellow]{agent_entrypoint or 'all configured agents'}[/yellow]")
     generator = ScenarioGenerator()
     overrides = _resolve_policy_overrides(policies)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1381,14 +1397,26 @@ def fuzz(
         json.dumps([s.to_dict() for s in fuzzed_scenarios], indent=2), encoding="utf-8"
     )
 
-    console.print(
-        f"[green]Completed across {len(fuzzed_scenarios)} mutated inputs. Output: {out_file}[/green]"
-    )
+    if not json_output:
+        console.print(
+            f"[green]Completed across {len(fuzzed_scenarios)} mutated inputs. Output: {out_file}[/green]"
+        )
     if not execute:
+        if json_output:
+            sys.stdout.write(json.dumps([s.to_dict() for s in fuzzed_scenarios], indent=2) + "\n")
         raise typer.Exit(code=0)
 
-    from secagent.engine import PolicyEngine, PolicyLoadError, PolicyReporter
+    from jsonschema import ValidationError as JsonSchemaValidationError
 
+    from secagent.engine import (
+        EvaluationResult,
+        PolicyEngine,
+        PolicyLoadError,
+        PolicyReporter,
+        scan_tool_definitions,
+    )
+
+    err_console = Console(stderr=True) if json_output else console
     effective_policy_path = (
         None
         if policies == Path("policies/security_rules.yaml") and not policies.exists()
@@ -1397,33 +1425,91 @@ def fuzz(
     try:
         engine = PolicyEngine(policy_path=effective_policy_path)
     except PolicyLoadError as exc:
-        console.print(f"[red]{escape_markup(str(exc))}[/red]")
+        err_console.print(f"[red]{escape_markup(str(exc))}[/red]")
         raise typer.Exit(code=1) from exc
 
+    tool_def_violations = scan_tool_definitions(target_tools)
     scenario_dicts = [s.to_dict() for s in fuzzed_scenarios]
-    traces = _execute_scenarios_with_telemetry(
-        target,
-        mod,
-        target_tools,
-        scenario_dicts,
-        overrides,
-        timeout_s=timeout,
-    )
-    if not traces:
-        console.print("[yellow]No executable agent traces produced during fuzz run.[/yellow]")
-        raise typer.Exit(code=0)
+    try:
+        traces = _execute_scenarios_with_telemetry(
+            target,
+            mod,
+            target_tools,
+            scenario_dicts,
+            overrides,
+            timeout_s=timeout,
+            quiet=json_output,
+        )
+    except JsonSchemaValidationError as exc:
+        err_console.print(
+            f"[red]Trace schema validation failed: {escape_markup(exc.message)}[/red]"
+        )
+        raise typer.Exit(code=1) from exc
 
-    evaluation = engine.evaluate_traces(traces)
     agent_label = agent_entrypoint or "fuzz_target"
-    report = PolicyReporter().generate_report(
-        evaluation,
-        agent_name=agent_label,
-        scenarios_evaluated=len(scenario_dicts),
-        traces=traces,
-        generation_mode="schema_fuzz",
-    )
+    report: dict[str, Any]
+    if not traces and not tool_def_violations:
+        evaluation = EvaluationResult(
+            status="PASS",
+            total_spans_evaluated=0,
+            violations=[],
+            execution_time_ms=0.0,
+        )
+        report = {
+            "status": "NOT_EVALUATED",
+            "agent": agent_label,
+            "scenarios_evaluated": len(scenario_dicts),
+            "total_spans_evaluated": 0,
+            "violations_detected": 0,
+            "violations": [],
+            "traces": traces,
+            "generation_mode": "schema_fuzz",
+            "message": "No executable agent traces produced during fuzz run (NOT_EVALUATED).",
+        }
+        exit_code = 1 if agent_entrypoint.strip() else 0
+    else:
+        base_eval = (
+            engine.evaluate_traces(traces)
+            if traces
+            else EvaluationResult(
+                status="PASS",
+                total_spans_evaluated=0,
+                violations=[],
+                execution_time_ms=0.0,
+            )
+        )
+        if tool_def_violations:
+            evaluation = EvaluationResult(
+                status="FAIL",
+                total_spans_evaluated=base_eval.total_spans_evaluated,
+                violations=[*tool_def_violations, *base_eval.violations],
+                execution_time_ms=base_eval.execution_time_ms,
+                violation_scenario_ids=(
+                    *(None for _ in tool_def_violations),
+                    *base_eval.violation_scenario_ids,
+                ),
+            )
+        else:
+            evaluation = base_eval
+
+        report = PolicyReporter().generate_report(
+            evaluation,
+            agent_name=agent_label,
+            scenarios_evaluated=len(scenario_dicts),
+            traces=traces,
+            generation_mode="schema_fuzz",
+        )
+        exit_code = 1 if evaluation.has_blocking_violations else 0
     output_report.parent.mkdir(parents=True, exist_ok=True)
     output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    if output_sarif is not None:
+        sarif = PolicyReporter().generate_sarif(
+            evaluation,
+            agent_name=agent_label,
+            rules=engine.ruleset.policies,
+        )
+        output_sarif.parent.mkdir(parents=True, exist_ok=True)
+        output_sarif.write_text(json.dumps(sarif, indent=2), encoding="utf-8")
     output_markdown.parent.mkdir(parents=True, exist_ok=True)
     output_markdown.write_text(
         _format_markdown_report(
@@ -1433,18 +1519,23 @@ def fuzz(
         ),
         encoding="utf-8",
     )
-    render_violations(console, report.get("violations") or [], report_path=output_report)
-    render_summary_card(
-        console,
-        status=str(report["status"]),
-        scenarios=len(scenario_dicts),
-        spans=int(report.get("total_spans_evaluated") or 0),
-        violations=int(report.get("violations_detected") or 0),
-        report_path=output_report,
-        markdown_path=output_markdown,
-        elapsed_ms=report.get("execution_time_ms"),
-    )
-    raise typer.Exit(code=1 if evaluation.has_blocking_violations else 0)
+    if json_output:
+        sys.stdout.write(json.dumps(report, indent=2) + "\n")
+    else:
+        render_violations(console, report.get("violations") or [], report_path=output_report)
+        render_summary_card(
+            console,
+            status=str(report["status"]),
+            scenarios=len(scenario_dicts),
+            spans=int(report.get("total_spans_evaluated") or 0),
+            violations=int(report.get("violations_detected") or 0),
+            report_path=output_report,
+            markdown_path=output_markdown,
+            sarif_path=output_sarif,
+            elapsed_ms=report.get("execution_time_ms"),
+            violation_list=report.get("violations") or [],
+        )
+    raise typer.Exit(code=exit_code)
 
 
 @app.command(name="serve")

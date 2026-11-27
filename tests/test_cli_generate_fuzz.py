@@ -191,3 +191,37 @@ def test_fuzz_execute_evaluates_vulnerable_and_safe_agents(tmp_path: Path):
     )
     assert safe_res.exit_code == 0
     assert json.loads(safe_report.read_text(encoding="utf-8"))["status"] == "PASS"
+
+
+def test_fuzz_execute_supports_sarif_and_json_output(tmp_path: Path):
+    runner = CliRunner()
+    out_dir = tmp_path / "fuzz_sarif"
+    report_path = tmp_path / "fuzz_report.json"
+    md_path = tmp_path / "fuzz_comment.md"
+    sarif_path = tmp_path / "fuzz.sarif"
+    res = runner.invoke(
+        app,
+        [
+            "fuzz",
+            "--agent",
+            "examples.finance_agent.agent:vulnerable_app",
+            "--iterations",
+            "4",
+            "--output-dir",
+            str(out_dir),
+            "--execute",
+            "--output-report",
+            str(report_path),
+            "--output-markdown",
+            str(md_path),
+            "--output-sarif",
+            str(sarif_path),
+            "--json",
+        ],
+    )
+    assert res.exit_code == 1
+    payload = json.loads(res.stdout)
+    assert payload["status"] == "FAIL"
+    sarif = json.loads(sarif_path.read_text(encoding="utf-8"))
+    assert sarif["version"] == "2.1.0"
+    assert sarif["runs"][0]["results"]

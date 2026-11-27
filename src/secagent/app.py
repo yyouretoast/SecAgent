@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import inspect
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ _STATUS_COLORS = {
 }
 
 _SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+_SEQUENTIAL_SCENARIO_RE = re.compile(r"^(GEN-[A-Z0-9-]+|FUZZ)-\d+$")
 
 
 def _stretch_kwargs(fn: Any) -> dict[str, Any]:
@@ -46,11 +48,26 @@ def parse_app_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
-def _violation_key(violation: dict[str, Any]) -> tuple[str, str, str]:
+def _normalize_scenario_key(violation: dict[str, Any]) -> str:
+    """Normalize sequential scenario IDs (e.g. GEN-ASI02-003 -> GEN-ASI02) for stable diffs."""
+    scenario_id = str(violation.get("scenario_id") or "").strip()
+    match = _SEQUENTIAL_SCENARIO_RE.match(scenario_id)
+    if match:
+        return match.group(1)
+    return scenario_id
+
+
+def _violation_key(violation: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    evidence = violation.get("evidence")
+    subtype = ""
+    if isinstance(evidence, dict):
+        subtype = str(evidence.get("reason") or evidence.get("pattern_label") or "")
     return (
         str(violation.get("rule_id") or ""),
         str(violation.get("offending_tool_name") or ""),
-        str(violation.get("scenario_id") or ""),
+        str(violation.get("owasp_category") or ""),
+        _normalize_scenario_key(violation),
+        subtype,
     )
 
 
@@ -62,12 +79,12 @@ def diff_violations(
     base_list = [v for v in (baseline_report.get("violations") or []) if isinstance(v, dict)]
     curr_list = [v for v in (current_report.get("violations") or []) if isinstance(v, dict)]
 
-    base_counts: dict[tuple[str, str, str], int] = {}
+    base_counts: dict[tuple[str, str, str, str, str], int] = {}
     for item in base_list:
         key = _violation_key(item)
         base_counts[key] = base_counts.get(key, 0) + 1
 
-    curr_counts: dict[tuple[str, str, str], int] = {}
+    curr_counts: dict[tuple[str, str, str, str, str], int] = {}
     for item in curr_list:
         key = _violation_key(item)
         curr_counts[key] = curr_counts.get(key, 0) + 1

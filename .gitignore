@@ -60,4 +60,5 @@ comment.md
 *_comment.md
 scenarios/generated/
 scenarios/.cache/
+.secagent/
 *.log

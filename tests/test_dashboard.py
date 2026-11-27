@@ -386,6 +386,33 @@ def test_diff_violations_and_parse_baseline():
     assert diff["unchanged"] == [v_shared]
 
 
+def test_diff_violations_ignores_sequential_generated_id_shift():
+    base = {
+        "violations": [
+            {
+                "rule_id": "POL-ASI02-001",
+                "owasp_category": "ASI02: Tool Misuse & Exploitation",
+                "offending_tool_name": "query_db",
+                "scenario_id": "GEN-ASI02-003",
+            }
+        ]
+    }
+    curr = {
+        "violations": [
+            {
+                "rule_id": "POL-ASI02-001",
+                "owasp_category": "ASI02: Tool Misuse & Exploitation",
+                "offending_tool_name": "query_db",
+                "scenario_id": "GEN-ASI02-007",
+            }
+        ]
+    }
+    diff = diff_violations(base, curr)
+    assert diff["new"] == []
+    assert diff["resolved"] == []
+    assert len(diff["unchanged"]) == 1
+
+
 def test_streamlit_apptest_renders_regression_diff_with_baseline(tmp_path: Path, monkeypatch):
     sample = json.loads((FIXTURES_DIR / "sample_trace.json").read_text(encoding="utf-8"))
     base_path = tmp_path / "base.json"

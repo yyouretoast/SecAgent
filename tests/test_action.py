@@ -65,6 +65,9 @@ def test_action_yml_contract_and_injection_safety():
     comment_step = action["runs"]["steps"][comment_idx]
     assert "updateComment" in comment_step["with"]["script"]
     assert "<!-- secagent-security-gate -->" in comment_step["with"]["script"]
+    assert "try {" in comment_step["with"]["script"]
+    assert "core.warning" in comment_step["with"]["script"]
+    assert 'if [ -n "$INPUT_AGENT_ENTRYPOINT" ]' in scan_step["run"]
 
 
 def test_ci_workflow_uses_composite_action():
@@ -104,7 +107,7 @@ def test_cli_subprocess_discovers_workspace_agent(tmp_path: Path):
         text=True,
         check=False,
     )
-    assert proc.returncode == 0
+    assert proc.returncode == 1
     assert "No module named 'examples'" not in proc.stdout
     assert "Notice: Introspection fell back" not in proc.stdout
 

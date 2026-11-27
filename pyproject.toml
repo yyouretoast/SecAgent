@@ -21,6 +21,16 @@ keywords = [
     "devsecops",
     "github-actions"
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
 dependencies = [
     "langgraph>=0.2.0",
     "langchain-core>=0.3.0",
@@ -48,11 +58,19 @@ dev = [
 [project.scripts]
 secagent = "secagent.cli:app"
 
+[project.urls]
+Homepage = "https://github.com/yyouretoast/SecAgent"
+Repository = "https://github.com/yyouretoast/SecAgent"
+Issues = "https://github.com/yyouretoast/SecAgent/issues"
+Documentation = "https://github.com/yyouretoast/SecAgent#readme"
+Security = "https://github.com/yyouretoast/SecAgent/security/advisories"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/secagent"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "policies/security_rules.yaml" = "secagent/policies/security_rules.yaml"
+"schemas/trace_event.schema.json" = "secagent/schemas/trace_event.schema.json"
 
 [tool.ruff]
 line-length = 100
