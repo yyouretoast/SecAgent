@@ -94,88 +94,17 @@ class ScenarioGenerator:
         explicit_tier: str | None = None,
         overrides: dict[str, str] | None = None,
     ) -> str:
-        """Resolve privilege tier: decorator > policy override > name heuristic."""
-        if explicit_tier:
-            return explicit_tier
+        """Resolve privilege tier via the canonical harness introspector."""
+        from secagent.harness.introspector import resolve_permission_tier
 
-        if overrides and name in overrides:
-            return overrides[name]
-
-        lower_name = name.lower()
-
-        if any(term in lower_name for term in ("calc", "format", "parse", "convert", "validate")):
-            return "pure"
-
-        if any(
-            term in lower_name for term in ("pay", "refund", "trade", "charge", "transfer", "buy")
-        ):
-            return "pay"
-
-        if any(
-            term in lower_name
-            for term in ("drop", "delete", "restart", "kill", "exec", "bash", "deploy")
-        ):
-            return "admin"
-
-        if any(term in lower_name for term in ("write", "update", "modify", "insert", "create")):
-            return "write"
-
-        if any(
-            term in lower_name for term in ("network", "http", "webhook", "curl", "fetch", "post_")
-        ):
-            return "net"
-
-        return "read"
+        return resolve_permission_tier(name, explicit_tier, overrides)
 
     @staticmethod
     def discover_tools(target: Any, mod: Any = None) -> list[Any]:
-        """Discover tools from agent runnables, modules, and objects."""
+        """Discover tools via the canonical harness introspector."""
+        from secagent.harness.introspector import discover_tools as harness_discover_tools
 
-        # 1. Direct tool list attributes.
-        for attr in ("tools", "toolkit", "available_tools", "agent_tools"):
-            val = getattr(target, attr, None) or (getattr(mod, attr, None) if mod else None)
-            if isinstance(val, (list, tuple, set)) and len(val) > 0:
-                return list(val)
-
-        # 2. LangGraph CompiledStateGraph / Pregel nodes.
-        nodes = getattr(target, "nodes", None)
-        if isinstance(nodes, dict):
-            graph_tools: list[Any] = []
-
-            for node in nodes.values():
-                if hasattr(node, "tools_by_name") and isinstance(node.tools_by_name, dict):
-                    graph_tools.extend(node.tools_by_name.values())
-                elif hasattr(node, "tools") and isinstance(node.tools, list):
-                    graph_tools.extend(node.tools)
-
-            if graph_tools:
-                return graph_tools
-
-        # 3. Dynamic getter methods.
-        for method in ("get_tools", "list_tools"):
-            getter = getattr(target, method, None)
-
-            if callable(getter):
-                try:
-                    val = getter()
-                    if isinstance(val, (list, tuple)) and len(val) > 0:
-                        return list(val)
-                except Exception:
-                    pass
-
-        # 4. Module inspection: permission-decorated or LangChain tools.
-        discovered: list[Any] = []
-        source = mod or target
-
-        if source and inspect.ismodule(source):
-            for _, obj in inspect.getmembers(source):
-                if hasattr(obj, "_secagent_permission_tier") or hasattr(obj, "args_schema"):
-                    discovered.append(obj)
-
-            if discovered:
-                return discovered
-
-        return []
+        return harness_discover_tools(target, mod)
 
     def introspect_tools(
         self,

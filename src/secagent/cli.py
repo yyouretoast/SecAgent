@@ -44,14 +44,10 @@ def main_callback(ctx: typer.Context) -> None:
 
 
 def _load_entrypoint(agent_entrypoint: str) -> tuple[Any, Any]:
-    """Import an agent entrypoint ('module:attr' or 'module') with cwd on sys.path."""
-    cwd = str(Path.cwd())
-    if cwd not in sys.path:
-        sys.path.insert(0, cwd)
-    mod_name, _, obj_name = agent_entrypoint.partition(":")
-    mod = importlib.import_module(mod_name)
-    target = getattr(mod, obj_name) if obj_name else mod
-    return target, mod
+    """Import an agent entrypoint ('module:attr' or 'module') via canonical introspector."""
+    from secagent.harness.introspector import load_entrypoint
+
+    return load_entrypoint(agent_entrypoint)
 
 
 def _field(obj: Any, key: str, default: Any = None) -> Any:
@@ -309,10 +305,10 @@ def _resolve_agent_target(
 
     try:
         target, mod = _load_entrypoint(agent_entrypoint)
-        if callable(target) and not callable(getattr(target, "invoke", None)):
+        if callable(target) and not _is_runnable_target(target):
             try:
                 built = target()
-                if callable(getattr(built, "invoke", None)):
+                if _is_runnable_target(built):
                     target = built
             except TypeError:
                 pass
@@ -753,6 +749,12 @@ def _infer_task_context(scenario: dict[str, Any]) -> str:
     return "default"
 
 
+def _is_runnable_target(target: Any) -> bool:
+    return target is not None and (
+        callable(getattr(target, "invoke", None)) or callable(getattr(target, "ainvoke", None))
+    )
+
+
 def _execute_scenarios_with_telemetry(
     target: Any,
     mod: Any,
@@ -760,11 +762,14 @@ def _execute_scenarios_with_telemetry(
     scenario_dicts: list[dict[str, Any]],
     policy_overrides: dict[str, str],
     *,
-    timeout_s: float = 5.0,
+    timeout_s: float = 30.0,
     quiet: bool = False,
+    strict_sandbox: bool = True,
+    mock_unclassified: bool = True,
+    mock_mode: str = "rich",
 ) -> list[dict[str, Any]]:
     """Run scenarios through Subsystem 1 ExecutionHarness and Subsystem 2 TraceExporter."""
-    if target is None or not callable(getattr(target, "invoke", None)):
+    if not _is_runnable_target(target):
         return []
 
     from secagent.harness.runner import ExecutionHarness
@@ -787,7 +792,14 @@ def _execute_scenarios_with_telemetry(
                 self.record_hitl(self._approval_granted)
 
     tier_by_tool = {t.name: t.permission_tier for t in target_tools}
-    harness = ExecutionHarness(timeout_s=timeout_s, policy_overrides=policy_overrides, dry_run=True)
+    harness = ExecutionHarness(
+        timeout_s=timeout_s,
+        policy_overrides=policy_overrides,
+        dry_run=True,
+        strict_sandbox=strict_sandbox,
+        mock_unclassified=mock_unclassified,
+        mock_mode="rich" if mock_mode == "rich" else "minimal",
+    )
     exporter = TraceExporter()
     framework = "langgraph" if hasattr(target, "nodes") else "generic"
     traces: list[dict[str, Any]] = []
@@ -925,7 +937,14 @@ def scan(
             min=0.1,
             help="Per-scenario execution timeout in seconds.",
         ),
-    ] = 5.0,
+    ] = 30.0,
+    allow_live_tools: Annotated[
+        bool,
+        typer.Option(
+            "--allow-live-tools",
+            help="Allow unclassified or unpatched tools to execute live instead of failing closed.",
+        ),
+    ] = False,
     output_report: Annotated[
         Path,
         typer.Option(
@@ -1061,6 +1080,8 @@ def scan(
                 list(scenarios.glob("*.yaml")) + list(scenarios.glob("*.json"))
             )
 
+        from secagent.harness.runner import SandboxError
+
         try:
             traces = _execute_scenarios_with_telemetry(
                 target,
@@ -1070,7 +1091,12 @@ def scan(
                 overrides,
                 timeout_s=timeout,
                 quiet=effective_quiet,
+                strict_sandbox=not allow_live_tools,
+                mock_unclassified=not allow_live_tools,
             )
+        except SandboxError as exc:
+            console.print(f"[red]Sandbox error: {escape_markup(str(exc))}[/red]")
+            raise typer.Exit(code=1) from exc
         except JsonSchemaValidationError as exc:
             err_console.print(
                 f"[red]Trace schema validation failed: {escape_markup(exc.message)}[/red]"
@@ -1233,7 +1259,14 @@ def test_alias(
             min=0.1,
             help="Per-scenario execution timeout in seconds.",
         ),
-    ] = 5.0,
+    ] = 30.0,
+    allow_live_tools: Annotated[
+        bool,
+        typer.Option(
+            "--allow-live-tools",
+            help="Allow unclassified or unpatched tools to execute live instead of failing closed.",
+        ),
+    ] = False,
     output_report: Annotated[
         Path,
         typer.Option(
@@ -1277,6 +1310,7 @@ def test_alias(
         scenarios=scenarios,
         trace=trace,
         timeout=timeout,
+        allow_live_tools=allow_live_tools,
         output_report=output_report,
         output_markdown=output_markdown,
         output_sarif=output_sarif,
@@ -1356,7 +1390,14 @@ def fuzz(
             min=0.1,
             help="Per-scenario execution timeout in seconds when --execute is enabled",
         ),
-    ] = 5.0,
+    ] = 30.0,
+    allow_live_tools: Annotated[
+        bool,
+        typer.Option(
+            "--allow-live-tools",
+            help="Allow unclassified or unpatched tools to execute live when --execute is enabled.",
+        ),
+    ] = False,
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Emit raw JSON report to stdout when --execute is enabled"),
@@ -1428,6 +1469,8 @@ def fuzz(
         err_console.print(f"[red]{escape_markup(str(exc))}[/red]")
         raise typer.Exit(code=1) from exc
 
+    from secagent.harness.runner import SandboxError
+
     tool_def_violations = scan_tool_definitions(target_tools)
     scenario_dicts = [s.to_dict() for s in fuzzed_scenarios]
     try:
@@ -1439,7 +1482,12 @@ def fuzz(
             overrides,
             timeout_s=timeout,
             quiet=json_output,
+            strict_sandbox=not allow_live_tools,
+            mock_unclassified=not allow_live_tools,
         )
+    except SandboxError as exc:
+        err_console.print(f"[red]Sandbox error: {escape_markup(str(exc))}[/red]")
+        raise typer.Exit(code=1) from exc
     except JsonSchemaValidationError as exc:
         err_console.print(
             f"[red]Trace schema validation failed: {escape_markup(exc.message)}[/red]"

@@ -5,13 +5,19 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
+import pytest
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from secagent.agent.state import AgentState
-from secagent.harness import MOCK_RESPONSE, ExecutionHarness, build_initial_state
+from secagent.harness import (
+    MOCK_RESPONSE,
+    ExecutionHarness,
+    VirtualizedToolWrapper,
+    build_initial_state,
+)
 from secagent.harness.introspector import graph_tool_dicts
 from secagent.sdk import permission
 
@@ -226,3 +232,181 @@ def test_system_exit_is_captured_as_harness_error():
     result = ExecutionHarness().execute(exit_agent)
     assert result.status == "error"
     assert result.error_message == "SystemExit: 7"
+
+
+def test_strict_sandbox_raises_when_no_tools_are_patched():
+    import pytest
+
+    from secagent.harness import SandboxError
+
+    class Opaque:
+        def invoke(self, state, config=None):
+            return "ok"
+
+    with pytest.raises(SandboxError, match="no tools to protect"):
+        ExecutionHarness(strict_sandbox=True).run_scenario(
+            Opaque(), {"id": "S-strict", "user_prompt": "x"}
+        )
+
+
+def test_harness_supports_checkpointer_memory_saver_and_interrupt():
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import interrupt
+
+    @permission(tier="pay")
+    def execute_trade(symbol: str) -> dict[str, str]:
+        """Execute a trade."""
+        return {"symbol": symbol}
+
+    def gate_node(state: AgentState) -> dict[str, Any]:
+        decision = interrupt({"operation": "execute_trade", "question": "Approve trade?"})
+        return {"approval_granted": bool(decision)}
+
+    graph = StateGraph(AgentState)
+    graph.add_node("approval_gate", gate_node)
+    graph.add_node("tools", ToolNode([execute_trade]))
+    graph.add_edge(START, "approval_gate")
+    graph.add_edge("approval_gate", END)
+    compiled = graph.compile(checkpointer=MemorySaver())
+
+    result = ExecutionHarness(strict_sandbox=True).run_scenario(
+        compiled, {"id": "S-ckpt", "user_prompt": "Buy AAPL"}
+    )
+    assert result.status == "completed"
+    assert "__interrupt__" in result.output
+
+
+def test_harness_falls_back_to_ainvoke_for_async_only_targets():
+    @permission(tier="pay")
+    async def async_pay(amount: float) -> dict[str, float]:
+        return {"amount": amount}
+
+    class AsyncOnlyAgent:
+        tools = [async_pay]
+
+        async def ainvoke(self, state: dict[str, Any], config: dict[str, Any] | None = None):
+            out = await self.tools[0](50.0)
+            return {
+                "res": out,
+                "thread_id": (config or {}).get("configurable", {}).get("thread_id"),
+            }
+
+    result = ExecutionHarness(strict_sandbox=True).run_scenario(
+        AsyncOnlyAgent(), {"id": "S-async", "user_prompt": "pay 50"}
+    )
+    assert result.status == "completed"
+    assert result.output["res"] == MOCK_RESPONSE
+    assert result.output["thread_id"].startswith("secagent-S-async-")
+
+
+def test_double_wrapped_unclassified_basetool_stays_mocked_and_restore_works():
+    from langchain_core.tools import StructuredTool
+
+    ran: list[str] = []
+
+    def mystery_action(x: str) -> str:
+        """Mystery tool."""
+        ran.append(x)
+        return f"LIVE:{x}"
+
+    st = StructuredTool.from_function(func=mystery_action, name="mystery_action")
+    w1 = VirtualizedToolWrapper(mock_unclassified=True)
+    st1 = w1.wrap(st)
+    assert st1.invoke({"x": "a"}) == MOCK_RESPONSE
+    w2 = VirtualizedToolWrapper(mock_unclassified=True)
+    st2 = w2.wrap(st1)
+    assert st2.invoke({"x": "b"}) == MOCK_RESPONSE
+    assert ran == []
+
+
+def test_virtualize_keep_patched_restore_and_clean_subsequent_scenario():
+    class Holder:
+        def __init__(self, tools):
+            self.tools = tools
+
+    def lookup(x: str) -> str:
+        return f"ok:{x}"
+
+    holder = Holder([lookup])
+    w1 = VirtualizedToolWrapper(dry_run=True, taint_read_outputs="TAINT1")
+    with w1.virtualize(holder):
+        w1.keep_patched = True
+    # Scenario 2 wraps holder cleanly without inheriting TAINT1
+    w2 = VirtualizedToolWrapper(dry_run=True)
+    with w2.virtualize(holder):
+        assert holder.tools[0]("hi") == "ok:hi"
+    # After w2 exits, original lookup is restored
+    assert holder.tools[0] is lookup
+    w1.restore()
+
+
+@pytest.mark.asyncio
+async def test_harness_execute_works_inside_running_event_loop():
+    harness = ExecutionHarness(timeout_s=2.0)
+    res = harness.execute(lambda: "from-loop", scenario_id="S-loop")
+    assert res.status == "completed"
+    assert res.output == "from-loop"
+
+
+def test_strict_sandbox_handles_set_alias_and_subgraph_tools():
+    import types
+
+    @permission(tier="pay")
+    def orig_pay(x: str = "a") -> str:
+        return f"LIVE:{x}"
+
+    # 1. set container on agent
+    class SetAgent:
+        tools = {orig_pay}
+
+        def invoke(self, state, config=None):
+            tool = next(iter(self.tools))
+            return {"res": tool("set")}
+
+    res_set = ExecutionHarness(dry_run=True, strict_sandbox=True).run_scenario(
+        SetAgent(), {"id": "S-set"}
+    )
+    assert res_set.status == "completed"
+    assert res_set.output["res"] == MOCK_RESPONSE
+
+    # 2. module alias pointing to orig_pay
+    fake_mod = types.ModuleType("alias_mod")
+    fake_mod.aliased_pay = orig_pay  # type: ignore[attr-defined]
+
+    class AliasAgent:
+        def invoke(self, state, config=None):
+            return {"res": fake_mod.aliased_pay("alias")}
+
+    res_alias = ExecutionHarness(dry_run=True, strict_sandbox=True).run_scenario(
+        AliasAgent(), {"id": "S-alias"}, mod=fake_mod
+    )
+    assert res_alias.status == "completed"
+    assert res_alias.output["res"] == MOCK_RESPONSE
+
+    # 3. LangGraph nested subgraph ToolNode
+    @permission(tier="admin")
+    def sub_nuke(x: str) -> str:
+        """Subgraph nuke."""
+        return f"NUKED:{x}"
+
+    sub = _call_graph(sub_nuke, args={"x": "prod"})
+    sub_compiled = sub
+
+    parent = StateGraph(AgentState)
+    parent.add_node("sub", sub_compiled)
+    parent.add_edge(START, "sub")
+    parent.add_edge("sub", END)
+    parent_compiled = parent.compile()
+
+    res_sub = ExecutionHarness(dry_run=True, strict_sandbox=True).run_scenario(
+        parent_compiled,
+        {
+            "id": "S-sub",
+            "target_tool": "sub_nuke",
+            "user_prompt": "run sub",
+        },
+    )
+    assert res_sub.status == "completed", res_sub.error_message
+    assert [c.tool_name for c in res_sub.tool_calls] == ["sub_nuke"]
+    assert res_sub.tool_calls[0].mocked is True
+    assert sub_nuke("live") == "NUKED:live"
