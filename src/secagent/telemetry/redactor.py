@@ -10,10 +10,24 @@ class PIIRedactor:
     """Scrub supported sensitive values while preserving container structure."""
 
     SSN_PATTERN = re.compile(r"\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b")
-    TOKEN_PATTERN = re.compile(
-        r"\b(?:sk-[A-Za-z0-9_\-]{20,}|ghp_[A-Za-z0-9]{36}|Bearer\s+[A-Za-z0-9_\-\.]{20,})\b"
+    PEM_PATTERN = re.compile(
+        r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
+        r"(?:[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----"
+        r"|(?:[ \t]*\r?\n[A-Za-z0-9+/=]{1,80})*(?:[ \t]+[A-Za-z0-9+/=]{8,})?)"
     )
-    CARD_PATTERN = re.compile(r"\b(?:\d[ -]?){13,16}\b")
+    TOKEN_PATTERN = re.compile(
+        r"(?<![A-Za-z0-9_])(?:"
+        r"sk-[A-Za-z0-9_\-]{20,}|"
+        r"gh[pousr]_[A-Za-z0-9]{20,}|"
+        r"github_pat_[A-Za-z0-9_]{20,}|"
+        r"(?:AKIA|ASIA)[0-9A-Z]{16}|"
+        r"AIza[0-9A-Za-z_\-]{35}|"
+        r"xox[baprs]-[0-9A-Za-z\-]{10,}|"
+        r"eyJ[A-Za-z0-9_\-]{4,}\.eyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{8,}|"
+        r"(?i:Bearer)\s+[A-Za-z0-9_\-\.+=/]{20,}"
+        r")(?![A-Za-z0-9_])"
+    )
+    CARD_PATTERN = re.compile(r"\b(?:\d[ -]?){12,15}\d\b")
 
     @classmethod
     def _validate_luhn(cls, card_str: str) -> bool:
@@ -31,6 +45,7 @@ class PIIRedactor:
 
     @classmethod
     def scrub_text(cls, text: str) -> str:
+        text = cls.PEM_PATTERN.sub("[REDACTED_PRIVATE_KEY]", text)
         text = cls.SSN_PATTERN.sub("[REDACTED_SSN]", text)
         text = cls.TOKEN_PATTERN.sub("[REDACTED_TOKEN]", text)
 
@@ -45,7 +60,10 @@ class PIIRedactor:
         if isinstance(obj, str):
             return cls.scrub_text(obj)
         if isinstance(obj, dict):
-            return {key: cls.scrub_container(value) for key, value in obj.items()}
+            return {
+                (cls.scrub_text(key) if isinstance(key, str) else key): cls.scrub_container(value)
+                for key, value in obj.items()
+            }
         if isinstance(obj, list):
             return [cls.scrub_container(value) for value in obj]
         if isinstance(obj, tuple):

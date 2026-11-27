@@ -63,11 +63,13 @@ class HITLNormalizer:
         otel_span = self.otel.start_span(
             trace_span["name"],
             start_time_ns=now,
-            trace_span=trace_span,
+            trace_span=dict(trace_span),
         )
-        trace_span["trace_id"] = self.otel.trace_id(otel_span)
-        self.otel.finish_span(otel_span, trace_span, end_time_ns=now)
-        return trace_span
+        updated_span = self.session.update_span(
+            trace_span, {"trace_id": self.otel.trace_id(otel_span)}
+        )
+        self.otel.finish_span(otel_span, updated_span, end_time_ns=now)
+        return updated_span
 
     def normalize_interrupt(
         self,
