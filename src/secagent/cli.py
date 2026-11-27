@@ -364,6 +364,27 @@ def scan(
             help="Allow unclassified or unpatched tools to execute live instead of failing closed.",
         ),
     ] = False,
+    isolate: Annotated[
+        bool,
+        typer.Option(
+            "--isolate",
+            help="Execute agent scenarios in an isolated child subprocess with sanitized env and hard timeout kill.",
+        ),
+    ] = False,
+    block_network: Annotated[
+        bool,
+        typer.Option(
+            "--block-network",
+            help="Block outbound Python sockets inside isolated subprocess scans (requires --isolate).",
+        ),
+    ] = False,
+    pass_env: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--pass-env",
+            help="Environment variable name(s) allowlisted into isolated subprocesses (repeatable).",
+        ),
+    ] = None,
     output_report: Annotated[
         Path,
         typer.Option("--output-report", "-o", help="Output path for JSON report"),
@@ -451,6 +472,10 @@ def scan(
         generation_mode = "external_trace"
         tool_def_violations = []
     else:
+        if (block_network or pass_env) and not isolate:
+            err_console.print("[red]--block-network and --pass-env require --isolate.[/red]")
+            raise typer.Exit(code=1)
+
         if scenarios is not None and not scenarios.exists():
             err_console.print(
                 f"[red]Custom scenarios directory not found: {scenarios}. "
@@ -460,11 +485,41 @@ def scan(
 
         generator = ScenarioGenerator()
         overrides = dict(engine.ruleset.tool_tier_overrides)
-        target, mod, target_tools = _resolve_agent_target(
-            generator,
-            agent_entrypoint,
-            overrides,
-        )
+        target: Any = None
+        mod: Any = None
+        isolated_runnable = False
+        source_fp: str | None = None
+
+        if isolate and agent_entrypoint.strip():
+            from secagent.harness.isolated import introspect_isolated
+
+            try:
+                target_tools, isolated_runnable, source_fp = introspect_isolated(
+                    agent_entrypoint,
+                    overrides,
+                    timeout_s=timeout,
+                    block_network=block_network,
+                    pass_env=pass_env or (),
+                )
+            except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+                err_console.print(
+                    f"[red]Error loading agent entrypoint '{escape_markup(agent_entrypoint)}': "
+                    f"{escape_markup(str(exc))}[/red]"
+                )
+                raise typer.Exit(code=1) from exc
+            if not target_tools:
+                err_console.print(
+                    f"[red]No tools discovered for agent entrypoint "
+                    f"'{escape_markup(agent_entrypoint)}'.[/red]"
+                )
+                raise typer.Exit(code=1)
+        else:
+            target, mod, target_tools = _resolve_agent_target(
+                generator,
+                agent_entrypoint,
+                overrides,
+            )
+
         tp_cfg = engine.ruleset.tool_poisoning
         tool_def_violations = (
             []
@@ -487,7 +542,9 @@ def scan(
                 policy_overrides=overrides,
                 seed=seed,
                 settings={"mode": "whole_suite", "scenarios_per_tool": 2},
-                source_fingerprint=_fingerprint_agent_source(mod),
+                source_fingerprint=(
+                    source_fp if source_fp is not None else _fingerprint_agent_source(mod)
+                ),
             )
             scenario_dicts = cache.load(key)
             if scenario_dicts is None:
@@ -514,19 +571,39 @@ def scan(
         from secagent.harness.runner import SandboxError
 
         try:
-            traces = _execute_scenarios_with_telemetry(
-                target,
-                mod,
-                target_tools,
-                scenario_dicts,
-                overrides,
-                timeout_s=timeout,
-                quiet=effective_quiet,
-                strict_sandbox=not allow_live_tools,
-                mock_unclassified=not allow_live_tools,
-            )
+            if isolate and agent_entrypoint.strip():
+                if isolated_runnable:
+                    from secagent.harness.isolated import run_isolated_scenarios
+
+                    traces = run_isolated_scenarios(
+                        agent_entrypoint,
+                        scenario_dicts,
+                        overrides,
+                        timeout_s=timeout,
+                        strict_sandbox=not allow_live_tools,
+                        mock_unclassified=not allow_live_tools,
+                        block_network=block_network,
+                        pass_env=pass_env or (),
+                    )
+                else:
+                    traces = []
+            else:
+                traces = _execute_scenarios_with_telemetry(
+                    target,
+                    mod,
+                    target_tools,
+                    scenario_dicts,
+                    overrides,
+                    timeout_s=timeout,
+                    quiet=effective_quiet,
+                    strict_sandbox=not allow_live_tools,
+                    mock_unclassified=not allow_live_tools,
+                )
         except SandboxError as exc:
-            console.print(f"[red]Sandbox error: {escape_markup(str(exc))}[/red]")
+            err_console.print(f"[red]Sandbox error: {escape_markup(str(exc))}[/red]")
+            raise typer.Exit(code=1) from exc
+        except (RuntimeError, json.JSONDecodeError) as exc:
+            err_console.print(f"[red]Isolated execution failed: {escape_markup(str(exc))}[/red]")
             raise typer.Exit(code=1) from exc
         except JsonSchemaValidationError as exc:
             err_console.print(
@@ -678,6 +755,27 @@ def test_alias(
             help="Allow unclassified or unpatched tools to execute live instead of failing closed.",
         ),
     ] = False,
+    isolate: Annotated[
+        bool,
+        typer.Option(
+            "--isolate",
+            help="Execute agent scenarios in an isolated child subprocess with sanitized env and hard timeout kill.",
+        ),
+    ] = False,
+    block_network: Annotated[
+        bool,
+        typer.Option(
+            "--block-network",
+            help="Block outbound Python sockets inside isolated subprocess scans (requires --isolate).",
+        ),
+    ] = False,
+    pass_env: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--pass-env",
+            help="Environment variable name(s) allowlisted into isolated subprocesses (repeatable).",
+        ),
+    ] = None,
     output_report: Annotated[
         Path, typer.Option("--output-report", "-o", help="Output path for JSON report")
     ] = Path("report.json"),
@@ -715,6 +813,9 @@ def test_alias(
         trace=trace,
         timeout=timeout,
         allow_live_tools=allow_live_tools,
+        isolate=isolate,
+        block_network=block_network,
+        pass_env=pass_env,
         output_report=output_report,
         output_markdown=output_markdown,
         output_sarif=output_sarif,
