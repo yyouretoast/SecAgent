@@ -25,12 +25,14 @@ def _first_match(
 class ParameterRegexRule(BaseRule):
     """Detect forbidden SQL or shell injection patterns in tool input parameters."""
 
-    def evaluate(self, trace: Mapping[str, Any]) -> list[PolicyViolation]:
-        condition = self.policy.condition
-        target_tools = set(condition.get("target_tools", ()))
-        target_tiers = set(condition.get("target_tiers", ()))
-        patterns = [(raw, re.compile(raw)) for raw in condition["regex_patterns"]]
+    def __init__(self, policy: Any) -> None:
+        super().__init__(policy)
+        condition = policy.condition
+        self._target_tools = set(condition.get("target_tools", ()))
+        self._target_tiers = set(condition.get("target_tiers", ()))
+        self._patterns = [(raw, re.compile(raw)) for raw in condition["regex_patterns"]]
 
+    def evaluate(self, trace: Mapping[str, Any]) -> list[PolicyViolation]:
         violations: list[PolicyViolation] = []
         for span in trace.get("spans", []):
             if not isinstance(span, Mapping) or span.get("span_type") != "tool.call":
@@ -38,10 +40,10 @@ class ParameterRegexRule(BaseRule):
 
             name = span.get("name")
             tier = span.get("permission_tier")
-            if name not in target_tools and tier not in target_tiers:
+            if name not in self._target_tools and tier not in self._target_tiers:
                 continue
 
-            hit = _first_match(span.get("input_parameters", {}), patterns)
+            hit = _first_match(span.get("input_parameters", {}), self._patterns)
             if hit is None:
                 continue
 

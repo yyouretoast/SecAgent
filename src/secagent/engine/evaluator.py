@@ -19,6 +19,7 @@ from secagent.engine.rules import (
     ParameterRegexRule,
     PredecessorGateRule,
     ToxicFlowRule,
+    TraceExpressionRule,
 )
 
 RULE_REGISTRY: dict[str, type[BaseRule]] = {
@@ -30,6 +31,7 @@ RULE_REGISTRY: dict[str, type[BaseRule]] = {
     "field_scope_allowlist": FieldScopeRule,
     "circuit_breaker": CircuitBreakerRule,
     "network_egress_allowlist": NetworkEgressRule,
+    "trace_expression": TraceExpressionRule,
 }
 
 

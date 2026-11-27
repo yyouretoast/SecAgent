@@ -37,6 +37,7 @@ SUPPORTED_RULE_TYPES = {
     "field_scope_allowlist",
     "circuit_breaker",
     "network_egress_allowlist",
+    "trace_expression",
 }
 
 REQUIRED_CONDITION_FIELDS = {
@@ -48,6 +49,7 @@ REQUIRED_CONDITION_FIELDS = {
     "field_scope_allowlist": {"task_context", "target_tools", "forbidden_fields"},
     "circuit_breaker": {"max_total_steps", "max_consecutive_identical_tools"},
     "network_egress_allowlist": {"target_tiers", "allowed_domains"},
+    "trace_expression": {"expression"},
 }
 
 CONDITION_FIELD_TYPES = {
@@ -61,12 +63,16 @@ CONDITION_FIELD_TYPES = {
         "sink_tiers": "tier_list",
         "sink_tools": "string_list",
         "required_gate": "approval_gate",
+        "structural_provenance": "bool",
+        "min_overlap_length": "positive_int",
     },
     "predecessor_gate": {
         "target_tiers": "tier_list",
         "target_tools": "string_list",
         "required_gate": "approval_gate",
         "max_lookback_operational_steps": "positive_int",
+        "require_explicit_operation": "bool",
+        "bound_arguments": "optional_string_list",
     },
     "context_privilege": {
         "task_context": "string",
@@ -95,6 +101,13 @@ CONDITION_FIELD_TYPES = {
         "target_tools": "string_list",
         "allowed_domains": "string_list",
         "forbidden_destination_patterns": "optional_string_list",
+        "scan_all_string_ips": "bool",
+    },
+    "trace_expression": {
+        "expression": "string",
+        "sequence": "string_list",
+        "target_tiers": "tier_list",
+        "target_tools": "string_list",
     },
 }
 
@@ -107,6 +120,7 @@ RULE_ID_PREFIXES = {
     "field_scope_allowlist": ("POL-ASI06-",),
     "circuit_breaker": ("POL-ASI08-",),
     "network_egress_allowlist": ("POL-ASI10-",),
+    "trace_expression": tuple(f"POL-ASI{i:02d}-" for i in range(1, 11)),
 }
 
 
@@ -138,6 +152,9 @@ def _validate_condition_field(policy_id: str, field: str, kind: str, value: Any)
 
     if kind == "optional_string_list" and not _is_string_list(value, allow_empty=True):
         raise ValueError(f"Policy {policy_id} field {field} must be a list of non-empty strings")
+
+    if kind == "bool" and not isinstance(value, bool):
+        raise ValueError(f"Policy {policy_id} field {field} must be a boolean")
 
     if kind == "positive_int" and (
         not isinstance(value, int) or isinstance(value, bool) or value < 1
@@ -256,21 +273,22 @@ class PolicyDefinition(BaseModel):
 
     @model_validator(mode="after")
     def validate_condition_shape(self) -> PolicyDefinition:
-        id_category = self.id.split("-", maxsplit=2)[1] if self.id.count("-") >= 2 else ""
-        declared_category = self.owasp_category.split(":", maxsplit=1)[0].strip()
-        if declared_category != id_category:
-            raise ValueError(
-                f"Policy {self.id} owasp_category {declared_category!r} does not match "
-                f"id category {id_category!r}"
-            )
+        if self.id.startswith("POL-ASI"):
+            id_category = self.id.split("-", maxsplit=2)[1] if self.id.count("-") >= 2 else ""
+            declared_category = self.owasp_category.split(":", maxsplit=1)[0].strip()
+            if declared_category != id_category:
+                raise ValueError(
+                    f"Policy {self.id} owasp_category {declared_category!r} does not match "
+                    f"id category {id_category!r}"
+                )
 
-        expected_prefixes = RULE_ID_PREFIXES[self.rule_type]
-        if not self.id.startswith(expected_prefixes):
-            expected = " or ".join(expected_prefixes)
-            raise ValueError(
-                f"Policy {self.id} does not match rule_type {self.rule_type}; "
-                f"expected id prefix {expected}"
-            )
+            expected_prefixes = RULE_ID_PREFIXES[self.rule_type]
+            if not self.id.startswith(expected_prefixes):
+                expected = " or ".join(expected_prefixes)
+                raise ValueError(
+                    f"Policy {self.id} does not match rule_type {self.rule_type}; "
+                    f"expected id prefix {expected}"
+                )
 
         required = REQUIRED_CONDITION_FIELDS[self.rule_type]
         missing = sorted(required - self.condition.keys())
@@ -287,6 +305,29 @@ class PolicyDefinition(BaseModel):
 
         for field, value in self.condition.items():
             _validate_condition_field(self.id, field, field_types[field], value)
+
+        if self.rule_type == "trace_expression":
+            from secagent.engine.rules.trace_expression import compile_trace_expression
+
+            seq = self.condition.get("sequence")
+            if seq is not None:
+                if len(seq) != 2:
+                    raise ValueError(
+                        f"Policy {self.id} trace_expression sequence must contain exactly 2 variables"
+                    )
+                s0, s1 = str(seq[0]), str(seq[1])
+                if not (s0.isidentifier() and s1.isidentifier()):
+                    raise ValueError(
+                        f"Policy {self.id} trace_expression sequence variables must be valid identifiers"
+                    )
+                if s0 == s1 or s0 in ("trace", "index") or s1 in ("trace", "index"):
+                    raise ValueError(
+                        f"Policy {self.id} trace_expression sequence variables must be distinct and non-reserved"
+                    )
+                allowed_vars: tuple[str, ...] = (s0, s1, "trace")
+            else:
+                allowed_vars = ("span", "trace", "index")
+            compile_trace_expression(str(self.condition["expression"]), allowed_vars=allowed_vars)
 
         pattern_fields = {
             "goal_hijack": "injection_patterns",
@@ -308,6 +349,27 @@ class PolicyDefinition(BaseModel):
         return self
 
 
+class ToolPoisoningConfig(BaseModel):
+    """Optional YAML configuration for static ASI04 tool-definition scanning."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    extra_patterns: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("extra_patterns")
+    @classmethod
+    def validate_extra_patterns(cls, value: dict[str, str]) -> dict[str, str]:
+        for label, pattern in value.items():
+            if not str(pattern).strip():
+                raise ValueError(f"tool_poisoning pattern '{label}' must not be empty")
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError(f"tool_poisoning pattern '{label}' is invalid: {exc}") from exc
+        return value
+
+
 class PolicyRuleset(BaseModel):
     """Top-level policy bundle loaded from ``security_rules.yaml``."""
 
@@ -316,6 +378,7 @@ class PolicyRuleset(BaseModel):
     version: str = Field(min_length=1)
     description: str = ""
     tool_tier_overrides: dict[str, str] = Field(default_factory=dict)
+    tool_poisoning: ToolPoisoningConfig | None = None
     policies: list[PolicyDefinition] = Field(min_length=1)
 
     @field_validator("tool_tier_overrides")

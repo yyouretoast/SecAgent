@@ -125,9 +125,9 @@ SecAgent deterministically evaluates **8 of 10** categories from the OWASP Top 1
 | **ASI03** Context Privilege Boundary | `POL-ASI03-002` | `HIGH` | Forbids `write`/`pay`/`admin`/`net` tools during `general_inquiry` sessions (`ContextPrivilegeRule`). |
 | **ASI04** Agentic Supply Chain | `POL-ASI04-001` | `CRITICAL` | Scans introspected tool docstrings & parameter metadata for hidden prompt directives (`scan_tool_definitions`). |
 | **ASI05** Unexpected Code Execution | `POL-ASI05-001` | `CRITICAL` | Blocks shell metacharacters and command injection payloads in tool arguments (`ParameterRegexRule`). |
-| **ASI06** Context Poisoning / Scope | `POL-ASI06-001` | `HIGH` | Flags sensitive PII/credential fields (`ssn`, `salary`, `password_hash`, `credit_card`, `pin`) in scoped queries (`FieldScopeRule`). |
+| **ASI06** Memory & Context Poisoning (PII Scope) | `POL-ASI06-001` | `HIGH` | Flags sensitive PII/credential fields (`ssn`, `salary`, `password_hash`, `credit_card`, `pin`) over-fetched in read tool queries (`FieldScopeRule`). |
 | **ASI08** Cascading Failures | `POL-ASI08-001` | `HIGH` | Enforces max operational steps (`10`) and consecutive identical tool-call limits (`2`) (`CircuitBreakerRule`). |
-| **ASI10** Rogue Agent Egress | `POL-ASI10-001` | `CRITICAL` | Enforces domain allowlists and blocks known exfiltration sinks (`webhook.site`, `pastebin.com`, `ngrok.io`) (`NetworkEgressRule`). |
+| **ASI10** Rogue Agents (Unauthorized Egress) | `POL-ASI10-001` | `CRITICAL` | Enforces domain/wildcard allowlists and blocks raw IPs & known exfiltration sinks (`webhook.site`, `pastebin.com`, `ngrok.io`) (`NetworkEgressRule`). |
 
 > [!NOTE]
 > **Roadmap:** `ASI07` (Insecure Inter-Agent Communication) and `ASI09` (Human-Agent Trust Exploitation) are planned for upcoming releases.

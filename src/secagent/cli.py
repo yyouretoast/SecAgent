@@ -819,10 +819,30 @@ def _execute_scenarios_with_telemetry(
     from secagent.telemetry.callbacks import SecAgentTelemetryCallback, TraceSession
     from secagent.telemetry.exporter import TraceExporter
 
+    _GATE_NODE_NAMES = frozenset({"approval_gate", "human_approval", "hitl_gate", "confirm_action"})
+
     class _GateAwareTelemetryCallback(SecAgentTelemetryCallback):
         def __init__(self, session: TraceSession, approval_granted: bool) -> None:
             super().__init__(session=session, tier_by_tool=tier_by_tool)
             self._approval_granted = approval_granted
+
+        @staticmethod
+        def _extract_pending_tool(inputs: Any) -> tuple[str, dict[str, Any]]:
+            if not isinstance(inputs, dict):
+                return "unknown_operation", {}
+            messages = inputs.get("messages")
+            if isinstance(messages, list):
+                for msg in reversed(messages):
+                    tool_calls = getattr(msg, "tool_calls", None)
+                    if isinstance(tool_calls, list) and tool_calls:
+                        first = tool_calls[0]
+                        if isinstance(first, dict) and first.get("name"):
+                            args = first.get("args")
+                            return str(first["name"]), dict(args) if isinstance(args, dict) else {}
+            intent = inputs.get("current_intent")
+            if isinstance(intent, str) and intent.strip():
+                return intent.strip(), {}
+            return "unknown_operation", {}
 
         def on_chain_start(
             self,
@@ -831,8 +851,14 @@ def _execute_scenarios_with_telemetry(
             **kwargs: Any,
         ) -> None:
             super().on_chain_start(serialized, inputs, **kwargs)
-            if kwargs.get("name") == "approval_gate":
-                self.record_hitl(self._approval_granted)
+            if kwargs.get("name") in _GATE_NODE_NAMES:
+                operation, bound_args = self._extract_pending_tool(inputs)
+                extra = {"arguments": bound_args} if bound_args else None
+                self.record_hitl(
+                    self._approval_granted,
+                    operation=operation,
+                    input_parameters=extra,
+                )
 
     tier_by_tool = {t.name: t.permission_tier for t in target_tools}
     harness = ExecutionHarness(
@@ -1097,7 +1123,15 @@ def scan(
             agent_entrypoint,
             overrides,
         )
-        tool_def_violations = scan_tool_definitions(target_tools)
+        tp_cfg = engine.ruleset.tool_poisoning
+        tool_def_violations = (
+            []
+            if tp_cfg is not None and not tp_cfg.enabled
+            else scan_tool_definitions(
+                target_tools,
+                extra_patterns=tp_cfg.extra_patterns if tp_cfg is not None else None,
+            )
+        )
 
         if not effective_quiet:
             render_discovered_tools(console, target_tools)

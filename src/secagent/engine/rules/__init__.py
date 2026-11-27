@@ -10,6 +10,7 @@ from secagent.engine.rules.parameter_regex import ParameterRegexRule
 from secagent.engine.rules.predecessor_gate import PredecessorGateRule
 from secagent.engine.rules.tool_poisoning import scan_tool_definitions
 from secagent.engine.rules.toxic_flow import ToxicFlowRule
+from secagent.engine.rules.trace_expression import TraceExpressionRule
 
 __all__ = [
     "BaseRule",
@@ -21,5 +22,6 @@ __all__ = [
     "ParameterRegexRule",
     "PredecessorGateRule",
     "ToxicFlowRule",
+    "TraceExpressionRule",
     "scan_tool_definitions",
 ]
