@@ -77,10 +77,19 @@ runs:
       shell: bash
       env:
         ACTION_PATH: ${{ github.action_path }}
+        INPUT_AGENT_ENTRYPOINT: ${{ inputs.agent_entrypoint }}
       run: |
+        INPUT_AGENT_ENTRYPOINT="${INPUT_AGENT_ENTRYPOINT#"${INPUT_AGENT_ENTRYPOINT%%[![:space:]]*}"}"
+        INPUT_AGENT_ENTRYPOINT="${INPUT_AGENT_ENTRYPOINT%"${INPUT_AGENT_ENTRYPOINT##*[![:space:]]}"}"
         if ! command -v secagent >/dev/null 2>&1; then
           python -m pip install --upgrade pip
-          pip install -e "$ACTION_PATH"
+          if [ -n "$INPUT_AGENT_ENTRYPOINT" ]; then
+            pip install -e "${ACTION_PATH}[langgraph]"
+          else
+            pip install -e "$ACTION_PATH"
+          fi
+        elif [ -n "$INPUT_AGENT_ENTRYPOINT" ] && ! python -c "import langgraph" >/dev/null 2>&1; then
+          pip install -e "${ACTION_PATH}[langgraph]"
         fi
 
     - name: Execute SecAgent Security Scan

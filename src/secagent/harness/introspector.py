@@ -12,7 +12,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from langchain_core.tools import BaseTool
+
+try:
+    from langchain_core.tools import BaseTool
+except ImportError:  # pragma: no cover - optional langgraph extra
+
+    class BaseTool:  # type: ignore[no-redef]
+        """Placeholder when langchain-core is not installed."""
+
 
 from secagent.sdk.decorators import VALID_TIERS
 

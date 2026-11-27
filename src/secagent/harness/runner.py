@@ -10,7 +10,15 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from langchain_core.messages import HumanMessage
+try:
+    from langchain_core.messages import HumanMessage
+except ImportError:  # pragma: no cover - optional langgraph extra
+
+    class HumanMessage:  # type: ignore[no-redef]
+        def __init__(self, content: str = "", additional_kwargs: dict[str, Any] | None = None):
+            self.content = content
+            self.additional_kwargs = additional_kwargs or {}
+
 
 from secagent.harness.introspector import discover_tools, tool_name
 from secagent.harness.sandbox import ToolCallRecord, VirtualizedToolWrapper

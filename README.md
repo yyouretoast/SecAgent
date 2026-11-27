@@ -39,7 +39,10 @@ When developers modify system prompts, tool schemas, or foundation models, AI ag
 ```bash
 git clone https://github.com/yyouretoast/SecAgent.git
 cd SecAgent
-python -m pip install -e ".[dashboard]"
+# Core CLI + OTLP trace scanner + MCP scanner (framework-agnostic, no LangGraph):
+python -m pip install -e .
+# With LangGraph execution harness + Streamlit dashboard (needed for agent examples below):
+python -m pip install -e ".[all]"
 # Or with test/lint dependencies:
 python -m pip install -e ".[dev]"
 ```

@@ -14,10 +14,6 @@ import typing
 from collections.abc import Callable
 from typing import Any
 
-from langchain_core.messages import AIMessage, ToolMessage
-from langgraph.graph import END, START, StateGraph
-from langgraph.prebuilt import ToolNode
-
 from secagent.agent.state import AgentState
 from secagent.harness.introspector import explicit_tier_of, resolve_permission_tier
 
@@ -77,6 +73,10 @@ def build_scripted_agent(
       * write/pay tools are refused when ``task_context == 'general_inquiry'`` (POL-ASI03-002)
       * a loop is stopped after ``SAFE_REPEAT_LIMIT`` calls to ``loop_tool`` (POL-ASI08-001)
     """
+    from langchain_core.messages import AIMessage, ToolMessage
+    from langgraph.graph import END, START, StateGraph
+    from langgraph.prebuilt import ToolNode
+
     by_name = {fn.__name__: fn for fn in functions}
     tiers = {
         name: resolve_permission_tier(name, explicit_tier_of(fn)) for name, fn in by_name.items()
