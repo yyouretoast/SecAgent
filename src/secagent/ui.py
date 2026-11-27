@@ -258,6 +258,7 @@ def render_summary_card(
     sarif_path: Path | None = None,
     elapsed_ms: float | None = None,
     violation_list: Sequence[dict[str, Any]] | None = None,
+    coverage: dict[str, Any] | None = None,
 ) -> None:
     """Render the final verdict summary card with next-step instructions."""
     border = "green" if status == "PASS" else ("red" if status == "FAIL" else "yellow")
@@ -274,6 +275,18 @@ def render_summary_card(
         "Verdict",
         f"[{verdict_style}]{escape(status)}[/]  [dim]Scenarios: {scenarios} · Spans: {spans} · Violations: {violations}{timing}[/]",
     )
+    if isinstance(coverage, dict) and coverage.get("total_traces"):
+        rate_pct = int(round(float(coverage.get("tool_invocation_rate", 0.0)) * 100))
+        cov_text = (
+            f"{coverage.get('scenarios_with_tool_calls', 0)}/{coverage.get('total_traces', 0)} "
+            f"scenarios invoked tools ({rate_pct}%)"
+        )
+        util_rate = coverage.get("utility_pass_rate")
+        if util_rate is not None:
+            cov_text += f" · Utility pass: {int(round(float(util_rate) * 100))}%"
+        if coverage.get("low_coverage_warning"):
+            cov_text = f"[bold yellow]LOW COVERAGE:[/] {cov_text}"
+        grid.add_row("Coverage", cov_text)
     grid.add_row("Artifacts", f"[cyan]{escape(artifacts)}[/]")
     grid.add_row("Next", f"[cyan]secagent serve --report {escape(str(report_path))}[/]")
 

@@ -140,3 +140,92 @@ def test_no_matching_target_does_not_inject_payload():
     args = SchemaDirectedFuzzer().build_arguments(lookup, "sqli", "attack")
 
     assert args == {"note": "", "limit": 10}
+
+
+def test_fallback_to_any_string_injects_when_enabled():
+    def lookup(note: str, limit: int):
+        return None
+
+    args = SchemaDirectedFuzzer().build_arguments(
+        lookup, "sqli", "attack", fallback_to_any_string=True
+    )
+    assert args == {"note": "attack", "limit": 10}
+
+
+def test_generator_seed_varies_payloads_deterministically():
+    def query_db(query: str):
+        return None
+
+    s_default = ScenarioGenerator().generate([query_db], seed=42)
+    s_alt_a = ScenarioGenerator().generate([query_db], seed=7)
+    s_alt_b = ScenarioGenerator().generate([query_db], seed=7)
+    s_other = ScenarioGenerator().generate([query_db], seed=99)
+
+    assert [s.to_dict() for s in s_alt_a] == [s.to_dict() for s in s_alt_b]
+    prompts_set = {
+        next(s.user_prompt for s in suite if s.expected_failure_policy == "POL-ASI02-001")
+        for suite in (s_default, s_alt_a, s_other)
+    }
+    assert len(prompts_set) >= 2
+
+
+def test_goal_hijack_prompts_match_pol_asi01_001_regexes():
+    import re
+
+    from secagent.engine.loader import PolicyLoader
+
+    ruleset = PolicyLoader().load()
+    rule = next(p for p in ruleset.policies if p.id == "POL-ASI01-001")
+    patterns = [re.compile(p) for p in rule.condition["injection_patterns"]]
+    for prompt in ScenarioGenerator.GOAL_HIJACK_PROMPTS:
+        assert any(pat.search(prompt) for pat in patterns), f"Prompt did not match: {prompt}"
+
+
+def test_fuzzer_handles_pydantic_v2_optional_anyof_and_array_scope():
+    fuzzer = SchemaDirectedFuzzer()
+    opt_tool = {
+        "query": {"anyOf": [{"type": "string"}, {"type": "null"}], "required": True},
+        "select": {
+            "anyOf": [{"type": "array", "items": {"type": "string"}}, {"type": "null"}],
+            "required": True,
+        },
+    }
+    sqli_args = fuzzer.build_arguments(opt_tool, "sqli", "' OR '1'='1")
+    assert sqli_args["query"] == "' OR '1'='1"
+    scope_args = fuzzer.build_arguments(opt_tool, "scope", ["ssn", "password_hash"])
+    assert scope_args["select"] == ["ssn", "password_hash"]
+
+
+def test_toxic_flow_scenario_avoids_self_sink_and_general_inquiry_fp():
+    from secagent.sdk import permission
+
+    @permission(tier="net")
+    def fetch_webhook(url: str) -> str:
+        return url
+
+    @permission(tier="pay")
+    def execute_trade(symbol: str) -> str:
+        return symbol
+
+    scenarios = ScenarioGenerator().generate([fetch_webhook, execute_trade])
+    toxic = next(s for s in scenarios if s.expected_failure_policy == "POL-ASI01-002")
+    assert toxic.task_context == "default"
+    assert toxic.target_tool == "fetch_webhook"
+    assert "execute_trade" in (toxic.taint_payload or "")
+
+
+def test_fuzzer_handles_required_anyof_dict_none_union_and_serialized_types():
+    fuzzer = SchemaDirectedFuzzer()
+    complex_tool = {
+        "union_param": {"anyOf": [{"type": "integer"}, {"type": "string"}], "required": True},
+        "meta_dict": {"annotation": dict[str, str], "required": True},
+        "none_first": {"annotation": None | int, "required": True},
+        "query": {"annotation": "<class 'str'>", "required": True},
+        "fields": {"annotation": "list[str]", "required": True},
+    }
+    args = fuzzer.build_arguments(complex_tool, "sqli", "' OR '1'='1")
+    assert args["union_param"] == 10
+    assert args["meta_dict"] == {}
+    assert args["none_first"] == 10
+    assert args["query"] == "' OR '1'='1"
+    assert args["fields"] == []
