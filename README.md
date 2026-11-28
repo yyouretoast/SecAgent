@@ -143,9 +143,9 @@ Results from running `secagent scan` across the repository's 3 deterministic, ze
 
 | Agent Fixture | Safe (`:app`) | Vulnerable (`:vulnerable_app`) | Scenarios | Spans (Safe / Vuln) |
 | :--- | :--- | :--- | :---: | :---: |
-| `examples.finance_agent.agent` | `PASS` (exit `0`, `0` violations) | `FAIL` (exit `1`, `10` violations) | 17 | 33 / 33 |
-| `examples.devops_agent.agent` | `PASS` (exit `0`, `0` violations) | `FAIL` (exit `1`, `8` violations) | 9 | 19 / 30 |
-| `examples.support_agent.agent` | `PASS` (exit `0`, `0` violations) | `FAIL` (exit `1`, `5` violations) | 15 | 29 / 29 |
+| `examples.finance_agent.agent` | `PASS` (exit `0`, `0` violations) | `FAIL` (exit `1`, `14` violations) | 21 | 39 / 41 |
+| `examples.devops_agent.agent` | `PASS` (exit `0`, `0` violations) | `FAIL` (exit `1`, `10` violations) | 12 | 24 / 36 |
+| `examples.support_agent.agent` | `FAIL` (exit `1`, `2` violations — unvalidated `query_db` SQLi & PII scope) | `FAIL` (exit `1`, `12` violations) | 19 | 35 / 37 |
 
 ### How SecAgent Compares
 
@@ -159,12 +159,12 @@ Results from running `secagent scan` across the repository's 3 deterministic, ze
 
 ---
 
-## Privilege SDK (`@permission`)
+## Privilege SDK (`@permission` & `SecAgentGuardrail`)
 
-Decorate sensitive agent tools with `@permission` to assign explicit privilege tiers (`pure`, `read`, `write`, `pay`, `admin`, `net`) without modifying policy YAML:
+Decorate sensitive agent tools with `@permission` to assign explicit privilege tiers (`pure`, `read`, `write`, `pay`, `admin`, `net`) without modifying policy YAML, and optionally enforce policies live at runtime with `SecAgentGuardrail`:
 
 ```python
-from secagent.sdk import permission
+from secagent.sdk import SecAgentGuardrail, permission
 
 
 @permission(tier="admin")
@@ -177,6 +177,10 @@ def restart_server(server_id: str) -> dict:
 def execute_trade(symbol: str, quantity: int) -> dict:
     """Executes market order. Requires prior HITL approval."""
     return {"order": "filled", "symbol": symbol, "quantity": quantity}
+
+
+guard = SecAgentGuardrail(mode="enforce")
+protected_tools = guard.wrap_tools([restart_server, execute_trade])
 ```
 
 ---
@@ -185,11 +189,13 @@ def execute_trade(symbol: str, quantity: int) -> dict:
 
 | Command | Purpose | Example |
 | :--- | :--- | :--- |
-| `secagent scan` (`test`) | Synthesize/load scenarios, run dry-run sandbox, evaluate policies, emit JSON/Markdown/SARIF | `secagent scan --agent examples.finance_agent.agent:app --output-sarif report.sarif` |
-| `secagent scan --trace` | Evaluate pre-recorded trace JSON file(s) conforming to `schemas/trace_event.schema.json` | `secagent scan --trace tests/fixtures/sample_trace.json` |
+| `secagent scan` (`test`) | Synthesize/load scenarios, run dry-run sandbox (or `--isolate --block-network`), evaluate policies, emit JSON/Markdown/SARIF | `secagent scan --agent examples.finance_agent.agent:app --isolate --block-network --output-sarif report.sarif` |
+| `secagent scan --trace` | Evaluate SecAgent trace or OpenTelemetry OTLP JSON export(s) (`resourceSpans`) | `secagent scan --trace tests/fixtures/sample_trace.json` |
+| `secagent scan-mcp` | Scan MCP `tools/list` / `mcpServers` manifests for `ASI04` tool poisoning, Unicode tags, and SHA-256 `--pin-file` rug-pull pinning | `secagent scan-mcp tests/fixtures/mcp/sample_mcp_manifest.json` |
 | `secagent generate` | Introspect tools and write cached adversarial scenario suites | `secagent generate --agent examples.devops_agent.agent --per-tool 3` |
 | `secagent fuzz` | Run schema-directed parameter mutations (and optionally `--execute` against the agent) | `secagent fuzz --agent examples.support_agent.agent:app --iterations 10 --execute` |
 | `secagent serve` | Launch local Streamlit waterfall timeline & `--baseline` regression diff dashboard | `secagent serve --report vuln_report.json --baseline safe_report.json` |
+| `python scripts/benchmark_eval.py` | Run deterministic 26-case OWASP ASI + MCP + OTLP + DSL + Middleware benchmark | `python scripts/benchmark_eval.py --json` |
 
 ---
 
@@ -279,23 +285,25 @@ secagent/
 │   ├── finance_agent/agent.py         # Finance agent (pay tier)
 │   └── support_agent/agent.py         # Support agent (multi-tier)
 ├── schemas/
-│   └── trace_event.schema.json        # Trace JSON schema (Draft 2020-12)
+│   └── trace_event.schema.json        # Canonical trace JSON schema (Draft 2020-12)
 ├── policies/
 │   └── security_rules.yaml            # OWASP invariant policy rules
+├── scripts/
+│   └── benchmark_eval.py              # 26-case deterministic precision/recall benchmark
 ├── scenarios/
 │   └── TEMPLATE.yaml                  # Scenario manifest template
 ├── src/
 │   └── secagent/
 │       ├── app.py                     # Streamlit audit & trace inspection dashboard
-│       ├── cli.py                     # Typer CLI (generate, scan, fuzz, serve)
+│       ├── cli.py                     # Typer CLI (generate, scan, scan-mcp, fuzz, serve)
 │       ├── ui.py                      # Rich terminal UI components & welcome banner
 │       ├── agent/state.py             # LangGraph runtime state contract
-│       ├── engine/                    # Policy ruleset loader, evaluators & SARIF reporter
-│       ├── generator/                 # Dynamic scenario synthesis & schema fuzzer
-│       ├── harness/                   # Introspector, sandbox & timeout runner
-│       ├── schemas/                   # Packaged trace JSON schema
-│       ├── sdk/                       # @permission decorator & exports
-│       └── telemetry/                 # OTel callback, HITL normalizer & PII redactor
+│       ├── engine/                    # Policy ruleset loader, evaluators (incl. trace_expression) & SARIF reporter
+│       ├── generator/                 # Dynamic scenario synthesis, cache & schema fuzzer
+│       ├── harness/                   # Introspector, sandbox, subprocess isolator, MCP scanner & runner
+│       ├── reporting/                 # Markdown PR comment & coverage summary formatter
+│       ├── sdk/                       # @permission decorator & SecAgentGuardrail middleware
+│       └── telemetry/                 # OTel/gen_ai callbacks, OTLP JSON adapter, HITL & PII redactor
 └── tests/                             # Contract, engine, telemetry, CLI, Action & UI tests
 ```
 
