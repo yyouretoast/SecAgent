@@ -84,6 +84,7 @@ def render_welcome_banner(console: Console, version: str) -> None:
 
     status_table.add_row("", "")
     status_table.add_row("[bold]scan[/]", "Run deterministic OWASP security gate")
+    status_table.add_row("[bold]scan-mcp[/]", "Audit MCP tool manifests & rug-pull pins")
     status_table.add_row("[bold]generate[/]", "Synthesize & cache adversarial test scenarios")
     status_table.add_row("[bold]fuzz[/]", "Mutate tool inputs and test policy boundaries")
     status_table.add_row("[bold]serve[/]", "Open interactive trace waterfall dashboard")
@@ -254,7 +255,7 @@ def render_summary_card(
     spans: int,
     violations: int,
     report_path: Path,
-    markdown_path: Path,
+    markdown_path: Path | None = None,
     sarif_path: Path | None = None,
     elapsed_ms: float | None = None,
     violation_list: Sequence[dict[str, Any]] | None = None,
@@ -263,9 +264,12 @@ def render_summary_card(
     """Render the final verdict summary card with next-step instructions."""
     border = "green" if status == "PASS" else ("red" if status == "FAIL" else "yellow")
     verdict_style = f"bold {border}"
-    artifacts = f"{report_path} · {markdown_path}"
+    artifact_parts = [str(report_path)]
+    if markdown_path is not None and markdown_path != report_path:
+        artifact_parts.append(str(markdown_path))
     if sarif_path is not None:
-        artifacts += f" · {sarif_path}"
+        artifact_parts.append(str(sarif_path))
+    artifacts = " · ".join(artifact_parts)
 
     timing = f" · {elapsed_ms:.1f} ms" if elapsed_ms is not None else ""
     grid = Table.grid(padding=(0, 2))

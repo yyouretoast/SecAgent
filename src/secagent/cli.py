@@ -1709,6 +1709,170 @@ def fuzz(
     raise typer.Exit(code=exit_code)
 
 
+@app.command(name="scan-mcp")
+def scan_mcp_cmd(
+    manifest: Annotated[
+        Path,
+        typer.Argument(help="Path to MCP tools/list or mcpServers JSON manifest"),
+    ],
+    policies: Annotated[
+        Path,
+        typer.Option("--policies", "-p", help="Optional policy YAML for custom ASI04 patterns"),
+    ] = Path("policies/security_rules.yaml"),
+    pin_file: Annotated[
+        Path | None,
+        typer.Option("--pin-file", help="Path to SHA-256 tool pin file for rug-pull detection"),
+    ] = None,
+    update_pins: Annotated[
+        bool,
+        typer.Option("--update-pins", help="Write/update the SHA-256 pin file from this manifest"),
+    ] = False,
+    output_report: Annotated[
+        Path,
+        typer.Option("--output-report", "-o", help="Output path for JSON audit report"),
+    ] = Path("mcp_report.json"),
+    output_sarif: Annotated[
+        Path | None,
+        typer.Option("--output-sarif", help="Optional output path for SARIF 2.1.0 report"),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Emit raw JSON report to stdout and suppress Rich UI"),
+    ] = False,
+) -> None:
+    """Scan MCP tool manifests for ASI04 poisoning, Unicode tricks, and rug-pull drift."""
+    from secagent.engine import PolicyLoader, PolicyLoadError, PolicyReporter
+    from secagent.harness.mcp_scanner import compute_tool_pins, load_mcp_manifest, scan_mcp_tools
+
+    err_console = Console(stderr=True) if json_output else console
+    if update_pins and pin_file is None:
+        err_console.print("[red]--update-pins requires --pin-file <path>.[/red]")
+        raise typer.Exit(code=1)
+
+    extra_patterns: dict[str, str] | None = None
+    enable_poisoning = True
+    effective_policy_path = (
+        None
+        if policies == Path("policies/security_rules.yaml") and not policies.exists()
+        else policies
+    )
+    try:
+        ruleset = PolicyLoader(effective_policy_path).load()
+        if ruleset.tool_poisoning is not None:
+            enable_poisoning = ruleset.tool_poisoning.enabled
+            extra_patterns = dict(ruleset.tool_poisoning.extra_patterns)
+    except PolicyLoadError as exc:
+        err_console.print(f"[red]{escape_markup(str(exc))}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    try:
+        tools = load_mcp_manifest(manifest)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        err_console.print(f"[red]Failed to load MCP manifest: {escape_markup(str(exc))}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not tools:
+        report: dict[str, Any] = {
+            "status": "NOT_EVALUATED",
+            "agent": str(manifest),
+            "scenarios_evaluated": 0,
+            "total_spans_evaluated": 0,
+            "violations_detected": 0,
+            "violations": [],
+            "traces": [],
+            "generation_mode": "mcp_manifest",
+            "mcp_tools_scanned": 0,
+            "pins": {},
+            "message": f"No MCP tools found in {manifest} (NOT_EVALUATED).",
+        }
+        output_report.parent.mkdir(parents=True, exist_ok=True)
+        output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        if json_output:
+            sys.stdout.write(json.dumps(report, indent=2) + "\n")
+        else:
+            err_console.print(f"[bold yellow]{escape_markup(str(report['message']))}[/bold yellow]")
+        raise typer.Exit(code=1)
+
+    expected_pins: dict[str, str] | None = None
+    if pin_file is not None and not update_pins:
+        if not pin_file.is_file():
+            err_console.print(
+                f"[red]MCP pin file not found: {escape_markup(str(pin_file))}. "
+                "Create it first with --update-pins.[/red]"
+            )
+            raise typer.Exit(code=1)
+        try:
+            loaded_pins = json.loads(pin_file.read_text(encoding="utf-8"))
+            if not isinstance(loaded_pins, dict):
+                raise ValueError("Pin file must contain a JSON object mapping tool names to hashes")
+            expected_pins = {str(k): str(v) for k, v in loaded_pins.items()}
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            err_console.print(f"[red]Failed to load pin file: {escape_markup(str(exc))}[/red]")
+            raise typer.Exit(code=1) from exc
+
+    evaluation = scan_mcp_tools(
+        tools,
+        expected_pins=expected_pins,
+        extra_patterns=extra_patterns,
+        enable_poisoning_scan=enable_poisoning,
+    )
+    if update_pins and pin_file is not None:
+        if evaluation.has_blocking_violations:
+            err_console.print(
+                "[red]Refusing to write --update-pins because blocking ASI04 violations were detected.[/red]"
+            )
+        else:
+            pin_file.parent.mkdir(parents=True, exist_ok=True)
+            pin_file.write_text(
+                json.dumps(compute_tool_pins(tools), sort_keys=True, indent=2),
+                encoding="utf-8",
+            )
+
+    report = PolicyReporter().generate_report(
+        evaluation,
+        agent_name=str(manifest),
+        scenarios_evaluated=len(tools),
+        traces=[],
+        generation_mode="mcp_manifest",
+    )
+    report["mcp_tools_scanned"] = len(tools)
+    report["pins"] = compute_tool_pins(tools)
+    report["message"] = (
+        f"Scanned {len(tools)} MCP tool(s): {len(evaluation.violations)} supply-chain violation(s) detected."
+        if evaluation.violations
+        else f"Scanned {len(tools)} MCP tool(s): all supply-chain checks satisfied."
+    )
+    output_report.parent.mkdir(parents=True, exist_ok=True)
+    output_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    if output_sarif is not None:
+        sarif = PolicyReporter().generate_sarif(
+            evaluation,
+            agent_name=str(manifest),
+            rules=(),
+        )
+        output_sarif.parent.mkdir(parents=True, exist_ok=True)
+        output_sarif.write_text(json.dumps(sarif, indent=2), encoding="utf-8")
+
+    if json_output:
+        sys.stdout.write(json.dumps(report, indent=2) + "\n")
+    else:
+        render_violations(console, report.get("violations") or [], report_path=output_report)
+        render_summary_card(
+            console,
+            status=str(report["status"]),
+            scenarios=len(tools),
+            spans=len(tools),
+            violations=int(report.get("violations_detected") or 0),
+            report_path=output_report,
+            markdown_path=None,
+            sarif_path=output_sarif,
+            elapsed_ms=report.get("execution_time_ms"),
+            violation_list=report.get("violations") or [],
+        )
+    raise typer.Exit(code=1 if evaluation.has_blocking_violations else 0)
+
+
 @app.command(name="serve")
 def serve(
     report: Annotated[
