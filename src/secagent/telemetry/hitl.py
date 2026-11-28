@@ -9,7 +9,7 @@ from typing import Any
 from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import SpanExporter
 
-from secagent.telemetry.callbacks import OTelRuntime, TraceSession
+from secagent.telemetry.callbacks import OTelRuntime, TraceSession, resolve_maestro_layer
 from secagent.telemetry.redactor import PIIRedactor
 
 
@@ -24,6 +24,8 @@ class HITLNormalizer:
         tracer_provider: TracerProvider | None = None,
         span_processor: SpanProcessor | None = None,
         span_exporter: SpanExporter | None = None,
+        maestro_layer: str | None = "L6",
+        layer_tagging: bool = True,
     ) -> None:
         self.session = session
         self.otel = otel or OTelRuntime(
@@ -32,6 +34,11 @@ class HITLNormalizer:
             span_exporter=span_exporter,
         )
         self.span_exporter = self.otel.span_exporter
+        self.maestro_layer = (
+            resolve_maestro_layer("gate.hitl", maestro_layer=maestro_layer)
+            if layer_tagging
+            else None
+        )
 
     def record(
         self,
@@ -40,12 +47,18 @@ class HITLNormalizer:
         operation: str = "unknown_operation",
         approver: str | None = None,
         input_parameters: dict[str, Any] | None = None,
+        maestro_layer: str | None = None,
     ) -> dict[str, Any]:
         now = time.time_ns()
         output_result: dict[str, Any] | None = None
         if approver is not None:
             output_result = {"approver": approver}
 
+        resolved_layer = (
+            self.maestro_layer
+            if maestro_layer is None
+            else resolve_maestro_layer("gate.hitl", maestro_layer=maestro_layer)
+        )
         span = {
             "span_id": str(uuid.uuid4()),
             "span_type": "gate.hitl",
@@ -59,6 +72,8 @@ class HITLNormalizer:
             "is_error": False,
             "error_message": None,
         }
+        if resolved_layer is not None:
+            span["maestro_layer"] = resolved_layer
         trace_span = self.session.append(PIIRedactor.scrub_container(span))
         otel_span = self.otel.start_span(
             trace_span["name"],
@@ -78,6 +93,7 @@ class HITLNormalizer:
         operation: str | None = None,
         approver: str | None = None,
         input_parameters: dict[str, Any] | None = None,
+        maestro_layer: str | None = None,
     ) -> dict[str, Any]:
         """Adapt a framework interrupt/checkpoint payload into a HITL span.
 
@@ -102,6 +118,7 @@ class HITLNormalizer:
             operation=str(resolved_operation or "unknown_operation"),
             approver=resolved_approver,
             input_parameters=resolved_parameters,
+            maestro_layer=maestro_layer,
         )
 
 
