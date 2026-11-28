@@ -160,14 +160,27 @@ def agent_source_fingerprint(module: Any = None) -> str:
         qualified = ""
         for part in parts:
             qualified = f"{qualified}.{part}" if qualified else part
-            spec = importlib.machinery.PathFinder.find_spec(qualified, search_path)
+            try:
+                spec = importlib.machinery.PathFinder.find_spec(qualified, search_path)
+            except (KeyError, ValueError):
+                ns_dirs = [
+                    str(Path(base) / part)
+                    for base in (search_path or ())
+                    if (Path(base) / part).is_dir()
+                ]
+                if ns_dirs:
+                    spec = importlib.machinery.ModuleSpec(qualified, None, is_package=True)
+                    spec.submodule_search_locations = ns_dirs
+                else:
+                    spec = None
             if spec is None and not qualified.partition(".")[2]:
                 spec = importlib.machinery.BuiltinImporter.find_spec(qualified)
                 if spec is None:
                     spec = importlib.machinery.FrozenImporter.find_spec(qualified)
             if spec is None:
                 return None
-            search_path = spec.submodule_search_locations
+            locs = spec.submodule_search_locations
+            search_path = list(locs) if locs is not None else None
             if qualified != name and search_path is None:
                 return None
         return spec

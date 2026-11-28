@@ -165,6 +165,9 @@ def test_reporter_generates_valid_sarif_2_1_0():
     assert run["results"][0]["ruleId"] == "POL-ASI03-001"
     assert run["results"][0]["level"] == "error"
     assert "issue_refund" in run["results"][0]["message"]["text"]
+    uri = run["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+    assert uri == "examples/support_agent/agent.py"
+    assert ":" not in uri
 
 
 def test_generate_sarif_preserves_violations_when_scenario_ids_shorter():

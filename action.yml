@@ -57,8 +57,19 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Check Python Availability
+      id: check_python
+      shell: bash
+      run: |
+        if command -v python >/dev/null 2>&1 && python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" >/dev/null 2>&1; then
+          echo "found=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "found=false" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Set up Python
-      uses: actions/setup-python@v5
+      if: steps.check_python.outputs.found != 'true'
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
       with:
         python-version: "3.11"
 
@@ -83,14 +94,23 @@ runs:
         INPUT_OUTPUT_REPORT: ${{ inputs.output_report }}
         INPUT_OUTPUT_MARKDOWN: ${{ inputs.output_markdown }}
         INPUT_OUTPUT_SARIF: ${{ inputs.output_sarif }}
-        PYTHONPATH: ${{ github.workspace }}
+        WORK_DIR: ${{ github.workspace }}
       run: |
+        export PYTHONPATH="${WORK_DIR}${PYTHONPATH:+:$PYTHONPATH}"
+        INPUT_AGENT_ENTRYPOINT="${INPUT_AGENT_ENTRYPOINT#"${INPUT_AGENT_ENTRYPOINT%%[![:space:]]*}"}"
+        INPUT_AGENT_ENTRYPOINT="${INPUT_AGENT_ENTRYPOINT%"${INPUT_AGENT_ENTRYPOINT##*[![:space:]]}"}"
+        rm -f "$INPUT_OUTPUT_REPORT" "$INPUT_OUTPUT_MARKDOWN"
+        if [ -n "$INPUT_OUTPUT_SARIF" ]; then
+          rm -f "$INPUT_OUTPUT_SARIF"
+        fi
         ARGS=(
-          --agent "$INPUT_AGENT_ENTRYPOINT"
           --policies "$INPUT_POLICIES"
           --output-report "$INPUT_OUTPUT_REPORT"
           --output-markdown "$INPUT_OUTPUT_MARKDOWN"
         )
+        if [ -n "$INPUT_AGENT_ENTRYPOINT" ]; then
+          ARGS+=(--agent "$INPUT_AGENT_ENTRYPOINT")
+        fi
         if [ -n "$INPUT_SCENARIOS" ]; then
           ARGS+=(--scenarios "$INPUT_SCENARIOS")
         fi
@@ -117,15 +137,15 @@ runs:
           cat "$INPUT_OUTPUT_MARKDOWN" >> "$GITHUB_STEP_SUMMARY"
         fi
         {
-          echo "report_path=$INPUT_OUTPUT_REPORT"
-          echo "markdown_path=$INPUT_OUTPUT_MARKDOWN"
-          echo "sarif_path=$INPUT_OUTPUT_SARIF"
+          printf 'report_path<<SECAGENT_EOF\n%s\nSECAGENT_EOF\n' "$INPUT_OUTPUT_REPORT"
+          printf 'markdown_path<<SECAGENT_EOF\n%s\nSECAGENT_EOF\n' "$INPUT_OUTPUT_MARKDOWN"
+          printf 'sarif_path<<SECAGENT_EOF\n%s\nSECAGENT_EOF\n' "$INPUT_OUTPUT_SARIF"
           echo "status=$REPORT_STATUS"
         } >> "$GITHUB_OUTPUT"
 
     - name: Post PR Security Triage Comment
       if: inputs.post_comment == 'true' && github.event_name == 'pull_request'
-      uses: actions/github-script@v7
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
       env:
         COMMENT_PATH: ${{ inputs.output_markdown }}
       with:
@@ -135,27 +155,31 @@ runs:
           if (fs.existsSync(commentPath)) {
             const body = fs.readFileSync(commentPath, 'utf8');
             const marker = '<!-- secagent-security-gate -->';
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              per_page: 100
-            });
-            const existing = comments.find(c => c.body && c.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body: body
-              });
-            } else {
-              await github.rest.issues.createComment({
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: body
+                per_page: 100
               });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body: body
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: body
+                });
+              }
+            } catch (err) {
+              core.warning(`Could not post PR triage comment (e.g., fork PR read-only token): ${err.message}`);
             }
           }
 

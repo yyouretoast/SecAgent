@@ -1,0 +1,39 @@
+name: Feature Request
+description: Propose a new policy rule, framework adapter, or CLI/dashboard enhancement
+title: "[Feat]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Describe the security gap or developer workflow friction this solves.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution / Policy Rule
+      description: Describe the proposed behavior, CLI flags, or YAML rule structure.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: owasp_category
+    attributes:
+      label: OWASP Agentic Category
+      options:
+        - ASI01 - Agent Goal Hijack
+        - ASI02 - Tool Misuse & Exploitation
+        - ASI03 - Identity & Privilege Abuse
+        - ASI04 - Agentic Supply Chain
+        - ASI05 - Unexpected Code Execution
+        - ASI06 - Memory & Context Poisoning
+        - ASI07 - Insecure Inter-Agent Communication
+        - ASI08 - Cascading Failures
+        - ASI09 - Human-Agent Trust Exploitation
+        - ASI10 - Rogue Agents
+        - Other
+    validations:
+      required: true

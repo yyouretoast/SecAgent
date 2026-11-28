@@ -20,12 +20,15 @@ def test_trace_schema_validity():
 
 
 def test_packaged_trace_schema_matches_canonical_schema():
-    """Keep the installed schema copy synchronized with the canonical contract."""
-    canonical_path = ROOT_DIR / "schemas" / "trace_event.schema.json"
-    packaged_path = ROOT_DIR / "src" / "secagent" / "schemas" / "trace_event.schema.json"
+    """Keep the wheel-packaged schema mapped to the canonical contract via force-include."""
+    import tomllib
 
-    assert packaged_path.exists(), "Packaged trace_event.schema.json does not exist"
-    assert canonical_path.read_bytes() == packaged_path.read_bytes()
+    config = tomllib.loads((ROOT_DIR / "pyproject.toml").read_text(encoding="utf-8"))
+    force_include = config["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+    assert force_include["schemas/trace_event.schema.json"] == (
+        "secagent/schemas/trace_event.schema.json"
+    )
+    assert (ROOT_DIR / "schemas" / "trace_event.schema.json").exists()
 
 
 def test_all_trace_fixtures_validate():
@@ -275,14 +278,16 @@ def test_cli_agent_entrypoint_discovery(tmp_path):
             str(comment_file),
         ],
     )
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert report_file.exists()
     data = json.loads(report_file.read_text(encoding="utf-8"))
     assert data["agent"] == "examples.devops_agent.agent"
+    assert data["status"] == "NOT_EVALUATED"
 
 
 def test_packaged_trace_schema_matches_root_schema():
+    from secagent.telemetry.exporter import TraceExporter
+
     root = Path(__file__).resolve().parents[1]
-    root_schema = (root / "schemas" / "trace_event.schema.json").read_bytes()
-    pkg_schema = (root / "src" / "secagent" / "schemas" / "trace_event.schema.json").read_bytes()
-    assert pkg_schema == root_schema
+    root_schema = json.loads((root / "schemas" / "trace_event.schema.json").read_text("utf-8"))
+    assert TraceExporter().schema == root_schema

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import zip_longest
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from secagent import __version__
 from secagent.engine.loader import PolicyDefinition
@@ -17,6 +19,41 @@ _SARIF_LEVEL = {
     "MEDIUM": "warning",
     "LOW": "note",
 }
+
+
+def _sarif_artifact_uri(agent_name: str) -> str:
+    """Resolve an agent entrypoint or trace path to a valid relative SARIF artifact URI."""
+    if not agent_name or not agent_name.strip():
+        return "default_fixture"
+
+    raw = agent_name.strip()
+    candidate = Path(raw)
+    if candidate.exists():
+        cwd = Path.cwd().resolve()
+        try:
+            rel = candidate.resolve().relative_to(cwd).as_posix()
+        except ValueError:
+            rel = candidate.name
+        return quote(rel, safe="/:@-._~")
+
+    mod_name, _, _ = raw.partition(":")
+    rel_base = mod_name.replace(".", "/")
+    for probe in (
+        Path(f"{rel_base}.py"),
+        Path("src") / f"{rel_base}.py",
+        Path(rel_base) / "__init__.py",
+    ):
+        if probe.exists():
+            return quote(probe.as_posix(), safe="/:@-._~")
+
+    if ":" in raw or (
+        "." in mod_name and not mod_name.lower().endswith((".json", ".yaml", ".yml", ".py"))
+    ):
+        return quote(f"{rel_base}.py", safe="/:@-._~")
+    sanitized = raw.replace("\\", "/").replace(":", "/")
+    if sanitized.startswith("/") or ".." in Path(sanitized).parts:
+        sanitized = Path(sanitized).name or "default_fixture"
+    return quote(sanitized, safe="/:@-._~")
 
 
 class PolicyReporter:
@@ -123,7 +160,7 @@ class PolicyReporter:
                         {
                             "physicalLocation": {
                                 "artifactLocation": {
-                                    "uri": agent_name or "default_fixture",
+                                    "uri": _sarif_artifact_uri(agent_name),
                                 }
                             },
                             "logicalLocations": [
