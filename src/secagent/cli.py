@@ -942,9 +942,14 @@ def _execute_scenarios_with_telemetry(
     return traces
 
 
-def _load_external_traces(trace_path: Path) -> list[dict[str, Any]]:
-    """Load and schema-validate pre-recorded trace JSON file(s) from ``trace_path``."""
+def _load_external_traces(
+    trace_path: Path,
+    *,
+    tier_overrides: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Load and schema-validate pre-recorded SecAgent or OTLP JSON trace file(s)."""
     from secagent.telemetry.exporter import TraceExporter
+    from secagent.telemetry.otlp_adapter import convert_otlp_to_traces, is_otlp_payload
 
     if not trace_path.exists():
         raise FileNotFoundError(f"Trace path not found: {trace_path}")
@@ -957,11 +962,19 @@ def _load_external_traces(trace_path: Path) -> list[dict[str, Any]]:
     traces: list[dict[str, Any]] = []
     for file_path in files:
         raw = json.loads(file_path.read_text(encoding="utf-8"))
+        if is_otlp_payload(raw):
+            for converted in convert_otlp_to_traces(raw, tier_overrides=tier_overrides):
+                traces.append(exporter.validate(converted))
+            continue
         items = raw if isinstance(raw, list) else [raw]
         for item in items:
             if not isinstance(item, dict):
                 raise ValueError(f"Trace entry in {file_path} must be a JSON object")
-            traces.append(exporter.validate(item))
+            if is_otlp_payload(item):
+                for converted in convert_otlp_to_traces(item, tier_overrides=tier_overrides):
+                    traces.append(exporter.validate(converted))
+            else:
+                traces.append(exporter.validate(item))
     return traces
 
 
@@ -1095,7 +1108,10 @@ def scan(
 
     if trace is not None:
         try:
-            traces = _load_external_traces(trace)
+            traces = _load_external_traces(
+                trace,
+                tier_overrides=dict(engine.ruleset.tool_tier_overrides),
+            )
         except JsonSchemaValidationError as exc:
             err_console.print(
                 f"[red]Trace schema validation failed: {escape_markup(exc.message)}[/red]"
