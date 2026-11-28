@@ -193,7 +193,10 @@ def test_callback_maps_tool_permission_tier_to_maestro_layer(tier, layer):
     callback.on_tool_end("ok", run_id=f"run-{tier}")
 
     assert callback.spans[0]["maestro_layer"] == layer
-    assert callback.span_exporter.get_finished_spans()[0].attributes["secagent.maestro_layer"] == layer
+    assert (
+        callback.span_exporter.get_finished_spans()[0].attributes["secagent.maestro_layer"]
+        == layer
+    )
 
 
 def test_callback_prefers_explicit_maestro_layer_and_rejects_invalid_values():
