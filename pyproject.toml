@@ -34,34 +34,34 @@ classifiers = [
 dependencies = [
     "opentelemetry-api>=1.45.2",
     "opentelemetry-sdk>=1.25.0",
-    "typer>=0.12.0",
+    "typer>=0.29.2",
     "rich>=13.7.0",
-    "pyyaml>=6.0.1",
-    "pydantic>=2.7.0",
+    "pyyaml>=6.0.4",
+    "pydantic>=2.14.4",
     "jsonschema>=4.22.0",
 ]
 
 [project.optional-dependencies]
 langgraph = [
-    "langgraph>=0.2.0",
-    "langchain-core>=0.3.0",
+    "langgraph>=1.2.24",
+    "langchain-core>=1.8.4",
 ]
 dashboard = [
     "streamlit>=1.35.0",
 ]
 all = [
-    "langgraph>=0.2.0",
-    "langchain-core>=0.3.0",
+    "langgraph>=1.2.24",
+    "langchain-core>=1.8.4",
     "streamlit>=1.35.0",
 ]
 dev = [
-    "pytest>=8.2.0",
-    "pytest-asyncio>=0.23.0",
-    "ruff>=0.4.0",
-    "mypy>=1.10.0",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "ruff>=0.17.6",
+    "mypy>=2.4.1",
     "streamlit>=1.35.0",
-    "langgraph>=0.2.0",
-    "langchain-core>=0.3.0",
+    "langgraph>=1.2.24",
+    "langchain-core>=1.8.4",
 ]
 
 [project.scripts]
