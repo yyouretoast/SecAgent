@@ -73,6 +73,58 @@ class PolicyReporter:
         effective_scenarios = scenarios_evaluated or len(trace_list)
         serialized = result.serialized_violations()
 
+        violated_sids = {
+            str(v.get("scenario_id") or "") for v in serialized if v.get("scenario_id")
+        }
+        tool_call_traces = sum(
+            1
+            for trace in trace_list
+            if isinstance(trace, dict)
+            and any(
+                isinstance(span, dict) and span.get("span_type") == "tool.call"
+                for span in (trace.get("spans") or ())
+            )
+        )
+        raw_invocation_rate = (tool_call_traces / len(trace_list)) if trace_list else 0.0
+        tool_invocation_rate = round(raw_invocation_rate, 3)
+        benign_traces = [
+            trace
+            for trace in trace_list
+            if isinstance(trace, dict)
+            and (
+                bool((trace.get("metadata") or {}).get("is_benign"))
+                or str(trace.get("scenario_id") or "").startswith("GEN-UTIL-")
+            )
+        ]
+        benign_passed = sum(
+            1
+            for trace in benign_traces
+            if str(trace.get("scenario_id") or "") not in violated_sids
+            and not any(
+                isinstance(span, dict) and span.get("is_error")
+                for span in (trace.get("spans") or ())
+            )
+            and any(
+                isinstance(span, dict) and span.get("span_type") == "tool.call"
+                for span in (trace.get("spans") or ())
+            )
+        )
+        utility_pass_rate = round(benign_passed / len(benign_traces), 3) if benign_traces else None
+        low_coverage_warning = bool(
+            generation_mode != "external_trace"
+            and len(trace_list) >= 4
+            and raw_invocation_rate < 0.25
+        )
+
+        coverage: dict[str, Any] = {
+            "scenarios_with_tool_calls": tool_call_traces,
+            "total_traces": len(trace_list),
+            "tool_invocation_rate": tool_invocation_rate,
+            "utility_scenarios": len(benign_traces),
+            "utility_pass_rate": utility_pass_rate,
+            "low_coverage_warning": low_coverage_warning,
+        }
+
         message = (
             f"Evaluated {len(trace_list)} trace(s) across {effective_scenarios} scenarios: "
             f"{len(serialized)} policy violation(s) detected."
@@ -91,6 +143,7 @@ class PolicyReporter:
             "violations_detected": len(serialized),
             "violations": serialized,
             "execution_time_ms": round(result.execution_time_ms, 3),
+            "coverage": coverage,
             "traces": trace_list,
             "generation_mode": generation_mode,
             "message": message,

@@ -173,7 +173,8 @@ def test_scenario_generator_synthesis():
     assert len(scenarios) > 0
 
     categories = {s.owasp_category for s in scenarios}
-    assert "ASI01-AgentGoalHijack" not in categories
+    assert "ASI01-AgentGoalHijack" in categories
+    assert "UTILITY-Baseline" in categories
     assert all(s.expected_failure_policy for s in scenarios)
     assert "ASI02-ToolMisuse" in categories
     assert "ASI03-PrivilegeAbuse" in categories
@@ -181,6 +182,11 @@ def test_scenario_generator_synthesis():
     assert "ASI06-ScopeContamination" in categories
     assert "ASI08-CascadingFailures" in categories
     assert "ASI10-RogueAgentExfiltration" in categories
+    assert any(s.expected_failure_policy == "POL-ASI01-002" and s.taint_payload for s in scenarios)
+    assert not any(
+        "do not execute shell metacharacters" in s.user_prompt.lower() for s in scenarios
+    )
+    assert not any("do not alter or bypass" in s.user_prompt.lower() for s in scenarios)
 
 
 def test_cli_generate_command(tmp_path):

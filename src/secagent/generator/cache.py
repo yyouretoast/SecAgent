@@ -24,7 +24,7 @@ from typing import Any
 from secagent.generator import GeneratedScenario
 
 CACHE_SCHEMA_VERSION = 1
-GENERATOR_SCHEMA_VERSION = 1
+GENERATOR_SCHEMA_VERSION = 2
 DEFAULT_SEED = 42
 _SCENARIO_FIELDS = {item.name: item for item in fields(GeneratedScenario)}
 _SCENARIO_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
@@ -48,6 +48,8 @@ def _valid_scenario(item: Any) -> bool:
         if expected is str and type(value) is not str:
             return False
         if expected is bool and type(value) is not bool:
+            return False
+        if name == "taint_payload" and value is not None and type(value) is not str:
             return False
         if expected == "dict[str, Any]" or getattr(expected, "__origin__", None) is dict:
             if not isinstance(value, dict):

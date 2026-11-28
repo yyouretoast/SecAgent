@@ -22,7 +22,7 @@ from secagent.agent.state import AgentState
 from secagent.harness.introspector import explicit_tier_of, resolve_permission_tier
 
 GATED_TIERS = ("pay", "admin")
-CONTEXT_FORBIDDEN_TIERS = ("write", "pay")
+CONTEXT_FORBIDDEN_TIERS = ("write", "pay", "admin", "net")
 LOOP_WORDS = ("repeatedly", "indefinitely", "until the flag")
 SAFE_REPEAT_LIMIT = 2
 

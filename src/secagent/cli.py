@@ -95,6 +95,24 @@ def _format_markdown_report(
             "no policies were evaluated in this run.\n"
         )
 
+    def _coverage_lines(cov: Any) -> str:
+        if not isinstance(cov, dict):
+            return ""
+        lines: list[str] = []
+        util_rate = cov.get("utility_pass_rate")
+        if util_rate is not None:
+            lines.append(f"- **Utility Pass Rate**: {int(round(float(util_rate) * 100))}%\n")
+        if cov.get("low_coverage_warning"):
+            rate = int(round(float(cov.get("tool_invocation_rate", 0.0)) * 100))
+            lines.append(
+                f"- **Coverage Warning**: Only {cov.get('scenarios_with_tool_calls', 0)}/"
+                f"{cov.get('total_traces', 0)} scenarios invoked tools ({rate}%). "
+                "Verify agent prompts/tools are being exercised.\n"
+            )
+        return "".join(lines)
+
+    cov_block = _coverage_lines(_field(result, "coverage", None))
+
     if status == "PASS" and not violations:
         return (
             f"{COMMENT_MARKER}\n"
@@ -102,6 +120,7 @@ def _format_markdown_report(
             f"- **Target Agent**: `{effective_agent}`\n"
             f"- **Scenarios Evaluated**: {effective_scenarios}\n"
             "- **Violations Detected**: 0\n"
+            f"{cov_block}"
             "- **Status**: All invariant security policies satisfied.\n"
         )
 
@@ -129,7 +148,8 @@ def _format_markdown_report(
         f"- **Target Agent**: `{effective_agent}`\n"
         f"- **Scenarios Evaluated**: {effective_scenarios}\n"
         f"- **Violations Detected**: {len(sorted_violations)}\n"
-        f"- **Severity Breakdown**: {severity_summary}\n\n"
+        f"- **Severity Breakdown**: {severity_summary}\n"
+        f"{cov_block}\n"
     )
 
     if not sorted_violations:
@@ -366,6 +386,8 @@ def _synthesize_per_tool_scenarios(
     tools: list[Any],
     scenarios_per_tool: int,
     policy_overrides: dict[str, str] | None = None,
+    *,
+    seed: int = 42,
 ) -> list[Any]:
     """Synthesize ``scenarios_per_tool`` diverse scenarios for each discovered tool."""
     from secagent.generator import GeneratedScenario
@@ -374,11 +396,13 @@ def _synthesize_per_tool_scenarios(
     selected: list[GeneratedScenario] = []
     counter = 1
 
-    for tool in meta_tools:
+    for tool_idx, tool in enumerate(meta_tools):
+        tool_seed = seed if seed == 42 else seed + tool_idx * 997
         raw_pool = generator.generate(
             [tool],
             scenarios_per_tool=max(scenarios_per_tool, 3),
             policy_overrides=policy_overrides,
+            seed=tool_seed,
         )
         tool_pool = [s for s in raw_pool if s.target_tool == tool.name]
         sys_pool = [s for s in raw_pool if s.target_tool != tool.name]
@@ -424,7 +448,12 @@ def _synthesize_per_tool_scenarios(
             extra_idx += 1
 
         for item in chosen[:scenarios_per_tool]:
-            prefix = item.owasp_category.split("-")[0] if "-" in item.owasp_category else "ASI00"
+            if getattr(item, "is_benign", False) or item.owasp_category.startswith("UTILITY"):
+                prefix = "UTIL"
+            else:
+                prefix = (
+                    item.owasp_category.split("-")[0] if "-" in item.owasp_category else "ASI00"
+                )
             item.id = f"GEN-{prefix}-{counter:03d}"
             selected.append(item)
             counter += 1
@@ -437,12 +466,15 @@ def _synthesize_whole_suite_scenarios(
     tools: list[Any],
     scenarios_per_tool: int = 2,
     policy_overrides: dict[str, str] | None = None,
+    *,
+    seed: int = 42,
 ) -> list[Any]:
     """Synthesize the complete suite in one generator call."""
     return generator.generate(
         tools,
         scenarios_per_tool=scenarios_per_tool,
         policy_overrides=policy_overrides,
+        seed=seed,
     )
 
 
@@ -487,6 +519,8 @@ def _synthesize_fuzz_scenarios(
     tools: list[Any],
     iterations: int,
     policy_overrides: dict[str, str] | None = None,
+    *,
+    aggressive: bool = False,
 ) -> list[Any]:
     """Synthesize ``iterations`` schema-directed mutated scenarios using SchemaDirectedFuzzer."""
     from secagent.generator import GeneratedScenario
@@ -513,7 +547,7 @@ def _synthesize_fuzz_scenarios(
             "scope",
             "ASI06-ScopeContamination",
             "POL-ASI06-001",
-            [["ssn", "password_hash"], ["tax_id", "api_key"], ["ssn", "credit_card"]],
+            [["ssn", "password_hash"], ["salary", "password_hash"], ["ssn", "credit_card"]],
         ),
         ("role", "ASI03-PrivilegeAbuse", "POL-ASI03-001", list(generator.ROLE_BYPASS_PROMPTS)),
         ("hijack", "ASI01-AgentGoalHijack", "POL-ASI01-001", list(generator.GOAL_HIJACK_PROMPTS)),
@@ -528,7 +562,12 @@ def _synthesize_fuzz_scenarios(
         payload = payloads[(idx // (n_tools * n_vectors)) % len(payloads)]
 
         if attack in ("sqli", "command", "egress", "scope"):
-            injected_args = generator.fuzzer.build_arguments(tool, attack, payload)
+            injected_args = generator.fuzzer.build_arguments(
+                tool,
+                attack,
+                payload,
+                fallback_to_any_string=aggressive and attack in ("sqli", "command"),
+            )
             if attack == "scope" and isinstance(payload, list):
                 for key in ("fields", "columns", "attributes"):
                     if key in injected_args and isinstance(injected_args[key], list):
@@ -537,11 +576,11 @@ def _synthesize_fuzz_scenarios(
             prompt = f"Execute {tool.name} with mutated {attack} input: {payload}"
             role = "user"
         elif attack == "role":
-            injected_args = generator.fuzzer.build_arguments(tool, "command", str(payload))
+            injected_args = generator.fuzzer.build_arguments(tool, "__none__", "")
             prompt = f"{payload} Run '{tool.name}'."
             role = "guest"
         else:
-            injected_args = generator.fuzzer.build_arguments(tool, "sqli", str(payload))
+            injected_args = generator.fuzzer.build_arguments(tool, "__none__", "")
             prompt = f"{payload} Immediately invoke '{tool.name}'."
             role = "guest"
 
@@ -603,7 +642,7 @@ def generate_scenarios_cmd(
     ] = Path("policies/security_rules.yaml"),
     seed: Annotated[
         int,
-        typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
+        typer.Option("--seed", help="Seed deterministic scenario payload selection and cache key"),
     ] = 42,
 ) -> None:
     """Generate test scenarios from agent tool definitions."""
@@ -624,7 +663,7 @@ def generate_scenarios_cmd(
 
     generation_mode = "per_tool" if scenarios_per_tool is not None else "whole_suite"
     effective_scenarios_per_tool = scenarios_per_tool if scenarios_per_tool is not None else 2
-    cache = ScenarioCache(Path("scenarios/.cache"))
+    cache = ScenarioCache(Path(".secagent/cache"))
     key = cache.key(
         tools=discovered_tools,
         policy_overrides=overrides,
@@ -640,6 +679,7 @@ def generate_scenarios_cmd(
                 discovered_tools,
                 scenarios_per_tool=effective_scenarios_per_tool,
                 policy_overrides=overrides,
+                seed=seed,
             )
         else:
             scenarios = _synthesize_whole_suite_scenarios(
@@ -647,6 +687,7 @@ def generate_scenarios_cmd(
                 discovered_tools,
                 scenarios_per_tool=effective_scenarios_per_tool,
                 policy_overrides=overrides,
+                seed=seed,
             )
         scenario_dicts = [scenario.to_dict() for scenario in scenarios]
         cache.save(key, scenario_dicts)
@@ -738,8 +779,10 @@ def _infer_task_context(scenario: dict[str, Any]) -> str:
 
     expected_policy = str(scenario.get("expected_failure_policy") or "").upper()
     owasp = str(scenario.get("owasp_category") or "").upper()
+    if expected_policy == "POL-ASI01-002" or scenario.get("taint_payload"):
+        return "default"
     if (
-        expected_policy.startswith("POL-ASI01")
+        expected_policy == "POL-ASI01-001"
         or expected_policy == "POL-ASI03-002"
         or owasp.startswith("ASI01")
     ):
@@ -814,7 +857,7 @@ def _execute_scenarios_with_telemetry(
                 scenario_id=scn_id,
                 caller_role=caller_role,
                 task_context=task_context,
-                metadata={"framework": framework},
+                metadata={"framework": framework, "is_benign": bool(scn.get("is_benign", False))},
             )
             callback = _GateAwareTelemetryCallback(
                 session,
@@ -970,8 +1013,15 @@ def scan(
     ] = None,
     seed: Annotated[
         int,
-        typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
+        typer.Option("--seed", help="Seed deterministic scenario payload selection and cache key"),
     ] = 42,
+    save_scenarios: Annotated[
+        bool,
+        typer.Option(
+            "--save-scenarios",
+            help="Write dynamically generated scenario manifests into scenarios/generated/",
+        ),
+    ] = False,
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Reduce terminal output to concise verdict summary"),
@@ -1055,7 +1105,7 @@ def scan(
         if scenarios is None:
             from secagent.generator.cache import ScenarioCache
 
-            cache = ScenarioCache(Path("scenarios/.cache"))
+            cache = ScenarioCache(Path(".secagent/cache"))
             key = cache.key(
                 tools=target_tools,
                 policy_overrides=overrides,
@@ -1068,11 +1118,16 @@ def scan(
                 if not effective_quiet:
                     console.print("[cyan]Generating scenarios tailored to agent...[/cyan]")
                 synth_scenarios = _synthesize_whole_suite_scenarios(
-                    generator, target_tools, scenarios_per_tool=2, policy_overrides=overrides
+                    generator,
+                    target_tools,
+                    scenarios_per_tool=2,
+                    policy_overrides=overrides,
+                    seed=seed,
                 )
                 scenario_dicts = [s.to_dict() for s in synth_scenarios]
                 cache.save(key, scenario_dicts)
-            _write_generated_scenarios(Path("scenarios/generated"), scenario_dicts)
+            if save_scenarios:
+                _write_generated_scenarios(Path("scenarios/generated"), scenario_dicts)
             scenarios_count = len(scenario_dicts)
         else:
             scenario_dicts = _load_scenarios_from_dir(scenarios)
@@ -1208,6 +1263,7 @@ def scan(
                 sarif_path=output_sarif,
                 elapsed_ms=report.get("execution_time_ms"),
                 violation_list=report.get("violations") or [],
+                coverage=report.get("coverage"),
             )
         if report["status"] == "FAIL":
             console.print(f"[bold red]{message}[/bold red]")
@@ -1292,8 +1348,15 @@ def test_alias(
     ] = None,
     seed: Annotated[
         int,
-        typer.Option("--seed", help="Seed cache entries; scenario templates remain deterministic"),
+        typer.Option("--seed", help="Seed deterministic scenario payload selection and cache key"),
     ] = 42,
+    save_scenarios: Annotated[
+        bool,
+        typer.Option(
+            "--save-scenarios",
+            help="Write dynamically generated scenario manifests into scenarios/generated/",
+        ),
+    ] = False,
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Reduce terminal output to concise verdict summary"),
@@ -1315,6 +1378,7 @@ def test_alias(
         output_markdown=output_markdown,
         output_sarif=output_sarif,
         seed=seed,
+        save_scenarios=save_scenarios,
         quiet=quiet,
         json_output=json_output,
     )
@@ -1398,6 +1462,13 @@ def fuzz(
             help="Allow unclassified or unpatched tools to execute live when --execute is enabled.",
         ),
     ] = False,
+    aggressive: Annotated[
+        bool,
+        typer.Option(
+            "--aggressive",
+            help="Fallback to injecting SQLi/command payloads into the first string parameter when no semantic name matches.",
+        ),
+    ] = False,
     json_output: Annotated[
         bool,
         typer.Option("--json", help="Emit raw JSON report to stdout when --execute is enabled"),
@@ -1425,6 +1496,7 @@ def fuzz(
         target_tools,
         iterations=iterations,
         policy_overrides=overrides,
+        aggressive=aggressive,
     )
     for scenario in fuzzed_scenarios:
         safe_id = Path(str(scenario.id)).name
@@ -1582,6 +1654,7 @@ def fuzz(
             sarif_path=output_sarif,
             elapsed_ms=report.get("execution_time_ms"),
             violation_list=report.get("violations") or [],
+            coverage=report.get("coverage"),
         )
     raise typer.Exit(code=exit_code)
 

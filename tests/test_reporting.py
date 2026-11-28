@@ -269,3 +269,25 @@ def test_sarif_artifact_uri_blocks_traversal_and_encodes_spaces():
     assert ".." not in _sarif_artifact_uri("../../outside/trace file.json")
     assert "%20" in _sarif_artifact_uri("my traces/run #1.json")
     assert "%23" in _sarif_artifact_uri("my traces/run #1.json")
+
+
+def test_report_coverage_flags_low_tool_invocation_rate():
+    from secagent.engine import EvaluationResult, PolicyReporter
+
+    empty_traces = [
+        {
+            "scenario_id": f"GEN-ASI02-00{i}",
+            "spans": [{"span_type": "model.inference", "name": "ChatOpenAI", "is_error": False}],
+        }
+        for i in range(1, 6)
+    ]
+    eval_res = EvaluationResult(
+        status="PASS", total_spans_evaluated=5, violations=[], execution_time_ms=1.0
+    )
+    report = PolicyReporter().generate_report(
+        eval_res, agent_name="real:app", scenarios_evaluated=5, traces=empty_traces
+    )
+    assert report["coverage"]["tool_invocation_rate"] == 0.0
+    assert report["coverage"]["low_coverage_warning"] is True
+    md = _format_markdown_report(report, agent_name="real:app", scenarios_evaluated=5)
+    assert "Coverage Warning" in md
