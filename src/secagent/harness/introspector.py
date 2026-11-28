@@ -5,10 +5,11 @@ from __future__ import annotations
 import importlib
 import inspect
 import logging
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from langchain_core.tools import BaseTool
@@ -23,14 +24,113 @@ class HarnessLoadError(Exception):
 
 
 TIER_ATTR = "_secagent_permission_tier"
+TierSource = Literal["decorator", "override", "heuristic", "default"]
 
-_TIER_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("pay", ("pay", "refund", "trade", "charge", "transfer", "buy")),
-    ("admin", ("drop", "delete", "restart", "kill", "exec", "bash", "deploy")),
-    ("write", ("write", "update", "modify", "insert", "create")),
-    ("net", ("network", "http", "webhook", "curl", "fetch", "post_")),
-    ("pure", ("calc", "format", "parse", "convert", "validate")),
+_TOKEN_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z]|\d|$)|[A-Z]?[a-z]+|\d+")
+_READ_PREFIX_TOKENS = frozenset(
+    {
+        "get",
+        "read",
+        "list",
+        "lookup",
+        "describe",
+        "view",
+        "show",
+        "find",
+        "count",
+        "check",
+        "search",
+        "query",
+    }
 )
+_PURE_PREFIX_TOKENS = frozenset({"calc", "calculate", "format", "parse", "convert", "validate"})
+_ASYNC_WRAPPER_PREFIXES = frozenset({"async", "safe", "try"})
+_TIER_KEYWORDS: tuple[tuple[str, frozenset[str], frozenset[str]], ...] = (
+    (
+        "pay",
+        frozenset({"pay", "refund", "trade", "charge", "transfer", "buy", "wire", "checkout"}),
+        frozenset({"payment", "invoice", "billing"}),
+    ),
+    (
+        "admin",
+        frozenset(
+            {
+                "drop",
+                "delete",
+                "remove",
+                "rm",
+                "terminate",
+                "wipe",
+                "destroy",
+                "purge",
+                "restart",
+                "kill",
+                "exec",
+                "execute",
+                "bash",
+                "deploy",
+                "sudo",
+                "grant",
+                "revoke",
+                "eval",
+                "publish",
+                "chmod",
+                "chown",
+            }
+        ),
+        frozenset({"ssh", "shell", "command", "cmd", "lambda"}),
+    ),
+    (
+        "net",
+        frozenset(
+            {
+                "network",
+                "http",
+                "https",
+                "webhook",
+                "webhooks",
+                "curl",
+                "fetch",
+                "post",
+                "socket",
+                "smtp",
+                "upload",
+            }
+        ),
+        frozenset({"request", "url", "api"}),
+    ),
+    (
+        "write",
+        frozenset(
+            {
+                "write",
+                "update",
+                "modify",
+                "insert",
+                "create",
+                "send",
+                "submit",
+                "put",
+                "patch",
+                "append",
+                "save",
+                "set",
+                "edit",
+                "upsert",
+            }
+        ),
+        frozenset({"email", "sql"}),
+    ),
+    (
+        "pure",
+        _PURE_PREFIX_TOKENS,
+        frozenset(),
+    ),
+)
+
+
+def _tokenize_tool_name(name: str) -> list[str]:
+    return [tok.lower() for tok in _TOKEN_RE.findall(name)]
 
 
 @dataclass
@@ -50,21 +150,36 @@ BASELINE_TOOLS: tuple[ToolInfo, ...] = (
 )
 
 
+def resolve_permission_tier_with_source(
+    name: str,
+    explicit_tier: str | None = None,
+    overrides: dict[str, str] | None = None,
+) -> tuple[str, TierSource]:
+    """Resolve permission tier and report where the classification originated."""
+    if explicit_tier:
+        return explicit_tier, "decorator"
+    if overrides and name in overrides:
+        return overrides[name], "override"
+    tokens = _tokenize_tool_name(name)
+    token_set = set(tokens)
+    eff = tokens[1:] if len(tokens) >= 2 and tokens[0] in _ASYNC_WRAPPER_PREFIXES else tokens
+    starts_read = bool(eff) and (eff[0] in _READ_PREFIX_TOKENS or eff[-1] == "query")
+    starts_pure = bool(eff) and eff[0] in _PURE_PREFIX_TOKENS
+    for tier, action_tokens, noun_tokens in _TIER_KEYWORDS:
+        if token_set & action_tokens:
+            return tier, "heuristic"
+        skip_nouns = starts_read or (starts_pure and tier in ("write", "net"))
+        if not skip_nouns and (token_set & noun_tokens):
+            return tier, "heuristic"
+    return "read", "default"
+
+
 def resolve_permission_tier(
     name: str,
     explicit_tier: str | None = None,
     overrides: dict[str, str] | None = None,
 ) -> str:
-
-    if explicit_tier:
-        return explicit_tier
-    if overrides and name in overrides:
-        return overrides[name]
-    lowered = name.lower()
-    for tier, keywords in _TIER_KEYWORDS:
-        if any(word in lowered for word in keywords):
-            return tier
-    return "read"
+    return resolve_permission_tier_with_source(name, explicit_tier, overrides)[0]
 
 
 def load_policy_overrides(policy_path: str | Path) -> dict[str, str]:
@@ -88,9 +203,13 @@ def tool_name(tool: Any) -> str:
 
 def explicit_tier_of(tool: Any) -> str | None:
     for candidate in (tool, getattr(tool, "func", None), getattr(tool, "coroutine", None)):
-        tier = getattr(candidate, TIER_ATTR, None)
-        if isinstance(tier, str):
-            return tier
+        if candidate is None:
+            continue
+        unwrapped = getattr(candidate, "_secagent_original", candidate)
+        for target in (unwrapped, candidate):
+            tier = getattr(target, TIER_ATTR, None)
+            if isinstance(tier, str):
+                return tier
     return None
 
 
@@ -105,16 +224,26 @@ def _dedupe(tools: list[Any]) -> list[Any]:
     return unique
 
 
-def graph_tool_dicts(target: Any) -> list[dict[str, Any]]:
+def graph_tool_dicts(target: Any, _visited: set[int] | None = None) -> list[dict[str, Any]]:
     dicts: list[dict[str, Any]] = []
+    seen = _visited if _visited is not None else set()
     nodes = getattr(target, "nodes", None)
     if not isinstance(nodes, dict):
         return dicts
     for node in nodes.values():
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
         for holder in (node, getattr(node, "bound", None)):
+            if holder is None:
+                continue
             tbn = getattr(holder, "tools_by_name", None)
             if isinstance(tbn, dict) and tbn not in dicts:
                 dicts.append(tbn)
+            if isinstance(getattr(holder, "nodes", None), dict):
+                for sub_tbn in graph_tool_dicts(holder, seen):
+                    if sub_tbn not in dicts:
+                        dicts.append(sub_tbn)
     return dicts
 
 
@@ -132,11 +261,22 @@ def discover_tools(target: Any, mod: Any = None) -> list[Any]:
         graph_tools.extend(tbn.values())
     nodes = getattr(target, "nodes", None)
     if isinstance(nodes, dict):
-        for node in nodes.values():
+        seen: set[int] = set()
+        stack = list(nodes.values())
+        while stack:
+            node = stack.pop()
+            if id(node) in seen:
+                continue
+            seen.add(id(node))
             for holder in (node, getattr(node, "bound", None)):
+                if holder is None:
+                    continue
                 listed = getattr(holder, "tools", None)
                 if isinstance(listed, list):
                     graph_tools.extend(listed)
+                sub_nodes = getattr(holder, "nodes", None)
+                if isinstance(sub_nodes, dict):
+                    stack.extend(sub_nodes.values())
     if graph_tools:
         return _dedupe(graph_tools)
 
@@ -168,7 +308,7 @@ def _parameters_of(tool: Any) -> dict[str, str]:
     args = getattr(tool, "args", None)
     if isinstance(args, dict) and args:
         return {name: str(spec.get("type", "any")) for name, spec in args.items()}
-    func = getattr(tool, "func", None) or tool
+    func = getattr(tool, "func", None) or getattr(tool, "coroutine", None) or tool
     try:
         sig = inspect.signature(func)
     except (TypeError, ValueError):

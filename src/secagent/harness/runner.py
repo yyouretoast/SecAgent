@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import threading
 import time
@@ -11,11 +12,16 @@ from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage
 
+from secagent.harness.introspector import discover_tools, tool_name
 from secagent.harness.sandbox import ToolCallRecord, VirtualizedToolWrapper
 
 logger = logging.getLogger("secagent.harness")
 DEFAULT_TIMEOUT_S = 5.0
 TIMEOUT_MESSAGE = "Execution timeout"
+
+
+class SandboxError(RuntimeError):
+    """Raised when strict dry-run sandboxing cannot protect any tools on the target."""
 
 
 @dataclass
@@ -76,6 +82,65 @@ def _adapt_state_for_target(target: Any, state: dict[str, Any]) -> dict[str, Any
     return state
 
 
+def _has_async_graph_nodes(target: Any) -> bool:
+    """Detect LangGraph nodes/tools that are async-only so we prefer ainvoke upfront."""
+    import inspect
+
+    nodes = getattr(target, "nodes", None)
+    if not isinstance(nodes, dict):
+        return False
+    for node in nodes.values():
+        bound = getattr(node, "bound", None)
+        afunc = getattr(bound, "afunc", None)
+        func = getattr(bound, "func", None)
+        if callable(afunc) and not callable(func):
+            return True
+        if inspect.iscoroutinefunction(bound):
+            return True
+        tbn = getattr(bound, "tools_by_name", None)
+        if isinstance(tbn, dict):
+            for tool in tbn.values():
+                if (
+                    getattr(tool, "coroutine", None) is not None
+                    and getattr(tool, "func", None) is None
+                ):
+                    return True
+    return False
+
+
+def _with_fresh_thread_id(config: dict[str, Any]) -> dict[str, Any]:
+    copied = dict(config)
+    configurable = dict(copied.get("configurable") or {})
+    if "thread_id" in configurable:
+        configurable["thread_id"] = f"{configurable['thread_id']}-async-{uuid.uuid4().hex[:6]}"
+        copied["configurable"] = configurable
+    return copied
+
+
+def _invoke_target(target: Any, state: dict[str, Any], config: dict[str, Any]) -> Any:
+    """Invoke a target runnable, preferring ``ainvoke`` for async-only graphs."""
+    invoke = getattr(target, "invoke", None)
+    ainvoke = getattr(target, "ainvoke", None)
+    if callable(ainvoke) and (not callable(invoke) or _has_async_graph_nodes(target)):
+        return asyncio.run(ainvoke(state, config=config))
+    if callable(invoke):
+        try:
+            return invoke(state, config=config)
+        except (TypeError, NotImplementedError, RuntimeError) as exc:
+            msg = str(exc).lower()
+            if callable(ainvoke) and (
+                "async" in msg
+                or "sync" in msg
+                or "coroutine" in msg
+                or isinstance(exc, NotImplementedError)
+            ):
+                return asyncio.run(ainvoke(state, config=_with_fresh_thread_id(config)))
+            raise
+    if callable(ainvoke):
+        return asyncio.run(ainvoke(state, config=config))
+    raise TypeError(f"Target {target!r} exposes neither invoke() nor ainvoke()")
+
+
 class ExecutionHarness:
     def __init__(
         self,
@@ -83,11 +148,20 @@ class ExecutionHarness:
         dry_run: bool = True,
         policy_overrides: dict[str, str] | None = None,
         recursion_limit: int = 25,
+        *,
+        strict_sandbox: bool = False,
+        mock_unclassified: bool = False,
+        mock_mode: Literal["minimal", "rich"] = "minimal",
+        taint_read_outputs: str | None = None,
     ) -> None:
         self.timeout_s = timeout_s
         self.dry_run = dry_run
         self.policy_overrides = policy_overrides
         self.recursion_limit = recursion_limit
+        self.strict_sandbox = strict_sandbox
+        self.mock_unclassified = mock_unclassified
+        self.mock_mode = mock_mode
+        self.taint_read_outputs = taint_read_outputs
 
     async def aexecute(self, fn: Callable[[], Any], scenario_id: str = "adhoc") -> HarnessResult:
         loop = asyncio.get_running_loop()
@@ -133,7 +207,28 @@ class ExecutionHarness:
         return HarnessResult(scenario_id, status, output, message, elapsed_ms)
 
     def execute(self, fn: Callable[[], Any], scenario_id: str = "adhoc") -> HarnessResult:
-        return asyncio.run(self.aexecute(fn, scenario_id))
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.aexecute(fn, scenario_id))
+
+        result_box: list[HarnessResult] = []
+        err_box: list[BaseException] = []
+
+        ctx = contextvars.copy_context()
+
+        def _runner() -> None:
+            try:
+                result_box.append(ctx.run(asyncio.run, self.aexecute(fn, scenario_id)))
+            except BaseException as exc:  # pragma: no cover
+                err_box.append(exc)
+
+        thread = threading.Thread(target=_runner, daemon=True, name=f"secagent-loop-{scenario_id}")
+        thread.start()
+        thread.join()
+        if err_box:
+            raise err_box[0]
+        return result_box[0]
 
     def run_scenario(
         self,
@@ -144,21 +239,45 @@ class ExecutionHarness:
     ) -> HarnessResult:
 
         scenario_id = str(_get(scenario, "id", "adhoc"))
-        wrapper = VirtualizedToolWrapper(overrides=self.policy_overrides, dry_run=self.dry_run)
+        scenario_taint = _get(scenario, "taint_payload", None) or self.taint_read_outputs
+        wrapper = VirtualizedToolWrapper(
+            overrides=self.policy_overrides,
+            dry_run=self.dry_run,
+            mock_unclassified=self.mock_unclassified,
+            mock_mode=self.mock_mode,
+            taint_read_outputs=str(scenario_taint) if scenario_taint else None,
+        )
         state = _adapt_state_for_target(target, build_initial_state(scenario))
-        config: dict[str, Any] = {"recursion_limit": self.recursion_limit}
+        config: dict[str, Any] = {
+            "recursion_limit": self.recursion_limit,
+            "configurable": {"thread_id": f"secagent-{scenario_id}-{uuid.uuid4().hex[:8]}"},
+        }
         if callbacks:
             config["callbacks"] = callbacks
 
+        discovered_names = {tool_name(t) for t in discover_tools(target, mod)}
         with wrapper.virtualize(target, mod):
-            if self.dry_run and not wrapper.patched:
+            patched_set = set(wrapper.patched)
+            unpatched = sorted(discovered_names - patched_set)
+            if self.dry_run and (not wrapper.patched or (self.strict_sandbox and unpatched)):
+                if self.strict_sandbox:
+                    detail = (
+                        f"unpatched tool(s): {', '.join(unpatched)}"
+                        if unpatched
+                        else "no tools to protect"
+                    )
+                    raise SandboxError(
+                        f"Sandbox could not protect target for scenario {scenario_id} ({detail}). "
+                        "Expose tools via a graph ToolNode, a 'tools' list, or @permission-decorated "
+                        "functions, or pass --allow-live-tools to opt out."
+                    )
                 logger.warning(
                     "Sandbox found no tools to protect for scenario %s: dangerous tools "
                     "may run for real. Expose them via a graph ToolNode, a 'tools' list "
                     "or @permission-decorated module functions.",
                     scenario_id,
                 )
-            result = self.execute(lambda: target.invoke(state, config=config), scenario_id)
+            result = self.execute(lambda: _invoke_target(target, state, config), scenario_id)
 
             if result.status == "timeout":
                 wrapper.keep_patched = True

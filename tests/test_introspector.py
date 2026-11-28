@@ -50,7 +50,21 @@ def test_semantic_name_fallback(name, expected):
     assert resolve_permission_tier(name) == expected
 
 
-@pytest.mark.parametrize("name", ["quick_refund", "restart_server", "fetch_url", "get_x", "calc_y"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "quick_refund",
+        "restart_server",
+        "fetch_url",
+        "get_x",
+        "calc_y",
+        "validate_payment",
+        "format_delete_sql",
+        "send_email",
+        "wire_money",
+        "ssh_host",
+    ],
+)
 def test_tier_resolution_matches_generator_implementation(name):
     """Guards against the two copies of the heuristic drifting apart."""
     assert resolve_permission_tier(name) == ScenarioGenerator._infer_permission_tier(name)
@@ -150,3 +164,42 @@ def test_policy_override_with_invalid_tier_is_rejected(tmp_path):
     rules.write_text("tool_tier_overrides:\n  drop_database: admn\n", encoding="utf-8")
     with pytest.raises(HarnessLoadError, match="admn"):
         load_policy_overrides(rules)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("vector_retrieval", "read"),
+        ("confirm_order", "read"),
+        ("get_skill_list", "read"),
+        ("input_validator", "read"),
+        ("dispatch_read", "read"),
+        ("parse_payload", "pure"),
+        ("get_invoice", "read"),
+        ("read_email", "read"),
+        ("get_support_request", "read"),
+        ("remove_user", "admin"),
+        ("terminate_instance", "admin"),
+        ("wipe_db", "admin"),
+        ("run_command", "admin"),
+        ("call_api", "net"),
+        ("sendMessage", "write"),
+        ("send_http_request", "net"),
+        ("send_webhook", "net"),
+        ("create_webhook", "net"),
+        ("put_url", "net"),
+        ("list_webhooks", "net"),
+        ("runCMD2", "admin"),
+        ("callAPI2", "net"),
+        ("get_payment_token", "read"),
+        ("read_ssh_key", "read"),
+        ("get_api_key", "read"),
+        ("async_get_invoice", "read"),
+        ("sql_query", "read"),
+        ("format_sql", "pure"),
+        ("validate_email", "pure"),
+        ("parse_url", "pure"),
+    ],
+)
+def test_token_boundary_tier_heuristics_avoid_false_positives_and_negatives(name, expected):
+    assert resolve_permission_tier(name) == expected

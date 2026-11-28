@@ -1,6 +1,7 @@
 from secagent.harness.introspector import (
     BASELINE_TOOLS,
     HarnessLoadError,
+    TierSource,
     ToolInfo,
     discover_tools,
     introspect_entrypoint,
@@ -8,8 +9,14 @@ from secagent.harness.introspector import (
     load_entrypoint,
     load_policy_overrides,
     resolve_permission_tier,
+    resolve_permission_tier_with_source,
 )
-from secagent.harness.runner import ExecutionHarness, HarnessResult, build_initial_state
+from secagent.harness.runner import (
+    ExecutionHarness,
+    HarnessResult,
+    SandboxError,
+    build_initial_state,
+)
 from secagent.harness.sandbox import (
     DRY_RUN_TIERS,
     MOCK_RESPONSE,
@@ -22,7 +29,10 @@ __all__ = [
     "DRY_RUN_TIERS",
     "MOCK_RESPONSE",
     "ExecutionHarness",
+    "HarnessLoadError",
     "HarnessResult",
+    "SandboxError",
+    "TierSource",
     "ToolCallRecord",
     "ToolInfo",
     "VirtualizedToolWrapper",
@@ -33,5 +43,5 @@ __all__ = [
     "load_entrypoint",
     "load_policy_overrides",
     "resolve_permission_tier",
-    "HarnessLoadError",
+    "resolve_permission_tier_with_source",
 ]
