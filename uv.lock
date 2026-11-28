@@ -1997,8 +1997,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "jsonschema" },
-    { name = "langchain-core" },
-    { name = "langgraph" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
@@ -2008,22 +2006,37 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
+    { name = "streamlit" },
+]
 dashboard = [
     { name = "streamlit" },
 ]
 dev = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
     { name = "streamlit" },
 ]
+langgraph = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "jsonschema", specifier = ">=4.22.0" },
-    { name = "langchain-core", specifier = ">=0.3.0" },
-    { name = "langgraph", specifier = ">=0.2.0" },
+    { name = "langchain-core", marker = "extra == 'all'", specifier = ">=0.3.0" },
+    { name = "langchain-core", marker = "extra == 'dev'", specifier = ">=0.3.0" },
+    { name = "langchain-core", marker = "extra == 'langgraph'", specifier = ">=0.3.0" },
+    { name = "langgraph", marker = "extra == 'all'", specifier = ">=0.2.0" },
+    { name = "langgraph", marker = "extra == 'dev'", specifier = ">=0.2.0" },
+    { name = "langgraph", marker = "extra == 'langgraph'", specifier = ">=0.2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10.0" },
     { name = "opentelemetry-api", specifier = ">=1.45.2" },
     { name = "opentelemetry-sdk", specifier = ">=1.25.0" },
@@ -2033,11 +2046,12 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "rich", specifier = ">=13.7.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
+    { name = "streamlit", marker = "extra == 'all'", specifier = ">=1.35.0" },
     { name = "streamlit", marker = "extra == 'dashboard'", specifier = ">=1.35.0" },
     { name = "streamlit", marker = "extra == 'dev'", specifier = ">=1.35.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
-provides-extras = ["dashboard", "dev"]
+provides-extras = ["langgraph", "dashboard", "all", "dev"]
 
 [[package]]
 name = "shellingham"
