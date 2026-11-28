@@ -19,6 +19,23 @@ def test_trace_schema_validity():
     validator_cls.check_schema(schema)
 
 
+def test_trace_schema_declares_optional_maestro_layer():
+    schema_path = ROOT_DIR / "schemas" / "trace_event.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    span_schema = schema["properties"]["spans"]["items"]
+
+    assert span_schema["properties"]["maestro_layer"]["enum"] == [
+        "L1",
+        "L2",
+        "L3",
+        "L4",
+        "L5",
+        "L6",
+        "L7",
+    ]
+    assert "maestro_layer" not in span_schema["required"]
+
+
 def test_packaged_trace_schema_matches_canonical_schema():
     """Keep the wheel-packaged schema mapped to the canonical contract via force-include."""
     import tomllib

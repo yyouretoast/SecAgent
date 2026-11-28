@@ -18,6 +18,21 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from secagent.telemetry.redactor import PIIRedactor
 
+MAESTRO_LAYERS = ("L1", "L2", "L3", "L4", "L5", "L6", "L7")
+_DEFAULT_MAESTRO_LAYERS = {
+    "agent.run": "L3",
+    "model.inference": "L1",
+    "gate.hitl": "L6",
+}
+_TOOL_MAESTRO_LAYERS = {
+    "read": "L2",
+    "write": "L2",
+    "pure": "L3",
+    "admin": "L4",
+    "net": "L7",
+    "pay": "L7",
+}
+
 try:
     from langchain_core.callbacks import BaseCallbackHandler
 except ImportError:  # pragma: no cover - supports contract use without LangChain installed
@@ -93,6 +108,47 @@ def _model_input(value: Any, field_name: str) -> dict[str, Any]:
     return {field_name: _json_value(value)}
 
 
+def _validate_maestro_layer(value: Any) -> str:
+    if not isinstance(value, str) or value not in MAESTRO_LAYERS:
+        allowed = ", ".join(MAESTRO_LAYERS)
+        raise ValueError(f"maestro_layer must be one of {allowed}; got {value!r}")
+    return value
+
+
+def _iter_layer_mappings(value: Any) -> list[Mapping[str, Any]]:
+    if not isinstance(value, Mapping):
+        return []
+    mappings = [value]
+    for key in ("metadata", "kwargs", "attributes"):
+        nested = value.get(key)
+        if isinstance(nested, Mapping):
+            mappings.extend(_iter_layer_mappings(nested))
+    return mappings
+
+
+def resolve_maestro_layer(
+    span_type: str,
+    permission_tier: str | None = None,
+    *,
+    serialized: Any = None,
+    kwargs: Mapping[str, Any] | None = None,
+    metadata: Mapping[str, Any] | None = None,
+    maestro_layer: Any = None,
+) -> str | None:
+    """Resolve an optional explicit MAESTRO layer before applying safe defaults."""
+    candidates: list[Any] = [maestro_layer, metadata, kwargs, serialized]
+    for candidate in candidates:
+        if candidate is not None and not isinstance(candidate, Mapping):
+            return _validate_maestro_layer(candidate)
+        for mapping in _iter_layer_mappings(candidate):
+            if "maestro_layer" in mapping and mapping["maestro_layer"] is not None:
+                return _validate_maestro_layer(mapping["maestro_layer"])
+
+    if span_type == "tool.call":
+        return _TOOL_MAESTRO_LAYERS.get(str(permission_tier or "").lower())
+    return _DEFAULT_MAESTRO_LAYERS.get(span_type)
+
+
 def _permission_tier(
     serialized: Any,
     kwargs: dict[str, Any],
@@ -153,6 +209,8 @@ def _otel_attributes(span: dict[str, Any]) -> dict[str, str | int | float | bool
         attributes["secagent.error_message"] = _attribute_value(span["error_message"])
     if span.get("attributes") is not None:
         attributes["secagent.attributes"] = _attribute_value(span["attributes"])
+    if span.get("maestro_layer") is not None:
+        attributes["secagent.maestro_layer"] = str(span["maestro_layer"])
     return attributes
 
 
@@ -360,25 +418,35 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
     ) -> None:
         start_time = time.time_ns()
         name = _tool_name(serialized, kwargs)
+        permission_tier = _permission_tier(
+            serialized,
+            kwargs,
+            tool_name=name,
+            tier_by_tool=self.tier_by_tool,
+        )
+        maestro_layer = resolve_maestro_layer(
+            "tool.call",
+            permission_tier,
+            serialized=serialized,
+            kwargs=kwargs,
+        )
+        span = {
+            "span_id": str(run_id or uuid.uuid4()),
+            "span_type": "tool.call",
+            "name": name,
+            "start_time_ns": start_time,
+            "end_time_ns": start_time,
+            "permission_tier": permission_tier,
+            "approval_granted": None,
+            "input_parameters": _input_parameters(kwargs.get("inputs", input_str)),
+            "output_result": None,
+            "is_error": False,
+            "error_message": None,
+        }
+        if maestro_layer is not None:
+            span["maestro_layer"] = maestro_layer
         self._start_span(
-            {
-                "span_id": str(run_id or uuid.uuid4()),
-                "span_type": "tool.call",
-                "name": name,
-                "start_time_ns": start_time,
-                "end_time_ns": start_time,
-                "permission_tier": _permission_tier(
-                    serialized,
-                    kwargs,
-                    tool_name=name,
-                    tier_by_tool=self.tier_by_tool,
-                ),
-                "approval_granted": None,
-                "input_parameters": _input_parameters(kwargs.get("inputs", input_str)),
-                "output_result": None,
-                "is_error": False,
-                "error_message": None,
-            },
+            span,
             run_id=run_id,
             parent_run_id=parent_run_id,
         )
@@ -429,20 +497,28 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
         kwargs: dict[str, Any],
     ) -> None:
         start_time = time.time_ns()
+        maestro_layer = resolve_maestro_layer(
+            "model.inference",
+            serialized=serialized,
+            kwargs=kwargs,
+        )
+        span = {
+            "span_id": str(run_id or uuid.uuid4()),
+            "span_type": "model.inference",
+            "name": _model_name(serialized, kwargs),
+            "start_time_ns": start_time,
+            "end_time_ns": start_time,
+            "permission_tier": "none",
+            "approval_granted": None,
+            "input_parameters": input_parameters,
+            "output_result": None,
+            "is_error": False,
+            "error_message": None,
+        }
+        if maestro_layer is not None:
+            span["maestro_layer"] = maestro_layer
         self._start_span(
-            {
-                "span_id": str(run_id or uuid.uuid4()),
-                "span_type": "model.inference",
-                "name": _model_name(serialized, kwargs),
-                "start_time_ns": start_time,
-                "end_time_ns": start_time,
-                "permission_tier": "none",
-                "approval_granted": None,
-                "input_parameters": input_parameters,
-                "output_result": None,
-                "is_error": False,
-                "error_message": None,
-            },
+            span,
             run_id=run_id,
             parent_run_id=parent_run_id,
         )
@@ -528,20 +604,28 @@ class SecAgentTelemetryCallback(BaseCallbackHandler):
         if parent_run_id is not None:
             return
         start_time = time.time_ns()
+        maestro_layer = resolve_maestro_layer(
+            "agent.run",
+            serialized=serialized,
+            kwargs=kwargs,
+        )
+        span = {
+            "span_id": str(run_id or uuid.uuid4()),
+            "span_type": "agent.run",
+            "name": _model_name(serialized, kwargs) if serialized or kwargs else "agent",
+            "start_time_ns": start_time,
+            "end_time_ns": start_time,
+            "permission_tier": "none",
+            "approval_granted": None,
+            "input_parameters": _input_parameters(inputs),
+            "output_result": None,
+            "is_error": False,
+            "error_message": None,
+        }
+        if maestro_layer is not None:
+            span["maestro_layer"] = maestro_layer
         self._start_span(
-            {
-                "span_id": str(run_id or uuid.uuid4()),
-                "span_type": "agent.run",
-                "name": _model_name(serialized, kwargs) if serialized or kwargs else "agent",
-                "start_time_ns": start_time,
-                "end_time_ns": start_time,
-                "permission_tier": "none",
-                "approval_granted": None,
-                "input_parameters": _input_parameters(inputs),
-                "output_result": None,
-                "is_error": False,
-                "error_message": None,
-            },
+            span,
             run_id=run_id,
         )
 

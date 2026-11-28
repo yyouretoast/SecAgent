@@ -1,7 +1,9 @@
+import copy
 import json
 from pathlib import Path
 
 import jsonschema
+import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -70,6 +72,63 @@ def test_trace_session_document_matches_frozen_schema():
     jsonschema.validate(session.as_dict(), schema)
 
 
+def _minimal_trace(span=None):
+    return {
+        "scenario_id": "SCN-LAYER",
+        "execution_id": "exec-layer",
+        "timestamp": "2026-10-27T12:00:00Z",
+        "caller_role": "operator",
+        "task_context": "general_inquiry",
+        "spans": [
+            span
+            or {
+                "span_id": "span-1",
+                "step_index": 0,
+                "span_type": "tool.call",
+                "name": "lookup",
+                "start_time_ns": 1,
+                "end_time_ns": 2,
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize("layer", ["L1", "L2", "L3", "L4", "L5", "L6", "L7"])
+def test_trace_exporter_accepts_all_maestro_layers(layer):
+    trace = _minimal_trace()
+    trace["spans"][0]["maestro_layer"] = layer
+
+    assert TraceExporter().validate(trace)["spans"][0]["maestro_layer"] == layer
+
+
+@pytest.mark.parametrize("layer", ["L0", "L8", "layer-1", 1, None])
+def test_trace_exporter_rejects_invalid_maestro_layers(layer):
+    trace = _minimal_trace()
+    trace["spans"][0]["maestro_layer"] = layer
+
+    with pytest.raises(jsonschema.ValidationError):
+        TraceExporter().validate(trace)
+
+
+def test_trace_without_maestro_layer_remains_schema_valid():
+    assert "maestro_layer" not in TraceExporter().validate(_minimal_trace())["spans"][0]
+
+
+def test_maestro_layer_does_not_change_owasp_policy_verdict():
+    fixture_path = ROOT_DIR / "tests" / "fixtures" / "trace_privilege_violation.json"
+    baseline = json.loads(fixture_path.read_text(encoding="utf-8"))
+    tagged = copy.deepcopy(baseline)
+    for span in tagged["spans"]:
+        span["maestro_layer"] = "L3"
+
+    from secagent.engine import PolicyEngine
+
+    baseline_result = PolicyEngine().evaluate_trace(TraceExporter().validate(baseline))
+    tagged_result = PolicyEngine().evaluate_trace(TraceExporter().validate(tagged))
+    assert tagged_result.status == baseline_result.status
+    assert tagged_result.serialized_violations() == baseline_result.serialized_violations()
+
+
 def test_callback_records_tool_start_and_end_with_metadata():
     callback = SecAgentTelemetryCallback(
         TraceSession(
@@ -114,6 +173,50 @@ def test_callback_resolves_semantic_tier_when_langchain_metadata_is_missing():
     callback.on_tool_end("ok", run_id="run-semantic")
 
     assert callback.spans[0]["permission_tier"] == "pay"
+
+
+@pytest.mark.parametrize(
+    ("tier", "layer"),
+    [
+        ("read", "L2"),
+        ("write", "L2"),
+        ("pure", "L3"),
+        ("admin", "L4"),
+        ("net", "L7"),
+        ("pay", "L7"),
+    ],
+)
+def test_callback_maps_tool_permission_tier_to_maestro_layer(tier, layer):
+    callback = SecAgentTelemetryCallback(tier_by_tool={"custom_tool": tier})
+
+    callback.on_tool_start({"name": "custom_tool"}, "{}", run_id=f"run-{tier}")
+    callback.on_tool_end("ok", run_id=f"run-{tier}")
+
+    assert callback.spans[0]["maestro_layer"] == layer
+    assert (
+        callback.span_exporter.get_finished_spans()[0].attributes["secagent.maestro_layer"]
+        == layer
+    )
+
+
+def test_callback_prefers_explicit_maestro_layer_and_rejects_invalid_values():
+    callback = SecAgentTelemetryCallback()
+
+    callback.on_tool_start(
+        {"name": "lookup", "metadata": {"maestro_layer": "L5"}},
+        "{}",
+        run_id="run-explicit-layer",
+    )
+    callback.on_tool_end("ok", run_id="run-explicit-layer")
+    assert callback.spans[0]["maestro_layer"] == "L5"
+
+    with pytest.raises(ValueError, match="maestro_layer"):
+        callback.on_tool_start(
+            {"name": "lookup", "metadata": {"maestro_layer": "L8"}},
+            "{}",
+            run_id="run-invalid-layer",
+        )
+    assert len(callback.spans) == 1
 
 
 def test_callback_prefers_serialized_permission_tier_over_mapping():
@@ -164,7 +267,9 @@ def test_callback_captures_chat_model_span_with_agent_parent_and_redaction():
 
     agent_span, model_span = callback.spans
     assert agent_span["span_type"] == "agent.run"
+    assert agent_span["maestro_layer"] == "L3"
     assert model_span["span_type"] == "model.inference"
+    assert model_span["maestro_layer"] == "L1"
     assert model_span["parent_span_id"] == "agent-1"
     assert model_span["step_index"] == 1
     assert "123-45-6789" not in model_span["input_parameters"]["messages"]
@@ -179,6 +284,8 @@ def test_callback_captures_chat_model_span_with_agent_parent_and_redaction():
     assert agent_span["trace_id"] == f"{otel_agent.context.trace_id:032x}"
     assert otel_model.parent is not None
     assert otel_model.parent.span_id == otel_agent.context.span_id
+    assert otel_agent.attributes["secagent.maestro_layer"] == "L3"
+    assert otel_model.attributes["secagent.maestro_layer"] == "L1"
     assert "123-45-6789" not in str(otel_model.attributes)
     assert "sk-proj-1234567890abcdef12345678" not in str(otel_model.attributes)
     assert "[REDACTED_SSN]" in otel_model.attributes["secagent.input_parameters"]
@@ -342,6 +449,7 @@ def test_hitl_normalizer_records_approved_gate_after_tool_call():
     assert span["span_type"] == "gate.hitl"
     assert span["name"] == "approval_gate"
     assert span["permission_tier"] == "gate"
+    assert span["maestro_layer"] == "L6"
     assert span["approval_granted"] is True
     assert span["step_index"] == 1
     assert span["input_parameters"] == {"operation": "issue_refund", "amount": 50.0}
@@ -353,6 +461,7 @@ def test_hitl_normalizer_preserves_rejected_decision():
 
     assert span["approval_granted"] is False
     assert span["permission_tier"] == "gate"
+    assert span["maestro_layer"] == "L6"
 
 
 def test_hitl_normalizer_emits_redacted_otel_span():
@@ -373,6 +482,8 @@ def test_hitl_normalizer_emits_redacted_otel_span():
     assert readable_span.start_time == trace_span["start_time_ns"]
     assert readable_span.end_time == trace_span["end_time_ns"]
     assert trace_span["trace_id"] == f"{readable_span.context.trace_id:032x}"
+    assert trace_span["maestro_layer"] == "L6"
+    assert readable_span.attributes["secagent.maestro_layer"] == "L6"
     assert "123-45-6789" not in str(readable_span.attributes)
     assert "sk-proj-1234567890abcdef12345678" not in str(readable_span.attributes)
     assert "[REDACTED_SSN]" in readable_span.attributes["secagent.input_parameters"]
@@ -387,6 +498,16 @@ def test_callback_exposes_hitl_normalization_on_same_session():
     assert callback.spans == [span]
     assert span["span_type"] == "gate.hitl"
     assert span["approval_granted"] is True
+    assert span["maestro_layer"] == "L6"
+
+
+def test_hitl_normalizer_accepts_explicit_layer_override():
+    span = HITLNormalizer(TraceSession(), maestro_layer="L5").record(
+        True,
+        operation="issue_refund",
+    )
+
+    assert span["maestro_layer"] == "L5"
 
 
 def test_callback_normalizes_framework_interrupt_payload():
