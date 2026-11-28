@@ -18,7 +18,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from secagent.telemetry.redactor import PIIRedactor
 
-
 MAESTRO_LAYERS = ("L1", "L2", "L3", "L4", "L5", "L6", "L7")
 _DEFAULT_MAESTRO_LAYERS = {
     "agent.run": "L3",
