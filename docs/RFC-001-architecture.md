@@ -173,9 +173,9 @@ SecAgent evaluates 8 categories from the OWASP Top 10 for Agentic AI Application
 * **ASI03: Identity & Privilege Abuse**: Predecessor approval enforcement (`POL-ASI03-001`) and context boundaries (`POL-ASI03-002`).
 * **ASI04: Agentic Supply Chain Vulnerabilities**: Embedded prompt directives in tool descriptions and metadata (`POL-ASI04-001`).
 * **ASI05: Unexpected Code Execution**: Command injection and shell metacharacters in tool parameters (`POL-ASI05-001`).
-* **ASI06: Scope Abuse**: Over-fetching sensitive attributes (`POL-ASI06-001`).
+* **ASI06: Memory & Context Poisoning (PII Scope slice)**: Over-fetching sensitive PII/credential attributes into working context (`POL-ASI06-001`).
 * **ASI08: Cascading Failures**: Runaway execution loops and retry depth (`POL-ASI08-001`).
-* **ASI10: Rogue Agent Egress Exfiltration**: Data transmission to untrusted endpoints (`POL-ASI10-001`).
+* **ASI10: Rogue Agents (Unauthorized Egress slice)**: Data transmission to untrusted domains or raw IP endpoints (`POL-ASI10-001`).
 
 ---
 
